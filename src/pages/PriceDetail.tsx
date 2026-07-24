@@ -7,6 +7,7 @@ import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
 import { PriceChart } from '../components/PriceChart'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
+import { isValidAssetPair } from '../types'
 import type { CsvRow } from '../components/CsvImportZone'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -33,15 +34,20 @@ export function PriceDetail() {
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
 
+  // Validate the pair param against the known asset list before fetching
+  const isInvalidPair = decodedPair !== '' && !isValidAssetPair(decodedPair)
+
+  // Always call hooks at the top level (Rules of Hooks), but use `enabled`
+  // and `null` pair to prevent network requests for invalid input.
   const { data: price, loading: priceLoading, error: priceError } = useSwr(
     `price:${decodedPair}`,
     () => fetchPrice(decodedPair),
-    { staleTime: 5000, retryCount: 2 },
+    { staleTime: 5000, retryCount: 2, enabled: !isInvalidPair && decodedPair !== '' },
   )
 
   // Use paginated history hook with configurable page size
   const { history, loading: historyLoading, loadingMore, hasMore, error: historyError, loadMore } = usePriceHistory(
-    decodedPair || null,
+    isInvalidPair || !decodedPair ? null : decodedPair,
     { pageSize: 100 },
   )
 
@@ -62,7 +68,12 @@ export function PriceDetail() {
         Back
       </button>
 
-      {loading ? (
+      {isInvalidPair ? (
+        <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
+          Unknown asset pair:{' '}
+          <span className="font-mono text-red-300">{decodedPair}</span>
+        </div>
+      ) : loading ? (
         <PriceDetailSkeleton />
       ) : priceError ? (
         <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PriceDetail } from './PriceDetail'
+import { isValidAssetPair, VALID_PAIRS } from '../types'
 
 afterEach(cleanup)
 
@@ -84,5 +85,34 @@ describe('PriceDetail', () => {
 
     renderWithPair()
     expect(screen.getByTestId('price-chart')).toBeInTheDocument()
+  })
+
+  it('shows error for unknown asset pair', async () => {
+    const { useSwr } = await import('../hooks/useSwr')
+    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: false, error: null, isValidating: false, refetch: vi.fn() })
+
+    renderWithPair('FOO%2FBAR')
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText(/Unknown asset pair/)).toBeInTheDocument()
+    expect(screen.getByText('FOO/BAR')).toBeInTheDocument()
+  })
+})
+
+describe('isValidAssetPair', () => {
+  it('returns true for known valid pairs', () => {
+    for (const pair of VALID_PAIRS) {
+      expect(isValidAssetPair(pair)).toBe(true)
+    }
+  })
+
+  it('returns false for unknown pairs', () => {
+    expect(isValidAssetPair('FOO/BAR')).toBe(false)
+    expect(isValidAssetPair('XLM/USDT')).toBe(false)
+    expect(isValidAssetPair('')).toBe(false)
+  })
+
+  it('is case-sensitive', () => {
+    expect(isValidAssetPair('btc/usd')).toBe(false)
+    expect(isValidAssetPair('xlm/usd')).toBe(false)
   })
 })
