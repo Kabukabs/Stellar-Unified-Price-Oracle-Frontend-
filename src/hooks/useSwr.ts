@@ -41,6 +41,21 @@ export interface SwrResult<T> {
  * On mount it immediately returns cached data (if available) while revalidating in the background.
  * Supports optional polling via `refreshInterval`, exponential-back-off retries, and an `enabled` gate.
  *
+ * ## Infinite re-render loop protection
+ *
+ * Fetcher functions that return a **new reference on every call** (e.g. via
+ * `.map()`, `.filter()`, or object spread) would ordinarily trigger an infinite
+ * cycle when consumers place the returned data in a `useEffect` dependency
+ * array:
+ *
+ *   new reference → effect re-runs → re-fetch → new reference → …
+ *
+ * This is prevented by a ref-based identity check: the `data` state is only
+ * updated when the incoming value differs from the previous one using
+ * `JSON.stringify` comparison. Primitive values and objects that are
+ * structurally identical across fetches therefore keep the same React state
+ * reference, eliminating the spurious re-render cycle.
+ *
  * @param key - Unique string key for this request. Changing the key resets state and re-fetches.
  * @param fetcher - Async function that returns the data. Re-created each render; the hook always calls the latest version.
  * @param options - Optional behaviour overrides (see {@link SwrOptions}).
@@ -66,12 +81,35 @@ export function useSwr<T>(
   const [loading, setLoading] = useState(!cached)
   const [isValidating, setIsValidating] = useState(false)
 
+  /**
+   * Tracks the JSON-serialised form of the last data value written to state.
+   * Used to avoid calling `setData` when a fetch returns a structurally
+   * identical result with a new object identity, which would otherwise cause
+   * consumers that depend on `data` in a `useEffect` to enter an infinite loop.
+   */
+  const lastDataJsonRef = useRef<string | undefined>(
+    cached ? JSON.stringify(cached.data) : undefined,
+  )
+
   const retries = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(true)
   const keyRef = useRef(key)
   const fetcherRef = useRef(fetcher)
   fetcherRef.current = fetcher
+
+  /**
+   * Writes `value` to `data` state only when its serialised form differs from
+   * the last written value. This keeps the reference stable across fetches that
+   * return structurally equal data, preventing spurious downstream effects.
+   */
+  const setStableData = useCallback((value: T) => {
+    const next = JSON.stringify(value)
+    if (next !== lastDataJsonRef.current) {
+      lastDataJsonRef.current = next
+      setData(value)
+    }
+  }, [])
 
   const execute = useCallback(async () => {
     if (!enabled) return
@@ -87,7 +125,7 @@ export function useSwr<T>(
       if (!mountedRef.current || controller.signal.aborted) return
 
       cache.set(keyRef.current, { data: result as unknown, timestamp: Date.now() })
-      setData(result)
+      setStableData(result)
       setError(null)
       retries.current = 0
     } catch (e) {
@@ -108,21 +146,25 @@ export function useSwr<T>(
         setLoading(false)
       }
     }
-  }, [enabled, retryCount])
+  }, [enabled, retryCount, setStableData])
 
   useEffect(() => {
     mountedRef.current = true
     keyRef.current = key
+    // Reset the last-seen JSON when the key changes so the first result for the
+    // new key is always written to state, even if it happens to serialise the
+    // same as the previous key's result.
+    lastDataJsonRef.current = undefined
 
     const entry = cache.get(key) as CacheEntry | undefined
     const isStale = !entry || Date.now() - entry.timestamp > staleTime
 
     if (entry && !isStale) {
-      setData(entry.data as T)
+      setStableData(entry.data as T)
       setLoading(false)
       setIsValidating(false)
     } else if (entry && isStale) {
-      setData(entry.data as T)
+      setStableData(entry.data as T)
       setLoading(false)
       execute()
     } else {
@@ -143,7 +185,7 @@ export function useSwr<T>(
       mountedRef.current = false
       abortRef.current?.abort()
     }
-  }, [key, staleTime, refreshInterval, execute])
+  }, [key, staleTime, refreshInterval, execute, setStableData])
 
   const refetch = useCallback(() => execute(), [execute])
 

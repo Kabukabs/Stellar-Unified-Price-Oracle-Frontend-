@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -11,6 +11,25 @@ interface ErrorBoundaryState {
   error: Error | null
 }
 
+/**
+ * React error boundary for catching render-time errors.
+ *
+ * ## Limitation — async errors are NOT caught by this boundary
+ *
+ * React error boundaries only intercept errors thrown during:
+ *   - Component render
+ *   - Lifecycle methods (componentDidMount, componentDidUpdate, etc.)
+ *   - Class component constructors
+ *
+ * They do NOT catch errors originating from:
+ *   - Event handlers (wrap those in try-catch yourself)
+ *   - Async code: Promise chains, setTimeout, requestAnimationFrame, async/await
+ *   - Server-side rendering
+ *
+ * For async/global errors use the `useGlobalErrorHandler` hook exported from
+ * this module, which wires up `window.onerror` and `window.onunhandledrejection`
+ * as a last-resort safety net.
+ */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props)
@@ -51,4 +70,50 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
     return this.props.children
   }
+}
+
+/**
+ * Hook that installs global handlers for errors that React error boundaries
+ * cannot catch: unhandled promise rejections and uncaught synchronous errors
+ * thrown outside of React's render cycle (e.g. in event handlers, timers, or
+ * third-party callbacks).
+ *
+ * Mount this once near the root of the application (e.g. inside `<App>`).
+ * The handlers are automatically removed when the component unmounts.
+ *
+ * @param onError - Optional callback invoked with every captured error.
+ *   Defaults to `console.error`.
+ *
+ * @example
+ * ```tsx
+ * function App() {
+ *   useGlobalErrorHandler((err) => reportToMonitoring(err))
+ *   return <RouterProvider ... />
+ * }
+ * ```
+ */
+export function useGlobalErrorHandler(
+  onError?: (error: Error) => void,
+): void {
+  useEffect(() => {
+    const report = onError ?? ((err: Error) => console.error('Unhandled error:', err))
+
+    const handleError = (event: ErrorEvent) => {
+      report(event.error instanceof Error ? event.error : new Error(event.message))
+    }
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason
+      const error = reason instanceof Error ? reason : new Error(String(reason))
+      report(error)
+    }
+
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
+
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [onError])
 }

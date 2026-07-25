@@ -26,3 +26,14 @@ prepare().then(() => {
     </StrictMode>,
   )
 })
+
+// Register the service worker for offline support / caching.
+// The .catch() is required: without it, registration failures (e.g. non-HTTPS
+// environment, scope errors, or unsupported browser) produce an unhandled
+// promise rejection that can terminate the script in some environments and
+// always obscures real errors in test output.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker
+    .register('/mockServiceWorker.js', { scope: '/' })
+    .catch((err) => console.error('SW registration failed:', err))
+}
