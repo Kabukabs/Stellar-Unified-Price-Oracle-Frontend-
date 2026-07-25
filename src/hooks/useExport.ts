@@ -11,5 +11,21 @@ export function useExport() {
     downloadFile(csv, exportFilename('oracle-prices', 'csv'), 'text/csv')
   }, [])
 
-  return { exportCSV }
+  const exportJSON = useCallback((items: PriceData[]) => {
+    const json = JSON.stringify(items, null, 2)
+    downloadFile(json, exportFilename('oracle-prices', 'json'), 'application/json')
+  }, [])
+
+  const exportData = useCallback(
+    (format: ExportFormat, items: PriceData[]) => {
+      if (format === 'json') {
+        exportJSON(items)
+      } else {
+        exportCSV(items)
+      }
+    },
+    [exportCSV, exportJSON],
+  )
+
+  return { exportCSV, exportJSON, exportData }
 }
