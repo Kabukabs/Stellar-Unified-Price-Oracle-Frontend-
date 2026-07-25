@@ -86,7 +86,9 @@ export default function App(): ReactElement {
     <BrowserRouter basename={BASENAME}>
       <PreferencesProvider>
         <ToastProvider>
-          <AppContent />
+          <PriceProvider>
+            <AppContent />
+          </PriceProvider>
         </ToastProvider>
       </PreferencesProvider>
     </BrowserRouter>
