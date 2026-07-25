@@ -6,6 +6,7 @@ import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
 import { PriceChart } from '../components/PriceChart'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
 import type { CsvRow } from '../components/CsvImportZone'
 
@@ -116,14 +117,32 @@ export function PriceDetail() {
                 Failed to load price history: {historyError.message}
               </div>
             ) : (
-              <PriceChart
-                data={history}
-                pair={decodedPair}
-                loading={historyLoading && history.length === 0}
-                loadingMore={loadingMore}
-                hasMore={hasMore}
-                onLoadMore={loadMore}
-              />
+              <ErrorBoundary
+                fallback={
+                  <div
+                    className="p-6 bg-red-900/20 border border-red-800/50 rounded-lg text-center"
+                    role="alert"
+                    aria-label="Chart rendering failed"
+                  >
+                    <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-red-900/40 flex items-center justify-center">
+                      <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm font-medium text-red-400 mb-1">Chart failed to load</p>
+                    <p className="text-xs text-red-500/60">The price history chart encountered an error. Price data is still available above.</p>
+                  </div>
+                }
+              >
+                <PriceChart
+                  data={history}
+                  pair={decodedPair}
+                  loading={historyLoading && history.length === 0}
+                  loadingMore={loadingMore}
+                  hasMore={hasMore}
+                  onLoadMore={loadMore}
+                />
+              </ErrorBoundary>
             )}
           </div>
 
