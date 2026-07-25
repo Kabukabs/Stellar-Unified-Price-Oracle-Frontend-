@@ -6,6 +6,7 @@ import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
 import { PriceChart } from '../components/PriceChart'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
 import type { CsvRow } from '../components/CsvImportZone'
 
@@ -66,7 +67,7 @@ export function PriceDetail() {
         <PriceDetailSkeleton />
       ) : priceError ? (
         <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
-          {priceError}
+          {priceError.message}
         </div>
       ) : price ? (
         <div>
@@ -116,14 +117,16 @@ export function PriceDetail() {
                 Failed to load price history: {historyError.message}
               </div>
             ) : (
-              <PriceChart
-                data={history}
-                pair={decodedPair}
-                loading={historyLoading && history.length === 0}
-                loadingMore={loadingMore}
-                hasMore={hasMore}
-                onLoadMore={loadMore}
-              />
+              <ErrorBoundary boundaryId="price-chart" featureLabel="Price Chart">
+                <PriceChart
+                  data={history}
+                  pair={decodedPair}
+                  loading={historyLoading && history.length === 0}
+                  loadingMore={loadingMore}
+                  hasMore={hasMore}
+                  onLoadMore={loadMore}
+                />
+              </ErrorBoundary>
             )}
           </div>
 

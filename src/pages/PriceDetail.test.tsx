@@ -43,7 +43,7 @@ describe('PriceDetail', () => {
 
   it('shows loading skeleton while price is loading', async () => {
     const { useSwr } = await import('../hooks/useSwr')
-    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: true, error: null, isValidating: false, refetch: vi.fn() })
+    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: true, error: null, errorMessage: null, isValidating: false, refetch: vi.fn() })
 
     renderWithPair()
     expect(screen.getByRole('status', { name: 'Loading price detail' })).toBeInTheDocument()
@@ -51,7 +51,7 @@ describe('PriceDetail', () => {
 
   it('shows error state when price fetch fails', async () => {
     const { useSwr } = await import('../hooks/useSwr')
-    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: false, error: 'Failed to fetch', isValidating: false, refetch: vi.fn() })
+    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: false, error: new Error('Failed to fetch'), errorMessage: 'Failed to fetch', isValidating: false, refetch: vi.fn() })
 
     renderWithPair()
     expect(screen.getByRole('alert')).toBeInTheDocument()
@@ -64,6 +64,7 @@ describe('PriceDetail', () => {
       data: { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
       loading: false,
       error: null,
+      errorMessage: null,
       isValidating: false,
       refetch: vi.fn(),
     })
@@ -78,6 +79,7 @@ describe('PriceDetail', () => {
       data: { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
       loading: false,
       error: null,
+      errorMessage: null,
       isValidating: false,
       refetch: vi.fn(),
     })

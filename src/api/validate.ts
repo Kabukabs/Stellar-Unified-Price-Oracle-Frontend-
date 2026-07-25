@@ -1,12 +1,19 @@
 import type { ZodTypeAny, z } from 'zod'
 
-// Validation is always on in dev/test; sampled at 5% in production
-const SAMPLE_RATE = 0.05
-const isDev = import.meta.env.DEV || import.meta.env.MODE === 'test'
-
+/**
+ * Validates `data` against `schema` and always returns the inferred type.
+ *
+ * **Behavior:**
+ * - In development and test: validation runs on every call; a warning is logged
+ *   on mismatch but the raw data is returned so the UI degrades gracefully.
+ * - In production: validation runs on every call.  The old 5% sampling bypass
+ *   has been removed; the performance cost is negligible compared to the
+ *   network round-trip and the safety benefit is significant.
+ *
+ * If you intentionally want to skip validation for a hot-path, pass the data
+ * through directly — don't re-introduce the sampling bypass.
+ */
 export function validate<S extends ZodTypeAny>(schema: S, data: unknown): z.infer<S> {
-  if (!isDev && Math.random() > SAMPLE_RATE) return data as z.infer<S>
-
   const result = schema.safeParse(data)
   if (!result.success) {
     const message = result.error.issues
