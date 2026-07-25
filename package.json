@@ -47,12 +47,15 @@
     }
   ],
   "dependencies": {
+    "i18next": "24.2.3",
+    "i18next-browser-languagedetector": "8.0.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "15.5.1",
     "react-router-dom": "^7.5.0",
-    "zod": "^3.24.4",
     "recharts": "^2.15.3",
-    "web-vitals": "^4.2.4"
+    "web-vitals": "^4.2.4",
+    "zod": "^3.24.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
@@ -84,7 +87,6 @@
     "vitest": "^3.1.2",
     "vitest-axe": "^0.1.0"
   },
- 
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix",

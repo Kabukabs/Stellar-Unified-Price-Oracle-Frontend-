@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Alert, AlertFormData } from '../types'
 
 interface AlertModalProps {
@@ -13,42 +14,44 @@ interface AlertModalProps {
 
 type ValidationErrors = Partial<Record<keyof AlertFormData, string>>
 
-function validate(form: AlertFormData): ValidationErrors {
-  const errors: ValidationErrors = {}
+export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPrice, defaultAssetPair }: AlertModalProps): ReactElement | null {
+  const { t } = useTranslation()
 
-  if (!form.assetPair.trim()) {
-    errors.assetPair = 'Asset pair is required'
-  }
+  function validate(form: AlertFormData): ValidationErrors {
+    const errors: ValidationErrors = {}
 
-  const upper = form.upperThreshold ? Number.parseFloat(form.upperThreshold) : null
-  const lower = form.lowerThreshold ? Number.parseFloat(form.lowerThreshold) : null
+    if (!form.assetPair.trim()) {
+      errors.assetPair = t('alertModal.validation.assetPairRequired')
+    }
 
-  if (!upper && !lower) {
-    errors.upperThreshold = 'At least one threshold is required'
-    errors.lowerThreshold = 'At least one threshold is required'
+    const upper = form.upperThreshold ? Number.parseFloat(form.upperThreshold) : null
+    const lower = form.lowerThreshold ? Number.parseFloat(form.lowerThreshold) : null
+
+    if (!upper && !lower) {
+      errors.upperThreshold = t('alertModal.validation.atLeastOneThreshold')
+      errors.lowerThreshold = t('alertModal.validation.atLeastOneThreshold')
+      return errors
+    }
+
+    if (upper !== null) {
+      if (Number.isNaN(upper) || upper <= 0) {
+        errors.upperThreshold = t('alertModal.validation.mustBePositive')
+      } else if (lower !== null && !Number.isNaN(lower) && upper <= lower) {
+        errors.upperThreshold = t('alertModal.validation.upperGreaterThanLower')
+      }
+    }
+
+    if (lower !== null) {
+      if (Number.isNaN(lower) || lower <= 0) {
+        errors.lowerThreshold = t('alertModal.validation.mustBePositive')
+      } else if (upper !== null && !Number.isNaN(upper) && lower >= upper) {
+        errors.lowerThreshold = t('alertModal.validation.lowerLessThanUpper')
+      }
+    }
+
     return errors
   }
 
-  if (upper !== null) {
-    if (Number.isNaN(upper) || upper <= 0) {
-      errors.upperThreshold = 'Must be a positive number'
-    } else if (lower !== null && !Number.isNaN(lower) && upper <= lower) {
-      errors.upperThreshold = 'Must be greater than lower threshold'
-    }
-  }
-
-  if (lower !== null) {
-    if (Number.isNaN(lower) || lower <= 0) {
-      errors.lowerThreshold = 'Must be a positive number'
-    } else if (upper !== null && !Number.isNaN(upper) && lower >= upper) {
-      errors.lowerThreshold = 'Must be less than upper threshold'
-    }
-  }
-
-  return errors
-}
-
-export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPrice, defaultAssetPair }: AlertModalProps): ReactElement | null {
   const [form, setForm] = useState<AlertFormData>({
     assetPair: '',
     upperThreshold: '',
@@ -107,6 +110,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
         onSave(form)
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [form, onSave],
   )
 
@@ -136,19 +140,19 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={alert ? 'Edit price alert' : 'Create price alert'}
+        aria-label={alert ? t('alertModal.ariaLabelEdit') : t('alertModal.ariaLabelNew')}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl focus:outline-none"
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-white">
-            {alert ? 'Edit Alert' : 'New Price Alert'}
+            {alert ? t('alertModal.titleEdit') : t('alertModal.titleNew')}
           </h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-300 transition-colors p-1 rounded-lg hover:bg-gray-800"
-            aria-label="Close modal"
+            aria-label={t('alertModal.close')}
             type="button"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -160,7 +164,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
         <form onSubmit={handleSubmit} noValidate>
           <div className="mb-4">
             <label htmlFor="alert-asset-pair" className="block text-sm font-medium text-gray-400 mb-1.5">
-              Asset Pair
+              {t('alertModal.fields.assetPair')}
             </label>
             <input
               id="alert-asset-pair"
@@ -169,7 +173,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
               onChange={(e) => setAndValidate('assetPair', e.target.value)}
               disabled={!!alert}
               className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              placeholder="e.g. BTC/USD"
+              placeholder={t('alertModal.fields.assetPairPlaceholder')}
             />
             {fieldError('assetPair') && (
               <p className="mt-1 text-sm text-red-400" role="alert">
@@ -180,7 +184,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
 
           <div className="mb-4">
             <label htmlFor="alert-upper" className="block text-sm font-medium text-gray-400 mb-1.5">
-              Upper Threshold
+              {t('alertModal.fields.upperThreshold')}
             </label>
             <div className="flex gap-2">
               <input
@@ -191,7 +195,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
                 value={form.upperThreshold}
                 onChange={(e) => setAndValidate('upperThreshold', e.target.value)}
                 className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                placeholder="Max price"
+                placeholder={t('alertModal.fields.upperPlaceholder')}
               />
               {currentPrice !== undefined && (
                 <div className="flex gap-1 shrink-0">
@@ -221,7 +225,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
 
           <div className="mb-4">
             <label htmlFor="alert-lower" className="block text-sm font-medium text-gray-400 mb-1.5">
-              Lower Threshold
+              {t('alertModal.fields.lowerThreshold')}
             </label>
             <div className="flex gap-2">
               <input
@@ -232,7 +236,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
                 value={form.lowerThreshold}
                 onChange={(e) => setAndValidate('lowerThreshold', e.target.value)}
                 className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                placeholder="Min price"
+                placeholder={t('alertModal.fields.lowerPlaceholder')}
               />
               {currentPrice !== undefined && (
                 <div className="flex gap-1 shrink-0">
@@ -271,9 +275,11 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
               />
               <div>
                 <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
-                  Trigger once
+                  {t('alertModal.fields.triggerOnce')}
                 </span>
-                <p className="text-xs text-gray-500">Alert deactivates after being triggered</p>
+                <p className="text-xs text-gray-500">
+                  {t('alertModal.fields.triggerOnceDescription')}
+                </p>
               </div>
             </label>
           </div>
@@ -285,7 +291,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
                 onClick={onDelete}
                 className="px-4 py-2.5 text-sm font-medium text-red-400 bg-red-400/10 border border-red-400/20 rounded-xl hover:bg-red-400/20 transition-colors"
               >
-                Delete Alert
+                {t('alertModal.actions.delete')}
               </button>
             )}
             <div className="flex-1 flex gap-3 justify-end">
@@ -294,13 +300,13 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
                 onClick={onClose}
                 className="px-4 py-2.5 text-sm font-medium text-gray-400 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 transition-colors"
               >
-                Cancel
+                {t('alertModal.actions.cancel')}
               </button>
               <button
                 type="submit"
                 className="px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 rounded-xl hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
               >
-                {alert ? 'Save Changes' : 'Create Alert'}
+                {alert ? t('alertModal.actions.save') : t('alertModal.actions.create')}
               </button>
             </div>
           </div>

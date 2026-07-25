@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useSwr } from '../hooks/useSwr'
 import { usePriceHistory } from '../hooks/usePriceHistory'
 import { fetchPrice } from '../api/rest'
@@ -29,6 +30,7 @@ function getConfidenceColor(confidence: number): string {
 export function PriceDetail() {
   const { pair } = useParams<{ pair: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [importedData, setImportedData] = useState<CsvRow[] | null>(null)
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
@@ -39,7 +41,6 @@ export function PriceDetail() {
     { staleTime: 5000, retryCount: 2 },
   )
 
-  // Use paginated history hook with configurable page size
   const { history, loading: historyLoading, loadingMore, hasMore, error: historyError, loadMore } = usePriceHistory(
     decodedPair || null,
     { pageSize: 100 },
@@ -54,12 +55,12 @@ export function PriceDetail() {
         type="button"
         onClick={() => navigate('/dashboard')}
         className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 mb-6 transition-colors"
-        aria-label="Go back to dashboard"
+        aria-label={t('priceDetail.backAriaLabel')}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back
+        {t('priceDetail.back')}
       </button>
 
       {loading ? (
@@ -74,20 +75,24 @@ export function PriceDetail() {
           <div className="flex items-center gap-3 mb-6">
             <h1 className="text-2xl font-bold text-gray-100">{price.assetPair}</h1>
             <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium">
-              LIVE
+              {t('priceDetail.live')}
             </span>
           </div>
 
           {/* Price block */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Current Price</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
+              {t('priceDetail.sections.currentPrice')}
+            </p>
             <p className="text-5xl font-bold font-mono text-gray-100 mb-4">
               ${formatPrice(price.price)}
             </p>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Updated {timeAgo(price.timestamp)}</span>
+              <span className="text-gray-400">
+                {t('priceDetail.updated', { time: timeAgo(price.timestamp) })}
+              </span>
               <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getConfidenceColor(price.confidence)}`}>
-                {(price.confidence * 100).toFixed(1)}% confidence
+                {t('priceDetail.confidence', { value: (price.confidence * 100).toFixed(1) })}
               </span>
             </div>
             <p className="text-xs text-gray-600 mt-1">{formatTimestamp(price.timestamp)}</p>
@@ -95,7 +100,9 @@ export function PriceDetail() {
 
           {/* Sources */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Oracle Sources</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
+              {t('priceDetail.sections.oracleSources')}
+            </p>
             <div className="flex flex-wrap gap-2">
               {price.sources.map((src) => (
                 <span
@@ -110,10 +117,12 @@ export function PriceDetail() {
 
           {/* Paginated History chart */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Paginated)</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+              {t('priceDetail.sections.priceHistory')}
+            </p>
             {historyError ? (
               <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
-                Failed to load price history: {historyError.message}
+                {t('priceDetail.historyError', { message: historyError.message })}
               </div>
             ) : (
               <PriceChart
@@ -129,7 +138,9 @@ export function PriceDetail() {
 
           {/* CSV import */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Import Price Data</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+              {t('priceDetail.sections.importData')}
+            </p>
             <CsvImportZone
               hasImport={importedData !== null}
               onImport={setImportedData}
@@ -139,8 +150,12 @@ export function PriceDetail() {
         </div>
       ) : showEmptyState ? (
         <div className="p-8 border border-gray-800 bg-gray-900/70 rounded-xl text-center" role="status">
-          <h2 className="text-xl font-semibold text-gray-100 mb-2">No price data available</h2>
-          <p className="text-sm text-gray-400">No price data available for this pair.</p>
+          <h2 className="text-xl font-semibold text-gray-100 mb-2">
+            {t('priceDetail.emptyState.title')}
+          </h2>
+          <p className="text-sm text-gray-400">
+            {t('priceDetail.emptyState.detail')}
+          </p>
         </div>
       ) : null}
     </div>

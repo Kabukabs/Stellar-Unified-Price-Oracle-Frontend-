@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import i18n from '../i18n'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -29,6 +30,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback
+      // Class components cannot use hooks, so we access i18n directly.
+      const t = i18n.t.bind(i18n)
       return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-8 max-w-md w-full text-center">
@@ -37,13 +40,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Something went wrong</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">{this.state.error?.message ?? 'An unexpected error occurred.'}</p>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              {t('error.title')}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">
+              {this.state.error?.message ?? t('error.defaultMessage')}
+            </p>
             <button
               onClick={() => window.location.reload()}
               className="px-6 py-2.5 bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 rounded-lg text-sm font-medium hover:bg-cyan-500/20 transition-colors cursor-pointer"
             >
-              Reload page
+              {t('error.reload')}
             </button>
           </div>
         </div>
