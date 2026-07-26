@@ -19,6 +19,22 @@ const PriceDetail = lazy(() => import('./pages/PriceDetail').then((m) => ({ defa
 const ApiDocs = lazy(() => import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })))
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
 
+// Route-level code splitting: each page becomes its own chunk.
+// All four pages use named exports, so we re-export them as `default`
+// inside the .then() callback so React.lazy can consume them.
+const Dashboard = lazy(() =>
+  import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })),
+)
+const PriceDetail = lazy(() =>
+  import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })),
+)
+const ApiDocs = lazy(() =>
+  import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })),
+)
+const NotFound = lazy(() =>
+  import('./pages/NotFound').then((m) => ({ default: m.NotFound })),
+)
+
 const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 export function AppContent(): ReactElement {
@@ -27,52 +43,54 @@ export function AppContent(): ReactElement {
   trackPageview(location.pathname)
   return (
     <ErrorBoundary key={location.key}>
-      <AlertsProvider>
-        <Layout>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <RouteSuspense fallback={<DashboardSkeleton />}>
-                  <Dashboard />
-                </RouteSuspense>
-              }
-            />
-            <Route
-              path="/prices/:pair"
-              element={
-                <RouteSuspense fallback={<PriceDetailSkeleton />}>
-                  <PriceDetail />
-                </RouteSuspense>
-              }
-            />
-            <Route
-              path="/price/:pair"
-              element={
-                <RouteSuspense fallback={<PriceDetailSkeleton />}>
-                  <PriceDetail />
-                </RouteSuspense>
-              }
-            />
-            <Route
-              path="/api-docs"
-              element={
-                <RouteSuspense fallback={<ApiDocsSkeleton />}>
-                  <ApiDocs />
-                </RouteSuspense>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <RouteSuspense fallback={<NotFoundSkeleton />}>
-                  <NotFound />
-                </RouteSuspense>
-              }
-            />
-          </Routes>
-        </Layout>
-      </AlertsProvider>
+      <PriceProvider>
+        <AlertsProvider>
+          <Layout>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <RouteSuspense fallback={<DashboardSkeleton />}>
+                    <Dashboard />
+                  </RouteSuspense>
+                }
+              />
+              <Route
+                path="/prices/:pair"
+                element={
+                  <RouteSuspense fallback={<PriceDetailSkeleton />}>
+                    <PriceDetail />
+                  </RouteSuspense>
+                }
+              />
+              <Route
+                path="/price/:pair"
+                element={
+                  <RouteSuspense fallback={<PriceDetailSkeleton />}>
+                    <PriceDetail />
+                  </RouteSuspense>
+                }
+              />
+              <Route
+                path="/api-docs"
+                element={
+                  <RouteSuspense fallback={<ApiDocsSkeleton />}>
+                    <ApiDocs />
+                  </RouteSuspense>
+                }
+              />
+              <Route
+                path="*"
+                element={
+                  <RouteSuspense fallback={<NotFoundSkeleton />}>
+                    <NotFound />
+                  </RouteSuspense>
+                }
+              />
+            </Routes>
+          </Layout>
+        </AlertsProvider>
+      </PriceProvider>
     </ErrorBoundary>
   )
 }
