@@ -7,7 +7,9 @@ import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
 import { PriceChart } from '../components/PriceChart'
+import { PriceHistoryTable } from '../components/PriceHistoryTable'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
+import { isValidAssetPair } from '../types'
 import type { CsvRow } from '../components/CsvImportZone'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -35,14 +37,19 @@ export function PriceDetail() {
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
 
+  // Validate the pair param against the known asset list before fetching
+  const isInvalidPair = decodedPair !== '' && !isValidAssetPair(decodedPair)
+
+  // Always call hooks at the top level (Rules of Hooks), but use `enabled`
+  // and `null` pair to prevent network requests for invalid input.
   const { data: price, loading: priceLoading, error: priceError } = useSwr(
     `price:${decodedPair}`,
     () => fetchPrice(decodedPair),
-    { staleTime: 5000, retryCount: 2 },
+    { staleTime: 5000, retryCount: 2, enabled: !isInvalidPair && decodedPair !== '' },
   )
 
   const { history, loading: historyLoading, loadingMore, hasMore, error: historyError, loadMore } = usePriceHistory(
-    decodedPair || null,
+    isInvalidPair || !decodedPair ? null : decodedPair,
     { pageSize: 100 },
   )
 
@@ -63,11 +70,16 @@ export function PriceDetail() {
         {t('priceDetail.back')}
       </button>
 
-      {loading ? (
+      {isInvalidPair ? (
+        <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
+          Unknown asset pair:{' '}
+          <span className="font-mono text-red-300">{decodedPair}</span>
+        </div>
+      ) : loading ? (
         <PriceDetailSkeleton />
       ) : priceError ? (
         <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
-          {priceError}
+          {priceError.message}
         </div>
       ) : price ? (
         <div>
@@ -125,14 +137,28 @@ export function PriceDetail() {
                 {t('priceDetail.historyError', { message: historyError.message })}
               </div>
             ) : (
-              <PriceChart
-                data={history}
-                pair={decodedPair}
-                loading={historyLoading && history.length === 0}
-                loadingMore={loadingMore}
-                hasMore={hasMore}
-                onLoadMore={loadMore}
-              />
+              <ErrorBoundary boundaryId="price-chart" featureLabel="Price Chart">
+                <PriceChart
+                  data={history}
+                  pair={decodedPair}
+                  loading={historyLoading && history.length === 0}
+                  loadingMore={loadingMore}
+                  hasMore={hasMore}
+                  onLoadMore={loadMore}
+                />
+              </ErrorBoundary>
+            )}
+          </div>
+
+          {/* Price history table */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Table)</p>
+            {historyError ? (
+              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
+                Failed to load price history: {historyError.message}
+              </div>
+            ) : (
+              <PriceHistoryTable data={history} />
             )}
           </div>
 
