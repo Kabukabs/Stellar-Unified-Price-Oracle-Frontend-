@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { STORAGE_KEYS, readJson, writeJson } from '../utils/storage'
+import { useFocusTrap } from '../hooks/useFocusTrap'
+
+const STORAGE_KEY = 'notification-channels'
 
 interface NotificationConfig {
   email: { address: string; enabled: boolean }
@@ -75,6 +77,7 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props) {
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default')
   const [testStatus, setTestStatus] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const { containerRef, handleKeyDown: trapKeyDown } = useFocusTrap()
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -145,8 +148,9 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props) {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
+      trapKeyDown(e)
     },
-    [onClose],
+    [onClose, trapKeyDown],
   )
 
   if (!isOpen) return null
@@ -166,7 +170,10 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props) {
       role="presentation"
     >
       <div
-        ref={dialogRef}
+        ref={(node) => {
+          dialogRef.current = node
+          ;(containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+        }}
         role="dialog"
         aria-modal="true"
         aria-label="Notification channels configuration"

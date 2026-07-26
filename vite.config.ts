@@ -124,7 +124,7 @@ export default defineConfig(({ mode }) => {
       ...(process.env.ANALYZE === 'true'
         ? [
             visualizer({
-              filename: 'reports/bundle-stats.html',
+              filename: 'reports/bundle-analysis.html',
               open: false,
               gzipSize: true,
               brotliSize: true,
@@ -133,6 +133,17 @@ export default defineConfig(({ mode }) => {
         : []),
     ],
     base: '/Stellar-Unified-Price-Oracle-Frontend-/',
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+            'vendor-recharts': ['recharts'],
+            'vendor-utils': ['zod'],
+          },
+        },
+      },
+    },
     server: {
       port: 5173,
       proxy: proxyConfig,

@@ -1,18 +1,26 @@
 import { useState, useCallback, useEffect, createContext, useContext, ReactNode } from 'react'
 import type { Alert, AlertsContextType } from '../types'
 import { usePriceContext } from '../context/PriceContext'
-import { STORAGE_KEYS, readJson, writeJson } from '../utils/storage'
+import { AlertsArraySchema } from '../api/schemas'
 
 function isAlertArray(value: unknown): value is Alert[] {
   return Array.isArray(value)
 }
 
 function loadAlerts(): Alert[] {
-  const parsed = readJson<Alert[]>(STORAGE_KEYS.alerts, [], isAlertArray)
-  return parsed.filter(
-    (a: unknown): a is Alert =>
-      typeof a === 'object' && a !== null && typeof (a as Alert).id === 'string' && typeof (a as Alert).assetPair === 'string'
-  )
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    const result = AlertsArraySchema.safeParse(parsed)
+    if (!result.success) {
+      console.warn('[useAlerts] Invalid alerts in localStorage, resetting:', result.error.issues)
+      return []
+    }
+    return result.data
+  } catch {
+    return []
+  }
 }
 
 function saveAlerts(alerts: Alert[]): void {
