@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useSwr } from '../hooks/useSwr'
 import { usePriceHistory } from '../hooks/usePriceHistory'
 import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
 import { PriceChart } from '../components/PriceChart'
-import { ErrorBoundary } from '../components/ErrorBoundary'
+import { PriceHistoryTable } from '../components/PriceHistoryTable'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
+import { isValidAssetPair } from '../types'
 import type { CsvRow } from '../components/CsvImportZone'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -30,19 +32,24 @@ function getConfidenceColor(confidence: number): string {
 export function PriceDetail() {
   const { pair } = useParams<{ pair: string }>()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [importedData, setImportedData] = useState<CsvRow[] | null>(null)
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
 
+  // Validate the pair param against the known asset list before fetching
+  const isInvalidPair = decodedPair !== '' && !isValidAssetPair(decodedPair)
+
+  // Always call hooks at the top level (Rules of Hooks), but use `enabled`
+  // and `null` pair to prevent network requests for invalid input.
   const { data: price, loading: priceLoading, error: priceError } = useSwr(
     `price:${decodedPair}`,
     () => fetchPrice(decodedPair),
-    { staleTime: 5000, retryCount: 2 },
+    { staleTime: 5000, retryCount: 2, enabled: !isInvalidPair && decodedPair !== '' },
   )
 
-  // Use paginated history hook with configurable page size
   const { history, loading: historyLoading, loadingMore, hasMore, error: historyError, loadMore } = usePriceHistory(
-    decodedPair || null,
+    isInvalidPair || !decodedPair ? null : decodedPair,
     { pageSize: 100 },
   )
 
@@ -55,19 +62,24 @@ export function PriceDetail() {
         type="button"
         onClick={() => navigate('/dashboard')}
         className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 mb-6 transition-colors"
-        aria-label="Go back to dashboard"
+        aria-label={t('priceDetail.backAriaLabel')}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
-        Back
+        {t('priceDetail.back')}
       </button>
 
-      {loading ? (
+      {isInvalidPair ? (
+        <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
+          Unknown asset pair:{' '}
+          <span className="font-mono text-red-300">{decodedPair}</span>
+        </div>
+      ) : loading ? (
         <PriceDetailSkeleton />
       ) : priceError ? (
         <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
-          {priceError}
+          {priceError.message}
         </div>
       ) : price ? (
         <div>
@@ -75,20 +87,24 @@ export function PriceDetail() {
           <div className="flex items-center gap-3 mb-6">
             <h1 className="text-2xl font-bold text-gray-100">{price.assetPair}</h1>
             <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium">
-              LIVE
+              {t('priceDetail.live')}
             </span>
           </div>
 
           {/* Price block */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Current Price</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
+              {t('priceDetail.sections.currentPrice')}
+            </p>
             <p className="text-5xl font-bold font-mono text-gray-100 mb-4">
               ${formatPrice(price.price)}
             </p>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Updated {timeAgo(price.timestamp)}</span>
+              <span className="text-gray-400">
+                {t('priceDetail.updated', { time: timeAgo(price.timestamp) })}
+              </span>
               <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getConfidenceColor(price.confidence)}`}>
-                {(price.confidence * 100).toFixed(1)}% confidence
+                {t('priceDetail.confidence', { value: (price.confidence * 100).toFixed(1) })}
               </span>
             </div>
             <p className="text-xs text-gray-600 mt-1">{formatTimestamp(price.timestamp)}</p>
@@ -96,7 +112,9 @@ export function PriceDetail() {
 
           {/* Sources */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Oracle Sources</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
+              {t('priceDetail.sections.oracleSources')}
+            </p>
             <div className="flex flex-wrap gap-2">
               {price.sources.map((src) => (
                 <span
@@ -111,29 +129,15 @@ export function PriceDetail() {
 
           {/* Paginated History chart */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Paginated)</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+              {t('priceDetail.sections.priceHistory')}
+            </p>
             {historyError ? (
               <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
-                Failed to load price history: {historyError.message}
+                {t('priceDetail.historyError', { message: historyError.message })}
               </div>
             ) : (
-              <ErrorBoundary
-                fallback={
-                  <div
-                    className="p-6 bg-red-900/20 border border-red-800/50 rounded-lg text-center"
-                    role="alert"
-                    aria-label="Chart rendering failed"
-                  >
-                    <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-red-900/40 flex items-center justify-center">
-                      <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-medium text-red-400 mb-1">Chart failed to load</p>
-                    <p className="text-xs text-red-500/60">The price history chart encountered an error. Price data is still available above.</p>
-                  </div>
-                }
-              >
+              <ErrorBoundary boundaryId="price-chart" featureLabel="Price Chart">
                 <PriceChart
                   data={history}
                   pair={decodedPair}
@@ -146,9 +150,23 @@ export function PriceDetail() {
             )}
           </div>
 
+          {/* Price history table */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Table)</p>
+            {historyError ? (
+              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
+                Failed to load price history: {historyError.message}
+              </div>
+            ) : (
+              <PriceHistoryTable data={history} />
+            )}
+          </div>
+
           {/* CSV import */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Import Price Data</p>
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+              {t('priceDetail.sections.importData')}
+            </p>
             <CsvImportZone
               hasImport={importedData !== null}
               onImport={setImportedData}
@@ -158,8 +176,12 @@ export function PriceDetail() {
         </div>
       ) : showEmptyState ? (
         <div className="p-8 border border-gray-800 bg-gray-900/70 rounded-xl text-center" role="status">
-          <h2 className="text-xl font-semibold text-gray-100 mb-2">No price data available</h2>
-          <p className="text-sm text-gray-400">No price data available for this pair.</p>
+          <h2 className="text-xl font-semibold text-gray-100 mb-2">
+            {t('priceDetail.emptyState.title')}
+          </h2>
+          <p className="text-sm text-gray-400">
+            {t('priceDetail.emptyState.detail')}
+          </p>
         </div>
       ) : null}
     </div>

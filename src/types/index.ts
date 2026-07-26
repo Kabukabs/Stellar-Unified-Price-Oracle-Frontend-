@@ -1,60 +1,23 @@
-export interface PriceData {
-  assetPair: string
-  price: number
-  timestamp: number
-  confidence: number
-  sources: string[]
-}
+// Price-related types — see src/types/price.ts for full documentation
+export type {
+  PriceData,
+  PriceSyncState,
+  LivePriceEntry,
+  PriceHistoryEntry,
+  PriceHistoryResponse,
+  SourceName,
+  SourceHealth,
+  WsSubscribeMessage,
+  WsUnsubscribeMessage,
+  WsPriceUpdate,
+  WsMessage,
+} from './price'
 
-export type PriceSyncState = 'optimistic' | 'confirmed' | 'rollback' | 'synced'
+export { isPriceData } from './price'
 
-export interface LivePriceEntry {
-  data: PriceData
-  syncState: PriceSyncState
-  flashVersion: number
-}
-
-export interface PriceHistoryEntry {
-  price: number
-  timestamp: number
-  confidence: number
-  sources: string[]
-}
-
-export interface PriceHistoryResponse {
-  pair: string
-  history: PriceHistoryEntry[]
-}
-
-export type SourceName = 'chainlink' | 'redstone' | 'band' | 'reflector'
-
-export interface SourceHealth {
-  source: SourceName
-  status: 'healthy' | 'degraded' | 'down'
-  lastUpdate: number | null
-  latency: number | null
-}
-
-export interface WsSubscribeMessage {
-  action: 'subscribe'
-  assetPairs: string[]
-}
-
-export interface WsUnsubscribeMessage {
-  action: 'unsubscribe'
-  assetPairs: string[]
-}
-
-export interface WsPriceUpdate {
-  type: 'price_update'
-  assetPair: string
-  price: number
-  timestamp: number
-  confidence: number
-  sources: string[]
-}
-
-export type WsMessage = WsPriceUpdate
+// ---------------------------------------------------------------------------
+// Alert types
+// ---------------------------------------------------------------------------
 
 export interface Alert {
   id: string
@@ -87,8 +50,37 @@ export interface AlertsContextType {
   markAsRead: (id: string) => void
 }
 
+// ---------------------------------------------------------------------------
+// Rate-limit types
+// ---------------------------------------------------------------------------
+
 export interface RateLimitInfo {
   limit: number
   remaining: number
   reset: number
+}
+
+// ---------------------------------------------------------------------------
+// Known asset pairs
+// ---------------------------------------------------------------------------
+
+/**
+ * The list of known valid asset pairs recognised by the Oracle.
+ * Route parameters like `/prices/:pair` are validated against this list
+ * to prevent invalid or malicious inputs from reaching API calls.
+ */
+export const VALID_PAIRS: readonly string[] = [
+  'XLM/USD',
+  'BTC/USD',
+  'ETH/USD',
+  'USDC/USD',
+]
+
+/**
+ * Checks whether a decoded pair name (e.g. `"BTC/USD"`) is a known valid
+ * asset pair. Performs a case-sensitive, exact-match comparison against
+ * {@link VALID_PAIRS}.
+ */
+export function isValidAssetPair(pair: string): boolean {
+  return VALID_PAIRS.includes(pair)
 }
