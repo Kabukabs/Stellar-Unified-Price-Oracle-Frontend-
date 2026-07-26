@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 
 export interface ErrorBoundaryProps {
   children: ReactNode
@@ -275,4 +275,50 @@ export class PageErrorBoundary extends Component<
       </div>
     )
   }
+}
+
+/**
+ * Hook that installs global handlers for errors that React error boundaries
+ * cannot catch: unhandled promise rejections and uncaught synchronous errors
+ * thrown outside of React's render cycle (e.g. in event handlers, timers, or
+ * third-party callbacks).
+ *
+ * Mount this once near the root of the application (e.g. inside `<App>`).
+ * The handlers are automatically removed when the component unmounts.
+ *
+ * @param onError - Optional callback invoked with every captured error.
+ *   Defaults to `console.error`.
+ *
+ * @example
+ * ```tsx
+ * function App() {
+ *   useGlobalErrorHandler((err) => reportToMonitoring(err))
+ *   return <RouterProvider ... />
+ * }
+ * ```
+ */
+export function useGlobalErrorHandler(
+  onError?: (error: Error) => void,
+): void {
+  useEffect(() => {
+    const report = onError ?? ((err: Error) => console.error('Unhandled error:', err))
+
+    const handleError = (event: ErrorEvent) => {
+      report(event.error instanceof Error ? event.error : new Error(event.message))
+    }
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason
+      const error = reason instanceof Error ? reason : new Error(String(reason))
+      report(error)
+    }
+
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleRejection)
+
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [onError])
 }
