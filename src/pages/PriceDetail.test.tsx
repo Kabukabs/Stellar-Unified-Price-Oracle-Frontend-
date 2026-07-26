@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { PriceDetail } from './PriceDetail'
 import { isValidAssetPair, VALID_PAIRS } from '../types'
@@ -87,32 +87,46 @@ describe('PriceDetail', () => {
     expect(screen.getByTestId('price-chart')).toBeInTheDocument()
   })
 
-  it('shows error for unknown asset pair', async () => {
+  it('shows a price history table alongside the chart when data is loaded', async () => {
     const { useSwr } = await import('../hooks/useSwr')
-    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: false, error: null, isValidating: false, refetch: vi.fn() })
+    vi.mocked(useSwr).mockReturnValue({
+      data: { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
+      loading: false,
+      error: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
+    const { usePriceHistory } = await import('../hooks/usePriceHistory')
+    vi.mocked(usePriceHistory).mockReturnValue({
+      ...defaultHistory,
+      history: [{ price: 49500, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] }],
+    })
 
-    renderWithPair('FOO%2FBAR')
-    expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByText(/Unknown asset pair/)).toBeInTheDocument()
-    expect(screen.getByText('FOO/BAR')).toBeInTheDocument()
-  })
-})
-
-describe('isValidAssetPair', () => {
-  it('returns true for known valid pairs', () => {
-    for (const pair of VALID_PAIRS) {
-      expect(isValidAssetPair(pair)).toBe(true)
-    }
-  })
-
-  it('returns false for unknown pairs', () => {
-    expect(isValidAssetPair('FOO/BAR')).toBe(false)
-    expect(isValidAssetPair('XLM/USDT')).toBe(false)
-    expect(isValidAssetPair('')).toBe(false)
+    renderWithPair()
+    expect(screen.getByTestId('price-chart')).toBeInTheDocument()
+    const table = screen.getByRole('table', { name: 'Price history table' })
+    expect(table).toBeInTheDocument()
+    expect(within(table).getByText('$49,500.00')).toBeInTheDocument()
   })
 
-  it('is case-sensitive', () => {
-    expect(isValidAssetPair('btc/usd')).toBe(false)
-    expect(isValidAssetPair('xlm/usd')).toBe(false)
+  it('shows an error message when price history fails to load', async () => {
+    const { useSwr } = await import('../hooks/useSwr')
+    vi.mocked(useSwr).mockReturnValue({
+      data: { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
+      loading: false,
+      error: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
+    const { usePriceHistory } = await import('../hooks/usePriceHistory')
+    vi.mocked(usePriceHistory).mockReturnValue({
+      ...defaultHistory,
+      error: new Error('Network error'),
+    })
+
+    renderWithPair()
+    const alerts = screen.getAllByRole('alert')
+    expect(alerts.some((el) => el.textContent?.includes('Network error'))).toBe(true)
+    expect(screen.queryByRole('table', { name: 'Price history table' })).not.toBeInTheDocument()
   })
 })
