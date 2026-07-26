@@ -1,7 +1,9 @@
 import { memo, useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 export const NetworkStatusBanner = memo(function NetworkStatusBanner() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const { t } = useTranslation()
 
   useEffect(() => {
     const goOnline = () => setIsOnline(true)
@@ -25,8 +27,12 @@ export const NetworkStatusBanner = memo(function NetworkStatusBanner() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <div>
-          <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">No internet connection</p>
-          <p className="text-xs text-yellow-600 dark:text-yellow-500">Data may be stale until you reconnect</p>
+          <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
+            {t('network.offline')}
+          </p>
+          <p className="text-xs text-yellow-600 dark:text-yellow-500">
+            {t('network.offlineDetail')}
+          </p>
         </div>
       </div>
     </div>

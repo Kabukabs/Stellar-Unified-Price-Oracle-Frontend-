@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { ExportFormat } from '../hooks/useExport'
 
 interface ExportButtonProps {
@@ -10,6 +11,7 @@ interface ExportButtonProps {
 export function ExportButton({ onExport, exporting, disabled }: ExportButtonProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -26,7 +28,7 @@ export function ExportButton({ onExport, exporting, disabled }: ExportButtonProp
         onClick={() => setOpen((o) => !o)}
         disabled={disabled || exporting}
         className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl text-gray-400 bg-gray-800 border border-gray-700 hover:bg-gray-700 hover:text-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label="Export data"
+        aria-label={t('export.ariaLabel')}
         aria-expanded={open}
         aria-haspopup="true"
       >
@@ -40,7 +42,7 @@ export function ExportButton({ onExport, exporting, disabled }: ExportButtonProp
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
         )}
-        Export
+        {t('export.button')}
         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -62,7 +64,7 @@ export function ExportButton({ onExport, exporting, disabled }: ExportButtonProp
               }}
               className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
             >
-              Export as {fmt.toUpperCase()}
+              {t('export.exportAs', { format: fmt.toUpperCase() })}
             </button>
           ))}
         </div>

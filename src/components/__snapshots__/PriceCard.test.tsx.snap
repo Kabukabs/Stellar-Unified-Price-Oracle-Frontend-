@@ -30,8 +30,7 @@ exports[`snapshots > default 1`] = `
     class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 mb-3"
   >
     <span>
-      Updated 
-      27h ago
+      Updated 27h ago
     </span>
     <span
       class="relative inline-flex items-center"
@@ -44,8 +43,7 @@ exports[`snapshots > default 1`] = `
         <span
           class="text-cyan-600 dark:text-cyan-400"
         >
-          98.8
-          % confidence
+          98.8% confidence
         </span>
       </span>
     </span>
@@ -142,8 +140,7 @@ exports[`snapshots > hasAlert 1`] = `
     class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 mb-3"
   >
     <span>
-      Updated 
-      27h ago
+      Updated 27h ago
     </span>
     <span
       class="relative inline-flex items-center"
@@ -156,8 +153,7 @@ exports[`snapshots > hasAlert 1`] = `
         <span
           class="text-cyan-600 dark:text-cyan-400"
         >
-          98.8
-          % confidence
+          98.8% confidence
         </span>
       </span>
     </span>
@@ -254,8 +250,7 @@ exports[`snapshots > isLive 1`] = `
     class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 mb-3"
   >
     <span>
-      Updated 
-      27h ago
+      Updated 27h ago
     </span>
     <span
       class="relative inline-flex items-center"
@@ -268,8 +263,7 @@ exports[`snapshots > isLive 1`] = `
         <span
           class="text-cyan-600 dark:text-cyan-400"
         >
-          98.8
-          % confidence
+          98.8% confidence
         </span>
       </span>
     </span>
@@ -366,8 +360,7 @@ exports[`snapshots > isStale 1`] = `
     class="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 mb-3"
   >
     <span>
-      Updated 
-      27h ago
+      Updated 27h ago
     </span>
     <span
       class="relative inline-flex items-center"
@@ -380,8 +373,7 @@ exports[`snapshots > isStale 1`] = `
         <span
           class="text-cyan-600 dark:text-cyan-400"
         >
-          98.8
-          % confidence
+          98.8% confidence
         </span>
       </span>
     </span>
