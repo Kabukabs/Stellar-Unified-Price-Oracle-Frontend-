@@ -1,4 +1,5 @@
 import { memo, type ReactElement } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { RateLimitStatus } from '../api/rateLimit'
 import type { ConnectionStatus, ConnectionDiagnostics } from '../api/websocket'
 import { Tooltip } from './Tooltip'
@@ -55,8 +56,8 @@ export const ConnectionBadge = memo(function ConnectionBadge({
 
   let label = isRateLimited
     ? retryAfterMs && retryAfterMs > 0
-      ? `Rate limited (${Math.ceil(retryAfterMs / 1000)}s)`
-      : 'Rate limited'
+      ? t('connection.rateLimitedWithTimer', { seconds: Math.ceil(retryAfterMs / 1000) })
+      : t('connection.rateLimited')
     : s.label
 
   // Show retry count on waiting/reconnecting states

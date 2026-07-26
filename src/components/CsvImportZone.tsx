@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 
@@ -13,9 +14,9 @@ interface Props {
   hasImport: boolean
 }
 
-function parseCsv(text: string): { rows: CsvRow[]; error: string | null } {
+function parseCsv(text: string, errorMessages: { empty: string; noValidRows: string }): { rows: CsvRow[]; error: string | null } {
   const lines = text.trim().split(/\r?\n/)
-  if (lines.length === 0) return { rows: [], error: 'File is empty' }
+  if (lines.length === 0) return { rows: [], error: errorMessages.empty }
 
   const rows: CsvRow[] = []
   const startIdx = Number.isNaN(Number(lines[0].split(',')[0].trim())) ? 1 : 0
@@ -31,7 +32,7 @@ function parseCsv(text: string): { rows: CsvRow[]; error: string | null } {
   }
 
   if (rows.length === 0) {
-    return { rows: [], error: 'No valid rows found. Expected columns: timestamp, price' }
+    return { rows: [], error: errorMessages.noValidRows }
   }
 
   return { rows: rows.sort((a, b) => a.timestamp - b.timestamp), error: null }
@@ -41,21 +42,25 @@ export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { t } = useTranslation()
 
   const handleFile = useCallback(
     (file: File) => {
       setError(null)
       if (file.size > MAX_FILE_SIZE) {
-        setError('File exceeds 5MB limit')
+        setError(t('csv.errors.tooLarge'))
         return
       }
       if (!file.name.toLowerCase().endsWith('.csv') && !file.type.includes('csv')) {
-        setError('Only CSV files are supported')
+        setError(t('csv.errors.invalidType'))
         return
       }
       const reader = new FileReader()
       reader.onload = (e) => {
-        const { rows, error: parseError } = parseCsv(e.target?.result as string)
+        const { rows, error: parseError } = parseCsv(e.target?.result as string, {
+          empty: t('csv.errors.empty'),
+          noValidRows: t('csv.errors.noValidRows'),
+        })
         if (parseError) {
           setError(parseError)
           return
@@ -64,7 +69,7 @@ export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
       }
       reader.readAsText(file)
     },
-    [onImport],
+    [onImport, t],
   )
 
   const handleDrop = useCallback(
@@ -83,13 +88,13 @@ export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
         <svg className="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span className="text-cyan-300 flex-1">CSV data imported — shown as overlay on chart</span>
+        <span className="text-cyan-300 flex-1">{t('csv.imported')}</span>
         <button
           type="button"
           onClick={onClear}
           className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1 rounded hover:bg-gray-800 transition-colors"
         >
-          Clear
+          {t('csv.clear')}
         </button>
       </div>
     )
@@ -99,7 +104,7 @@ export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
     <div>
       <button
         type="button"
-        aria-label="Upload CSV file for price data import"
+        aria-label={t('csv.uploadAriaLabel')}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault()
@@ -117,9 +122,10 @@ export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
         <p className="text-sm text-gray-400">
-          Drop a CSV file or <span className="text-cyan-400">browse</span>
+          {t('csv.dropOrBrowse')}{' '}
+          <span className="text-cyan-400">{t('csv.browse')}</span>
         </p>
-        <p className="text-xs text-gray-600">Columns: timestamp, price — max 5 MB</p>
+        <p className="text-xs text-gray-600">{t('csv.hint')}</p>
       </button>
       <input
         ref={inputRef}

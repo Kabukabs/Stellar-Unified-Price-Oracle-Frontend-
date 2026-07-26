@@ -96,8 +96,20 @@ function jitteredBackoff(attempt: number): number {
  */
 export class WebSocketClient {
   private ws: WebSocket | null = null
-  private messageHandlers = new Set<MessageHandler>()
-  private statusHandlers = new Set<StatusHandler>()
+
+  /**
+   * Stable ref holding the current set of message handlers.
+   * The `onmessage` closure reads from this ref at dispatch time, ensuring it
+   * always calls the latest registered handlers (no stale closure capture).
+   */
+  private messageHandlersRef: Set<MessageHandler> = new Set()
+
+  /**
+   * Stable ref holding the current set of status handlers.
+   * Same approach as messageHandlersRef — read at dispatch time, never captured.
+   */
+  private statusHandlersRef: Set<StatusHandler> = new Set()
+
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private reconnectAttempt = 0
   private destroyed = false
@@ -134,7 +146,8 @@ export class WebSocketClient {
 
   private setStatus(status: ConnectionStatus) {
     this._status = status
-    this.statusHandlers.forEach((h) => h(status))
+    // Read handlers from the stable ref at dispatch time — never stale.
+    this.statusHandlersRef.forEach((h) => h(status))
   }
 
   // ── Heartbeat helpers ───────────────────────────────────────────────────────
@@ -218,6 +231,10 @@ export class WebSocketClient {
       this.startHeartbeat()
     }
 
+    // Fix: capture a reference to the stable handler Sets (not individual callbacks).
+    // Each time a message arrives, we iterate the *current* contents of
+    // `messageHandlersRef`, so newly registered or updated handlers are always used.
+    const messageHandlersRef = this.messageHandlersRef
     this.ws.onmessage = async (e) => {
       // Any inbound message resets the heartbeat timeout
       this.resetHeartbeatTimeout()
@@ -344,16 +361,27 @@ export class WebSocketClient {
     this.send({ action: 'unsubscribe', assetPairs: arr })
   }
 
-  /** Registers a handler to be called for every incoming {@link WsMessage}. Returns an unsubscribe function. */
+  /**
+   * Registers a handler to be called for every incoming {@link WsMessage}.
+   * Returns an unsubscribe function.
+   *
+   * Because handlers are stored in a stable Set and read at dispatch time,
+   * updating the handler (e.g. passing a new closure on re-render) and
+   * calling the unsubscribe + re-subscribe pattern will always use the
+   * current handler without stale-closure issues.
+   */
   onMessage(handler: MessageHandler): () => void {
-    this.messageHandlers.add(handler)
-    return () => this.messageHandlers.delete(handler)
+    this.messageHandlersRef.add(handler)
+    return () => this.messageHandlersRef.delete(handler)
   }
 
-  /** Registers a handler to be called whenever the connection status changes. Returns an unsubscribe function. */
+  /**
+   * Registers a handler to be called whenever the connection status changes.
+   * Returns an unsubscribe function.
+   */
   onStatusChange(handler: StatusHandler): () => void {
-    this.statusHandlers.add(handler)
-    return () => this.statusHandlers.delete(handler)
+    this.statusHandlersRef.add(handler)
+    return () => this.statusHandlersRef.delete(handler)
   }
 
   get isCompressed(): boolean {
