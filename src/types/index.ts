@@ -59,3 +59,28 @@ export interface RateLimitInfo {
   remaining: number
   reset: number
 }
+
+// ---------------------------------------------------------------------------
+// Known asset pairs
+// ---------------------------------------------------------------------------
+
+/**
+ * The list of known valid asset pairs recognised by the Oracle.
+ * Route parameters like `/prices/:pair` are validated against this list
+ * to prevent invalid or malicious inputs from reaching API calls.
+ */
+export const VALID_PAIRS: readonly string[] = [
+  'XLM/USD',
+  'BTC/USD',
+  'ETH/USD',
+  'USDC/USD',
+]
+
+/**
+ * Checks whether a decoded pair name (e.g. `"BTC/USD"`) is a known valid
+ * asset pair. Performs a case-sensitive, exact-match comparison against
+ * {@link VALID_PAIRS}.
+ */
+export function isValidAssetPair(pair: string): boolean {
+  return VALID_PAIRS.includes(pair)
+}
