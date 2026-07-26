@@ -343,8 +343,8 @@ export function Dashboard() {
               isLive={livePrices.has(p.assetPair)}
               isStale={pricesValidating}
               hasAlert={hasAlertsForPair(p.assetPair)}
-              onClick={() => handleCardClick(p.assetPair)}
-              onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
+              onClick={handleCardClick}
+              onAlertClick={handleAlertClick}
               selectMode={selectMode}
               isSelected={selected.has(p.assetPair)}
             />

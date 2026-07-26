@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import type { PriceData, PriceSyncState } from '../types'
 import { formatPrice, timeAgo } from '../utils/format'
 import { Tooltip } from './Tooltip'
@@ -21,8 +21,14 @@ const SOURCE_DESCRIPTIONS: Record<string, string> = {
 interface PriceCardProps {
   /** The price data to display. */
   price: PriceData
-  /** Called when the card is clicked or activated via keyboard. */
-  onClick?: () => void
+  /**
+   * Called when the card is clicked or activated via keyboard.
+   *
+   * Receives the asset pair so callers can pass one stable handler for the whole list
+   * instead of allocating a closure per card, which would defeat this component's
+   * `memo`. See the memoization convention in `AGENTS.md`.
+   */
+  onClick?: (assetPair: string) => void
   /** Whether the price value is currently being updated over WebSocket (reserved for future flash animation). */
   isLive?: boolean
   /** When `true` the card is rendered at reduced opacity to indicate the data may be outdated. */
@@ -35,8 +41,11 @@ interface PriceCardProps {
   isValidating?: boolean
   /** When `true` shows the alert button in its active (amber) state. */
   hasAlert?: boolean
-  /** Called when the alert button is clicked. Receives the raw mouse event so callers can stop propagation. */
-  onAlertClick?: (e: React.MouseEvent) => void
+  /**
+   * Called when the alert button is clicked. Receives the raw mouse event so callers
+   * can stop propagation, plus the asset pair for the same reason as {@link PriceCardProps.onClick}.
+   */
+  onAlertClick?: (e: React.MouseEvent, assetPair: string) => void
   /** When `true` the card renders in multi-select mode, showing a checkbox. */
   selectMode?: boolean
   /** Whether this card is currently selected in multi-select mode. */
@@ -45,16 +54,33 @@ interface PriceCardProps {
 
 export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasAlert, onAlertClick, selectMode, isSelected }: PriceCardProps) {
   const confidencePct = (price.confidence * 100).toFixed(1)
+  const { assetPair } = price
+
+  const handleClick = useCallback(() => onClick?.(assetPair), [onClick, assetPair])
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        onClick?.(assetPair)
+      }
+    },
+    [onClick, assetPair],
+  )
+
+  const handleAlertClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Keep the click off the card body, which navigates to the detail page.
+      e.stopPropagation()
+      onAlertClick?.(e, assetPair)
+    },
+    [onAlertClick, assetPair],
+  )
 
   return (
     <div
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onClick?.()
-        }
-      }}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       className={`w-full text-left bg-gray-900 border rounded-xl p-5 hover:border-gray-700 hover:bg-gray-900/80 transition-all shadow-lg shadow-black/20 cursor-pointer ${isStale ? 'opacity-60' : ''} ${isSelected ? 'border-cyan-500 ring-2 ring-cyan-500/40' : 'border-gray-800'}`}
@@ -105,10 +131,7 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
       <div className="mt-3 pt-3 border-t border-gray-800">
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onAlertClick?.(e)
-          }}
+          onClick={handleAlertClick}
           className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${hasAlert ? 'text-amber-400 hover:text-amber-300' : 'text-gray-500 hover:text-gray-300'}`}
           aria-label={`Set alert for ${price.assetPair}`}
         >

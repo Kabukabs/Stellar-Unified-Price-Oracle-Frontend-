@@ -4,6 +4,7 @@ import {
   CHART_RANGE_OPTIONS,
   STALE_THRESHOLD_OPTIONS,
 } from '../preferences/constants'
+import { STORAGE_KEYS, writeRaw } from '../utils/storage'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -170,7 +171,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 checked={!preferences.analyticsOptOut}
                 onChange={(val) => {
                   updatePreference('analyticsOptOut', !val)
-                  try { localStorage.setItem('analyticsOptOut', !val ? '0' : '1') } catch { /* storage unavailable */ }
+                  writeRaw(STORAGE_KEYS.analyticsOptOut, !val ? '0' : '1')
                 }}
               />
             </div>

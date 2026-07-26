@@ -107,3 +107,56 @@ Triggers on push/PR to `main`. Two jobs run sequentially:
 - Tailwind utility classes for styling (no CSS modules)
 - Named exports for components and hooks
 - `memo()` wrapping for frequently re-rendered components
+
+## Memoization Convention (`useCallback` / `useMemo`)
+
+Memoize when it changes behaviour, not by reflex. Wrap a callback in `useCallback` when
+**any** of these hold:
+
+1. It is passed as a prop to a `memo()` component. An unmemoized callback gives that
+   component a new prop identity every render, which defeats the `memo()` entirely.
+2. It appears in a `useEffect` / `useMemo` / `useCallback` dependency array. A fresh
+   identity each render makes the effect re-run every render.
+3. It is returned from a custom hook or put on a context value, where the caller cannot
+   see how it was built.
+
+Do **not** wrap handlers passed only to host elements — `<button onClick={...}>`,
+`<input onChange={...}>`. React does not re-render a DOM node because a listener's
+identity changed, so the hook adds a dependency array to maintain and buys nothing.
+
+Same rule for `useMemo`: use it for genuinely expensive work (filtering or sorting the
+price list) or to stabilize an object/array identity that feeds rule 1 or 2. Do not use
+it for cheap arithmetic or string building.
+
+### Passing per-item callbacks to a memoized list child
+
+The trap this convention exists to prevent:
+
+```tsx
+// Defeats PriceCard's memo() — a new closure per card, every render.
+{items.map((p) => (
+  <PriceCard key={p.assetPair} price={p} onClick={() => handleCardClick(p.assetPair)} />
+))}
+```
+
+Give the child the identity instead and let it call back with it, so one stable handler
+serves the whole list:
+
+```tsx
+// PriceCard invokes onClick(price.assetPair) internally.
+{items.map((p) => (
+  <PriceCard key={p.assetPair} price={p} onClick={handleCardClick} />
+))}
+```
+
+## Client Storage Convention
+
+All `localStorage` access goes through [`src/utils/storage.ts`](src/utils/storage.ts) —
+never call `localStorage` directly. Keys are registered in `STORAGE_KEYS`, reads and
+writes tolerate storage being unavailable, and `clearAllData()` can wipe everything the
+app owns.
+
+**Never persist tokens, API keys, signing secrets, passwords, or PII.** `localStorage` is
+plain text and readable by any script on the origin, so one XSS bug leaks all of it.
+Secrets stay in memory for the session (see the webhook secret in
+`NotificationChannelsModal`) or move behind an httpOnly cookie set by the backend.

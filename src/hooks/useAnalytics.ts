@@ -1,3 +1,5 @@
+import { STORAGE_KEYS, readRaw } from '../utils/storage'
+
 type Provider = 'plausible' | 'umami' | undefined
 
 const provider = (import.meta.env.VITE_ANALYTICS_PROVIDER as Provider) || undefined
@@ -9,7 +11,7 @@ export function shouldCollect() {
   } catch { /* ignore */ }
   if (typeof window === 'undefined') return false
   if (!provider || !id) return false
-  if (localStorage.getItem('analyticsOptOut') === '1') return false
+  if (readRaw(STORAGE_KEYS.analyticsOptOut) === '1') return false
   return true
 }
 
