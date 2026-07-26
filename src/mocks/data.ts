@@ -1,6 +1,6 @@
 import type { PriceData, PriceHistoryResponse } from '../types'
+import { VALID_PAIRS } from '../types'
 
-const PAIRS = ['XLM/USD', 'BTC/USD', 'ETH/USD', 'USDC/USD']
 const SOURCES = ['chainlink', 'redstone', 'band', 'reflector'] as const
 
 function randomPrice(base: number) {
@@ -25,7 +25,7 @@ export function mockPriceData(pair = 'XLM/USD'): PriceData {
 }
 
 export function mockAllPrices(): PriceData[] {
-  return PAIRS.map(mockPriceData)
+  return VALID_PAIRS.map(mockPriceData)
 }
 
 export function mockHistory(pair: string, count = 100): PriceHistoryResponse {
@@ -42,4 +42,3 @@ export function mockHistory(pair: string, count = 100): PriceHistoryResponse {
   }
 }
 
-export { PAIRS }

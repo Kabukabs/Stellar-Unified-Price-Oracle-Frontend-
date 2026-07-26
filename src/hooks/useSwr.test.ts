@@ -77,8 +77,10 @@ describe('useSwr', () => {
     const { result } = renderHook(() => useSwr('key-error', fetcher))
 
     await vi.waitFor(() => {
-      expect(result.current.error).toBe('Network error')
+      expect(result.current.error).toBeInstanceOf(Error)
     })
+    expect(result.current.error?.message).toBe('Network error')
+    expect(result.current.errorMessage).toBe('Network error')
     expect(result.current.loading).toBe(false)
   })
 
