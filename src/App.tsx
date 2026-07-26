@@ -8,7 +8,6 @@ import { PriceDetailSkeleton } from './components/PriceDetailSkeleton'
 import { ApiDocsSkeleton } from './components/Skeletons/ApiDocsSkeleton'
 import { NotFoundSkeleton } from './components/Skeletons/NotFoundSkeleton'
 import { AlertsProvider } from './hooks/useAlerts'
-import { PriceProvider } from './context/PriceContext'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
 import { ErrorReporterProvider, useErrorReporter } from './context/ErrorReporterContext'
@@ -21,6 +20,22 @@ const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default:
 const PriceDetail = lazy(() => import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })))
 const ApiDocs = lazy(() => import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })))
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
+
+// Route-level code splitting: each page becomes its own chunk.
+// All four pages use named exports, so we re-export them as `default`
+// inside the .then() callback so React.lazy can consume them.
+const Dashboard = lazy(() =>
+  import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })),
+)
+const PriceDetail = lazy(() =>
+  import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })),
+)
+const ApiDocs = lazy(() =>
+  import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })),
+)
+const NotFound = lazy(() =>
+  import('./pages/NotFound').then((m) => ({ default: m.NotFound })),
+)
 
 const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 
@@ -35,85 +50,55 @@ export function AppContent(): ReactElement {
     (error: Error, info: ErrorInfo) => captureError(error, info, boundaryId)
 
   return (
-    // Top-level boundary: catches errors that escape per-route boundaries
-    // (e.g. Layout, AlertsProvider).  Key resets it on navigation just like before.
-    <ErrorBoundary key={location.key} boundaryId="app-root" onError={makeOnError('app-root')}>
-      <AlertsProvider>
-        <Layout>
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <PageErrorBoundary
-                  boundaryId="route-dashboard"
-                  featureLabel="Dashboard"
-                  onError={makeOnError('route-dashboard')}
-                >
+    <ErrorBoundary key={location.key}>
+      <PriceProvider>
+        <AlertsProvider>
+          <Layout>
+            <Routes>
+              <Route
+                path="/"
+                element={
                   <RouteSuspense fallback={<DashboardSkeleton />}>
                     <Dashboard />
                   </RouteSuspense>
-                </PageErrorBoundary>
-              }
-            />
-            <Route
-              path="/prices/:pair"
-              element={
-                <PageErrorBoundary
-                  boundaryId="route-price-detail"
-                  featureLabel="Price Detail"
-                  onError={makeOnError('route-price-detail')}
-                >
+                }
+              />
+              <Route
+                path="/prices/:pair"
+                element={
                   <RouteSuspense fallback={<PriceDetailSkeleton />}>
                     <PriceDetail />
                   </RouteSuspense>
-                </PageErrorBoundary>
-              }
-            />
-            <Route
-              path="/price/:pair"
-              element={
-                <PageErrorBoundary
-                  boundaryId="route-price-detail-alt"
-                  featureLabel="Price Detail"
-                  onError={makeOnError('route-price-detail-alt')}
-                >
+                }
+              />
+              <Route
+                path="/price/:pair"
+                element={
                   <RouteSuspense fallback={<PriceDetailSkeleton />}>
                     <PriceDetail />
                   </RouteSuspense>
-                </PageErrorBoundary>
-              }
-            />
-            <Route
-              path="/api-docs"
-              element={
-                <PageErrorBoundary
-                  boundaryId="route-api-docs"
-                  featureLabel="API Documentation"
-                  onError={makeOnError('route-api-docs')}
-                >
+                }
+              />
+              <Route
+                path="/api-docs"
+                element={
                   <RouteSuspense fallback={<ApiDocsSkeleton />}>
                     <ApiDocs />
                   </RouteSuspense>
-                </PageErrorBoundary>
-              }
-            />
-            <Route
-              path="*"
-              element={
-                <PageErrorBoundary
-                  boundaryId="route-not-found"
-                  featureLabel="Page"
-                  onError={makeOnError('route-not-found')}
-                >
+                }
+              />
+              <Route
+                path="*"
+                element={
                   <RouteSuspense fallback={<NotFoundSkeleton />}>
                     <NotFound />
                   </RouteSuspense>
-                </PageErrorBoundary>
-              }
-            />
-          </Routes>
-        </Layout>
-      </AlertsProvider>
+                }
+              />
+            </Routes>
+          </Layout>
+        </AlertsProvider>
+      </PriceProvider>
     </ErrorBoundary>
   )
 }
@@ -124,15 +109,13 @@ export default function App(): ReactElement {
 
   return (
     <BrowserRouter basename={BASENAME}>
-      <ErrorReporterProvider>
-        <PreferencesProvider>
-          <ToastProvider>
-            <PriceProvider>
-              <AppContent />
-            </PriceProvider>
-          </ToastProvider>
-        </PreferencesProvider>
-      </ErrorReporterProvider>
+      <PreferencesProvider>
+        <ToastProvider>
+          <PriceProvider>
+            <AppContent />
+          </PriceProvider>
+        </ToastProvider>
+      </PreferencesProvider>
     </BrowserRouter>
   )
 }
