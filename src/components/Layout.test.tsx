@@ -2,8 +2,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AlertsProvider } from '../hooks/useAlerts'
-import { Layout } from './Layout'
 import { checkAccessibility } from '../test/accessibility'
+import { Layout } from './Layout'
 
 afterEach(cleanup)
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { ConnectionBadge } from './ConnectionBadge'
 import { checkAccessibility } from '../test/accessibility'
+import { ConnectionBadge } from './ConnectionBadge'
 
 afterEach(cleanup)
 

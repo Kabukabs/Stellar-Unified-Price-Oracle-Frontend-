@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
-import { PriceProvider, usePriceContext } from './PriceContext'
 import { fetchPrice } from '../api/rest'
+import { PriceProvider, usePriceContext } from './PriceContext'
 
 const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()

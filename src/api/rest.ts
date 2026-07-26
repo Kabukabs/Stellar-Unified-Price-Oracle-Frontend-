@@ -1,6 +1,6 @@
 import { config } from '../config'
-import { fetchWithRetry } from './retry'
 import type { PriceData, PriceHistoryResponse, RateLimitInfo } from '../types'
+import { fetchWithRetry } from './retry'
 import {
   PriceDataSchema,
   PriceHistoryResponseSchema,

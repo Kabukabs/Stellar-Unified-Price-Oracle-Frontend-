@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { ErrorBoundary } from './ErrorBoundary'
 import { checkAccessibility } from '../test/accessibility'
+import { ErrorBoundary } from './ErrorBoundary'
 
 afterEach(cleanup)
 

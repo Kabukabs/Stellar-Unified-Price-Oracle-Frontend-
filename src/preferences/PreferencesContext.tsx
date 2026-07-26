@@ -1,8 +1,8 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useUndoRedo, type Command } from '../hooks/useUndoRedo'
-import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import { idbCache } from '../hooks/useIndexedDB'
+import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import type { Preferences } from './types'
 
 const PREFS_IDB_KEY = 'user-preferences'

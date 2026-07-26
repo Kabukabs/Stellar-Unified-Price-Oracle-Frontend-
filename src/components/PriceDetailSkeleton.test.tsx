@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import { PriceDetailSkeleton } from './PriceDetailSkeleton'
 import { checkAccessibility } from '../test/accessibility'
+import { PriceDetailSkeleton } from './PriceDetailSkeleton'
 
 describe('PriceDetailSkeleton', () => {
   it('renders without crashing', () => {
