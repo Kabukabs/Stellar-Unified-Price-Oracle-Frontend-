@@ -1,9 +1,11 @@
+import { useTranslation } from 'react-i18next'
 import { usePreferences } from '../preferences/PreferencesContext'
 import {
   REFRESH_INTERVAL_OPTIONS,
   CHART_RANGE_OPTIONS,
   STALE_THRESHOLD_OPTIONS,
 } from '../preferences/constants'
+import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type SupportedLanguage } from '../i18n'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -52,17 +54,18 @@ function AccessibilityToggle({
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { preferences, updatePreference, undo, redo, canUndo, canRedo, clearHistory } =
     usePreferences()
+  const { t, i18n } = useTranslation()
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} role="presentation" />
       <div className="relative w-full max-w-md bg-gray-900 border-l border-gray-800 h-full overflow-y-auto shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h2 className="text-lg font-semibold text-white">Settings</h2>
+          <h2 className="text-lg font-semibold text-white">{t('settings.title')}</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-            aria-label="Close settings"
+            aria-label={t('settings.close')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -71,16 +74,39 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </div>
 
         <div className="px-6 py-4 space-y-6">
+          {/* Language */}
+          <section aria-labelledby="language-settings-heading">
+            <h3 id="language-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+              {t('settings.sections.language')}
+            </h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                {t('settings.language.label')}
+              </label>
+              <select
+                value={i18n.language.split('-')[0]}
+                onChange={(e) => i18n.changeLanguage(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {LANGUAGE_LABELS[lang as SupportedLanguage]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </section>
+
           {/* Data preferences */}
           <section aria-labelledby="data-settings-heading">
             <h3 id="data-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-              Data
+              {t('settings.sections.data')}
             </h3>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Refresh Interval
+                  {t('settings.fields.refreshInterval')}
                 </label>
                 <select
                   value={preferences.refreshInterval}
@@ -97,7 +123,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Chart Time Range
+                  {t('settings.fields.chartTimeRange')}
                 </label>
                 <select
                   value={preferences.chartTimeRange}
@@ -114,7 +140,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Stale Asset Threshold
+                  {t('settings.fields.staleThreshold')}
                 </label>
                 <select
                   value={preferences.staleThresholdMinutes}
@@ -134,24 +160,24 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           {/* Accessibility presets */}
           <section aria-labelledby="a11y-settings-heading">
             <h3 id="a11y-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-              Accessibility
+              {t('settings.sections.accessibility')}
             </h3>
             <div className="space-y-4">
               <AccessibilityToggle
-                label="Reduced Motion"
-                description="Disables animations and transitions for motion-sensitive users"
+                label={t('settings.accessibility.reducedMotion')}
+                description={t('settings.accessibility.reducedMotionDesc')}
                 checked={preferences.reducedMotion}
                 onChange={(val) => updatePreference('reducedMotion', val)}
               />
               <AccessibilityToggle
-                label="High Contrast"
-                description="Increases color contrast ratios for low-vision users"
+                label={t('settings.accessibility.highContrast')}
+                description={t('settings.accessibility.highContrastDesc')}
                 checked={preferences.highContrast}
                 onChange={(val) => updatePreference('highContrast', val)}
               />
               <AccessibilityToggle
-                label="Large Text"
-                description="Increases base font size across the dashboard"
+                label={t('settings.accessibility.largeText')}
+                description={t('settings.accessibility.largeTextDesc')}
                 checked={preferences.largeText}
                 onChange={(val) => updatePreference('largeText', val)}
               />
@@ -161,12 +187,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           {/* Privacy / Analytics */}
           <section aria-labelledby="privacy-settings-heading">
             <h3 id="privacy-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-              Privacy
+              {t('settings.sections.privacy')}
             </h3>
             <div className="space-y-4">
               <AccessibilityToggle
-                label="Enable Analytics"
-                description="Allow privacy-focused analytics for feature usage (can be opted out)."
+                label={t('settings.privacy.enableAnalytics')}
+                description={t('settings.privacy.enableAnalyticsDesc')}
                 checked={!preferences.analyticsOptOut}
                 onChange={(val) => {
                   updatePreference('analyticsOptOut', !val)
@@ -183,36 +209,35 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
               onClick={undo}
               disabled={!canUndo}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label="Undo last change"
+              aria-label={t('settings.actions.undoAriaLabel')}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
               </svg>
-              Undo
-              <span className="text-xs text-gray-500 ml-1">Ctrl+Z</span>
+              {t('settings.actions.undo')}
+              <span className="text-xs text-gray-500 ml-1">{t('settings.actions.undoShortcut')}</span>
             </button>
             <button
               onClick={redo}
               disabled={!canRedo}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label="Redo last undone change"
+              aria-label={t('settings.actions.redoAriaLabel')}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a5 5 0 00-5 5v2m15-7l-4-4m4 4l-4 4" />
               </svg>
-              Redo
-              <span className="text-xs text-gray-500 ml-1">Ctrl+Shift+Z</span>
+              {t('settings.actions.redo')}
+              <span className="text-xs text-gray-500 ml-1">{t('settings.actions.redoShortcut')}</span>
             </button>
             <button
               onClick={clearHistory}
               className="ml-auto px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
-              aria-label="Clear undo history"
+              aria-label={t('settings.actions.clearAriaLabel')}
             >
-              Clear
+              {t('settings.actions.clear')}
             </button>
           </div>
         </div>
-
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { PriceData, PriceSyncState } from '../types'
 import { formatPrice, timeAgo } from '../utils/format'
 import { Tooltip } from './Tooltip'
@@ -8,13 +9,6 @@ const SOURCE_COLORS: Record<string, string> = {
   redstone: 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30',
   band: 'bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30',
   reflector: 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30',
-}
-
-const SOURCE_DESCRIPTIONS: Record<string, string> = {
-  chainlink: 'Chainlink is a decentralised oracle network that delivers tamper-proof price data from premium data providers.',
-  redstone: 'RedStone is a modular oracle that streams signed price feeds on demand, reducing gas costs by storing data off-chain.',
-  band: 'Band Protocol aggregates real-world data from multiple sources and makes it available on-chain via delegated validators.',
-  reflector: 'Reflector is a Stellar-native oracle that publishes asset prices directly on the Stellar network.',
 }
 
 /** Props for {@link PriceCard}. */
@@ -44,6 +38,7 @@ interface PriceCardProps {
 }
 
 export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasAlert, onAlertClick, selectMode, isSelected }: PriceCardProps) {
+  const { t } = useTranslation()
   const confidencePct = (price.confidence * 100).toFixed(1)
 
   return (
@@ -58,7 +53,7 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
       role="button"
       tabIndex={0}
       className={`w-full text-left bg-gray-900 border rounded-xl p-5 hover:border-gray-700 hover:bg-gray-900/80 transition-all shadow-lg shadow-black/20 cursor-pointer ${isStale ? 'opacity-60' : ''} ${isSelected ? 'border-cyan-500 ring-2 ring-cyan-500/40' : 'border-gray-800'}`}
-      aria-label={`View details for ${price.assetPair}`}
+      aria-label={t('priceCard.ariaLabel', { pair: price.assetPair })}
       aria-selected={selectMode ? isSelected : undefined}
     >
       <div className="flex items-center justify-between mb-3">
@@ -84,15 +79,24 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 mb-3">
-        <span>Updated {timeAgo(price.timestamp)}</span>
-        <Tooltip content="Confidence reflects how consistent the price is across oracle sources. 100% means all sources agree exactly.">
-          <span className="text-cyan-600 dark:text-cyan-400">{confidencePct}% confidence</span>
+        <span>{t('priceCard.updated', { time: timeAgo(price.timestamp) })}</span>
+        <Tooltip content={t('priceCard.confidenceTooltip')}>
+          <span className="text-cyan-600 dark:text-cyan-400">
+            {t('priceCard.confidence', { value: confidencePct })}
+          </span>
         </Tooltip>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
         {price.sources.map((src) => (
-          <Tooltip key={src} content={SOURCE_DESCRIPTIONS[src] ?? `${src} contributed a price feed to this aggregated value.`}>
+          <Tooltip
+            key={src}
+            content={
+              t(`sources.${src as 'chainlink' | 'redstone' | 'band' | 'reflector'}`, {
+                defaultValue: t('sources.defaultTooltip', { source: src }),
+              })
+            }
+          >
             <span
               className={`px-2 py-0.5 rounded text-xs font-medium border ${SOURCE_COLORS[src] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'}`}
             >
@@ -110,7 +114,7 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
             onAlertClick?.(e)
           }}
           className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${hasAlert ? 'text-amber-400 hover:text-amber-300' : 'text-gray-500 hover:text-gray-300'}`}
-          aria-label={`Set alert for ${price.assetPair}`}
+          aria-label={t('priceCard.alertAriaLabel', { pair: price.assetPair })}
         >
           <svg
             className="w-3.5 h-3.5"
@@ -126,7 +130,7 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
               d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"
             />
           </svg>
-          {hasAlert ? 'Alert set' : 'Set alert'}
+          {hasAlert ? t('priceCard.alertSet') : t('priceCard.setAlert')}
         </button>
       </div>
     </div>

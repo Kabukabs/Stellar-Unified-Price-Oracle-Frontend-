@@ -35,7 +35,6 @@ export const Tooltip = memo(function Tooltip({ content, children }: TooltipProps
         onFocus={() => setVisible(true)}
         onBlur={() => setVisible(false)}
         tabIndex={0}
-        role="button"
         aria-describedby={visible ? 'tooltip-popup' : undefined}
         className="cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
       >

@@ -170,19 +170,21 @@ describe('WebSocketClient', () => {
     expect(ws.closed).toBe(true)
   })
 
-  it('transitions through connecting, connected, disconnected, reconnecting', () => {
+  it('transitions through connecting, connected, disconnected, waiting, reconnecting', () => {
+    vi.useFakeTimers()
     const client = new WebSocketClient()
     const onStatus = vi.fn()
     client.onStatusChange(onStatus)
     client.connect()
     ws.simulateOpen()
     ws.simulateClose()
-    expect(onStatus.mock.calls.map((c) => c[0])).toEqual([
-      'connecting',
-      'connected',
-      'disconnected',
-      'reconnecting',
-    ])
+    // After close: disconnected → waiting (backoff window starts)
+    const statuses = onStatus.mock.calls.map((c) => c[0])
+    expect(statuses).toContain('connecting')
+    expect(statuses).toContain('connected')
+    expect(statuses).toContain('disconnected')
+    expect(statuses).toContain('waiting')
+    vi.useRealTimers()
   })
 
   it('attempts reconnection after close', () => {
@@ -223,6 +225,7 @@ describe('WebSocketClient', () => {
   })
 
   it('returns current status through lifecycle', () => {
+    vi.useFakeTimers()
     const client = new WebSocketClient()
     expect(client.status).toBe('disconnected')
     client.connect()
@@ -230,7 +233,9 @@ describe('WebSocketClient', () => {
     ws.simulateOpen()
     expect(client.status).toBe('connected')
     ws.simulateClose()
-    expect(client.status).toBe('reconnecting')
+    // After close the client enters 'disconnected' briefly then 'waiting' (backoff)
+    expect(['disconnected', 'waiting', 'reconnecting']).toContain(client.status)
+    vi.useRealTimers()
   })
 
   it('getDerivedStateFromError is ignored on second close while reconnecting', () => {

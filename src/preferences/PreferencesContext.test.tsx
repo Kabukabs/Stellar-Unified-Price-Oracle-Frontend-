@@ -5,6 +5,17 @@ import type { ReactNode } from 'react'
 import { PreferencesProvider, usePreferences } from './PreferencesContext'
 import { DEFAULT_PREFERENCES } from './constants'
 
+vi.mock('../hooks/useIndexedDB', () => ({
+  idbCache: {
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn().mockReturnValue(() => {}),
+    fetchWithCache: vi.fn().mockResolvedValue(null),
+  },
+}))
+
 function wrapper({ children }: { children: ReactNode }) {
   return (
     <MemoryRouter initialEntries={['/']}>
