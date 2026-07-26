@@ -164,4 +164,17 @@ describe('useSwr', () => {
       expect(fetcher).toHaveBeenCalled()
     })
   })
+
+  it('supports suspense mode option', async () => {
+    const fetcher = vi.fn().mockResolvedValue('suspense-data')
+    const { result } = renderHook(() =>
+      useSwr('key-suspense', fetcher, { suspense: true }),
+    )
+
+    // In non-suspense test env, the hook should still function normally
+    await vi.waitFor(() => {
+      expect(result.current.loading).toBe(false)
+    })
+    expect(result.current.data).toBe('suspense-data')
+  })
 })

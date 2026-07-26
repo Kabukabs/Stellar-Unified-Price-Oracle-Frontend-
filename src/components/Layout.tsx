@@ -28,6 +28,12 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-200">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:rounded-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
       <nav aria-label="Main navigation" className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50 h-16">
         <div className="px-4 sm:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -98,7 +104,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
       </nav>
 
       <div className="flex flex-1">
-        <main className="flex-1 px-6 py-6 overflow-auto">
+        <main id="main-content" className="flex-1 px-6 py-6 overflow-auto" tabIndex={-1}>
           {children}
         </main>
       </div>
@@ -107,6 +113,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
         Stellar Unified Price Oracle &middot; Developer Portal &amp; Analytics Dashboard
       </footer>
       <AlertPanel />
+      <div id="price-announcer" role="status" aria-live="polite" aria-atomic="true" className="sr-only" />
     </div>
   )
 }

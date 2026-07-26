@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { toHaveNoViolations } from 'vitest-axe/dist/matchers.js'
 import { expect, vi } from 'vitest'
+import 'fake-indexeddb/auto'
 
 expect.extend({ toHaveNoViolations })
 

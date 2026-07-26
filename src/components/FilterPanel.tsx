@@ -170,6 +170,7 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props) {
                 }}
                 className="flex-1 accent-cyan-500"
                 aria-label="Minimum confidence"
+                aria-valuetext={`${f.minConf}%`}
               />
               <span className="text-xs text-gray-400 w-8 text-right">{f.minConf}%</span>
             </div>
@@ -186,6 +187,7 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props) {
                 }}
                 className="flex-1 accent-cyan-500"
                 aria-label="Maximum confidence"
+                aria-valuetext={`${f.maxConf}%`}
               />
               <span className="text-xs text-gray-400 w-8 text-right">{f.maxConf}%</span>
             </div>

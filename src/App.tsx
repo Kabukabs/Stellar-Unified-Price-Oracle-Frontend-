@@ -1,4 +1,4 @@
-import { lazy, type ReactElement } from 'react'
+import { lazy, Suspense, type ReactElement } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -8,7 +8,6 @@ import { PriceDetailSkeleton } from './components/PriceDetailSkeleton'
 import { ApiDocsSkeleton } from './components/Skeletons/ApiDocsSkeleton'
 import { NotFoundSkeleton } from './components/Skeletons/NotFoundSkeleton'
 import { AlertsProvider } from './hooks/useAlerts'
-import { PriceProvider } from './context/PriceContext'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
 import { useWebVitals } from './hooks/useWebVitals'
@@ -86,7 +85,15 @@ export default function App(): ReactElement {
     <BrowserRouter basename={BASENAME}>
       <PreferencesProvider>
         <ToastProvider>
-          <AppContent />
+          <Suspense
+            fallback={
+              <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950">
+                <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
+              </div>
+            }
+          >
+            <AppContent />
+          </Suspense>
         </ToastProvider>
       </PreferencesProvider>
     </BrowserRouter>

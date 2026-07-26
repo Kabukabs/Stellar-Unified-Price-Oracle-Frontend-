@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 
 /** In-memory cache entry storing the last fetched value and the time it was stored. */
 interface CacheEntry {
@@ -18,6 +18,8 @@ export interface SwrOptions {
   retryCount?: number
   /** Set to false to skip fetching entirely (e.g. while a dependency is not yet ready). */
   enabled?: boolean
+  /** When true, throw a promise for React Suspense instead of returning loading state. */
+  suspense?: boolean
 }
 
 /** Return value of {@link useSwr}. */
@@ -33,6 +35,9 @@ export interface SwrResult<T> {
   /** Trigger an immediate refetch outside of the normal polling cycle. */
   refetch: () => void
 }
+
+// Suspense cache: keyed by `key`, stores the thrown promise or result/error
+const suspenseCache = new Map<string, { status: 'pending' | 'fulfilled' | 'rejected'; value?: unknown; error?: unknown; promise?: Promise<unknown> }>()
 
 /**
  * Minimal stale-while-revalidate hook for data fetching.
@@ -55,6 +60,7 @@ export function useSwr<T>(
     staleTime = 0,
     retryCount = 0,
     enabled = true,
+    suspense = false,
   } = options
 
   const cached = cache.get(key) as CacheEntry | undefined
@@ -65,6 +71,7 @@ export function useSwr<T>(
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(!cached)
   const [isValidating, setIsValidating] = useState(false)
+  const [, startTransition] = useTransition()
 
   const retries = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -87,8 +94,19 @@ export function useSwr<T>(
       if (!mountedRef.current || controller.signal.aborted) return
 
       cache.set(keyRef.current, { data: result as unknown, timestamp: Date.now() })
-      setData(result)
-      setError(null)
+
+      if (suspense) {
+        const entry = suspenseCache.get(keyRef.current)
+        if (entry) {
+          entry.status = 'fulfilled'
+          entry.value = result
+        }
+      }
+
+      startTransition(() => {
+        setData(result)
+        setError(null)
+      })
       retries.current = 0
     } catch (e) {
       if (!mountedRef.current || controller.signal.aborted) return
@@ -101,6 +119,15 @@ export function useSwr<T>(
         return
       }
 
+      if (suspense) {
+        const entry = suspenseCache.get(keyRef.current)
+        if (entry) {
+          entry.status = 'rejected'
+          entry.error = e
+        }
+        throw e
+      }
+
       setError(e instanceof Error ? e.message : 'An error occurred')
     } finally {
       if (mountedRef.current && !controller.signal.aborted) {
@@ -108,7 +135,35 @@ export function useSwr<T>(
         setLoading(false)
       }
     }
-  }, [enabled, retryCount])
+  }, [enabled, retryCount, suspense])
+
+  // Suspense: throw a promise if we don't have data yet
+  if (suspense && !data && loading) {
+    let entry = suspenseCache.get(key)
+    if (!entry || entry.status === 'pending') {
+      const promise = execute().then(
+        () => {
+          entry!.status = 'fulfilled'
+          entry!.value = cache.get(key)?.data
+        },
+        (err) => {
+          entry!.status = 'rejected'
+          entry!.error = err
+        },
+      )
+      entry = { status: 'pending', promise }
+      suspenseCache.set(key, entry)
+    }
+    if (entry.status === 'pending') {
+      throw entry.promise
+    }
+    if (entry.status === 'rejected') {
+      throw entry.error
+    }
+    if (entry.status === 'fulfilled') {
+      setData(entry.value as T)
+    }
+  }
 
   useEffect(() => {
     mountedRef.current = true
