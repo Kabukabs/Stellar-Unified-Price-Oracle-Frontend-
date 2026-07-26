@@ -11,6 +11,7 @@ import { AlertBadge } from '../components/AlertBadge'
 import { ConnectionBadge } from '../components/ConnectionBadge'
 import { NotificationChannelsModal } from '../components/NotificationChannelsModal'
 import { FilterPanel, readFilterState, countActiveFilters } from '../components/FilterPanel'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { sanitizeSearchInput } from '../utils/sanitize'
 import type { AlertFormData, LivePriceEntry, PriceData } from '../types'
 
@@ -267,10 +268,12 @@ export function Dashboard() {
       </div>
 
       {filterPanelOpen && (
-        <FilterPanel availableSources={[...new Set(prices.flatMap((p) => p.sources))].length > 0
-          ? [...new Set(prices.flatMap((p) => p.sources))]
-          : undefined}
-        />
+        <ErrorBoundary boundaryId="filter-panel" featureLabel="Filter Panel">
+          <FilterPanel availableSources={[...new Set(prices.flatMap((p) => p.sources))].length > 0
+            ? [...new Set(prices.flatMap((p) => p.sources))]
+            : undefined}
+          />
+        </ErrorBoundary>
       )}
 
       {selectMode && (
@@ -312,7 +315,7 @@ export function Dashboard() {
 
       {pricesError && (
         <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
-          {pricesError}
+          {pricesError.message}
         </div>
       )}
 
@@ -323,33 +326,37 @@ export function Dashboard() {
           ))}
         </section>
       ) : dashboardView === 'table' ? (
-        <PriceTableView
-          items={filtered}
-          livePairs={new Set(livePrices.keys())}
-          isStale={pricesValidating}
-          onRowClick={handleCardClick}
-          onAlertClick={handleAlertClick}
-          hasAlertFn={hasAlertsForPair}
-          selectMode={selectMode}
-          selected={selected}
-          onToggleSelect={onToggleSelect}
-        />
+        <ErrorBoundary boundaryId="price-table-view" featureLabel="Price Table">
+          <PriceTableView
+            items={filtered}
+            livePairs={new Set(livePrices.keys())}
+            isStale={pricesValidating}
+            onRowClick={handleCardClick}
+            onAlertClick={handleAlertClick}
+            hasAlertFn={hasAlertsForPair}
+            selectMode={selectMode}
+            selected={selected}
+            onToggleSelect={onToggleSelect}
+          />
+        </ErrorBoundary>
       ) : (
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Price feeds">
-          {filtered.map((p) => (
-            <PriceCard
-              key={p.assetPair}
-              price={p}
-              isLive={livePrices.has(p.assetPair)}
-              isStale={pricesValidating}
-              hasAlert={hasAlertsForPair(p.assetPair)}
-              onClick={() => handleCardClick(p.assetPair)}
-              onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
-              selectMode={selectMode}
-              isSelected={selected.has(p.assetPair)}
-            />
-          ))}
-        </section>
+        <ErrorBoundary boundaryId="price-card-grid" featureLabel="Price Cards">
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Price feeds">
+            {filtered.map((p) => (
+              <PriceCard
+                key={p.assetPair}
+                price={p}
+                isLive={livePrices.has(p.assetPair)}
+                isStale={pricesValidating}
+                hasAlert={hasAlertsForPair(p.assetPair)}
+                onClick={() => handleCardClick(p.assetPair)}
+                onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
+                selectMode={selectMode}
+                isSelected={selected.has(p.assetPair)}
+              />
+            ))}
+          </section>
+        </ErrorBoundary>
       )}
 
       {!pricesLoading && merged.length === 0 && (

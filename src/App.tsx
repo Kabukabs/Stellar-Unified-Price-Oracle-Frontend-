@@ -1,7 +1,7 @@
 import { lazy, type ReactElement } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { ErrorBoundary } from './components/ErrorBoundary'
+import { ErrorBoundary, PageErrorBoundary } from './components/ErrorBoundary'
 import { RouteSuspense } from './components/Skeletons/RouteSuspense'
 import { DashboardSkeleton } from './components/Skeletons/DashboardSkeleton'
 import { PriceDetailSkeleton } from './components/PriceDetailSkeleton'
@@ -10,9 +10,11 @@ import { NotFoundSkeleton } from './components/Skeletons/NotFoundSkeleton'
 import { AlertsProvider } from './hooks/useAlerts'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
+import { ErrorReporterProvider, useErrorReporter } from './context/ErrorReporterContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics, trackPageview } from './hooks/useAnalytics'
+import type { ErrorInfo } from 'react'
 
 const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
 const PriceDetail = lazy(() => import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })))
@@ -39,8 +41,14 @@ const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 export function AppContent(): ReactElement {
   const location = useLocation()
+  const { captureError } = useErrorReporter()
+
   useAccessibility()
   trackPageview(location.pathname)
+
+  const makeOnError = (boundaryId: string) =>
+    (error: Error, info: ErrorInfo) => captureError(error, info, boundaryId)
+
   return (
     <ErrorBoundary key={location.key}>
       <PriceProvider>

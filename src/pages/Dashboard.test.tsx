@@ -121,7 +121,7 @@ describe('Dashboard', () => {
     vi.mocked(usePriceContext).mockReturnValue({
       prices: [],
       pricesLoading: false,
-      pricesError: 'Something broke',
+      pricesError: new Error('Something broke'),
       pricesValidating: false,
       livePrices: new Map(),
       wsStatus: 'disconnected',

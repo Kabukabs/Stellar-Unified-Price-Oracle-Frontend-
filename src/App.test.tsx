@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { AppContent } from './App'
+import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import type { PriceContextValue } from './context/PriceContext'
 
 // Routing is orthogonal to the accessibility side-effects, and useAccessibility pulls in
@@ -62,7 +63,9 @@ const FIND = { timeout: 5000 }
 function renderRoute(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <AppContent />
+      <ErrorReporterProvider>
+        <AppContent />
+      </ErrorReporterProvider>
     </MemoryRouter>,
   )
 }
