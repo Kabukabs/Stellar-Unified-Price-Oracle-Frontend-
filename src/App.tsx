@@ -20,6 +20,22 @@ const PriceDetail = lazy(() => import('./pages/PriceDetail').then((m) => ({ defa
 const ApiDocs = lazy(() => import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })))
 const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
 
+// Route-level code splitting: each page becomes its own chunk.
+// All four pages use named exports, so we re-export them as `default`
+// inside the .then() callback so React.lazy can consume them.
+const Dashboard = lazy(() =>
+  import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })),
+)
+const PriceDetail = lazy(() =>
+  import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })),
+)
+const ApiDocs = lazy(() =>
+  import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })),
+)
+const NotFound = lazy(() =>
+  import('./pages/NotFound').then((m) => ({ default: m.NotFound })),
+)
+
 const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 export function AppContent(): ReactElement {
