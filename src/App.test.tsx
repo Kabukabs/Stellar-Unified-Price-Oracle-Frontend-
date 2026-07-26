@@ -1,241 +1,126 @@
-/**
- * App-level integration tests for route-level code splitting.
- *
- * These tests exercise real React.lazy + Suspense behaviour — no lazy components
- * are mocked away. They confirm that:
- *   1. The PageSkeleton fallback renders during the lazy-load suspension.
- *   2. Each route resolves and shows its page content after suspension ends.
- *   3. The NotFound route works for unknown paths.
- *
- * Because the lazy chunks are resolved synchronously inside vitest (dynamic
- * import() is not truly async in the test environment), we use `act` +
- * `waitFor` to flush all React state transitions including Suspense.
- */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { Suspense } from 'react'
-import { PageSkeleton } from './components/PageSkeleton'
+import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { AppContent } from './App'
+import type { PriceContextValue } from './context/PriceContext'
+
+// Routing is orthogonal to the accessibility side-effects, and useAccessibility pulls in
+// PreferencesProvider (IndexedDB + useLocation). Stub it so the route tests stay focused
+// on navigation rather than the preferences/IndexedDB wiring.
+vi.mock('./hooks/useAccessibility', () => ({ useAccessibility: () => {} }))
+
+vi.mock('./context/PriceContext', () => ({
+  usePriceContext: vi.fn(),
+}))
+
+// Keep the real data hooks (useSwr, usePriceHistory) but stub the network so the
+// PriceDetail route renders with well-formed data instead of the malformed global
+// fetch fallback from setup.ts.
+vi.mock('./api/rest', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api/rest')>()
+  return {
+    ...actual,
+    fetchPrice: vi.fn().mockResolvedValue({
+      assetPair: 'BTC/USD',
+      price: 50000,
+      timestamp: 1700040000000,
+      confidence: 0.99,
+      sources: ['chainlink'],
+    }),
+    fetchPriceHistory: vi.fn().mockResolvedValue({ history: [] }),
+  }
+})
+
+const mockPrices = [
+  { assetPair: 'BTC/USD', price: 50000, timestamp: 1700040000000, confidence: 0.99, sources: ['chainlink'] },
+  { assetPair: 'ETH/USD', price: 3000, timestamp: 1700039000000, confidence: 0.95, sources: ['redstone'] },
+]
+
+const priceContextValue = {
+  prices: mockPrices,
+  pricesLoading: false,
+  pricesError: null,
+  pricesValidating: false,
+  livePrices: new Map(),
+  wsStatus: 'connected',
+  rateLimitStatus: 'ok',
+  rateLimitRetryAfterMs: 0,
+  refetchPrices: vi.fn(),
+  subscribe: vi.fn(),
+  unsubscribe: vi.fn(),
+} as unknown as PriceContextValue
+
+// Routes are lazy-loaded behind RouteSuspense, which enforces a minimum skeleton time,
+// so findBy* assertions need a slightly generous timeout.
+const FIND = { timeout: 5000 }
+
+function renderRoute(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <AppContent />
+    </MemoryRouter>,
+  )
+}
+
+beforeEach(async () => {
+  localStorage.clear()
+  const { usePriceContext } = await import('./context/PriceContext')
+  vi.mocked(usePriceContext).mockReturnValue(priceContextValue)
+})
 
 afterEach(cleanup)
 
-// ---------------------------------------------------------------------------
-// Shared context mock — all page components depend on PriceContext
-// ---------------------------------------------------------------------------
-vi.mock('./context/PriceContext', () => ({
-  usePriceContext: vi.fn(() => ({
-    prices: [],
-    pricesLoading: false,
-    pricesError: null,
-    pricesValidating: false,
-    livePrices: new Map(),
-    wsStatus: 'disconnected',
-    refetchPrices: vi.fn(),
-    subscribe: vi.fn(),
-    unsubscribe: vi.fn(),
-  })),
-  PriceProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}))
-
-vi.mock('./api/websocket', () => ({
-  WebSocketClient: vi.fn().mockImplementation(() => ({
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    subscribe: vi.fn(),
-    unsubscribe: vi.fn(),
-    onMessage: vi.fn(() => () => {}),
-    onStatusChange: vi.fn(() => () => {}),
-  })),
-}))
-
-vi.mock('./api/rest', () => ({
-  fetchAllPrices: vi.fn().mockResolvedValue([]),
-  fetchPrice: vi.fn().mockResolvedValue({ assetPair: 'XLM/USD', price: 0.1, timestamp: Date.now(), confidence: 0.9, sources: ['chainlink'] }),
-  fetchPriceHistory: vi.fn().mockResolvedValue({ pair: 'XLM/USD', history: [] }),
-}))
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Lazily imports a named-export page the same way App.tsx does, so tests
- * exercise the same code path.
- */
-async function lazyImportDashboard() {
-  const { lazy } = await import('react')
-  return lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
-}
-
-async function lazyImportNotFound() {
-  const { lazy } = await import('react')
-  return lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
-}
-
-async function lazyImportApiDocs() {
-  const { lazy } = await import('react')
-  return lazy(() => import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })))
-}
-
-async function lazyImportPriceDetail() {
-  const { lazy } = await import('react')
-  return lazy(() => import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })))
-}
-
-// ---------------------------------------------------------------------------
-// PageSkeleton fallback
-// ---------------------------------------------------------------------------
-describe('PageSkeleton', () => {
-  it('renders the loading status role', () => {
-    render(<PageSkeleton />)
-    expect(screen.getByRole('status')).toBeInTheDocument()
+describe('App routing', () => {
+  it('renders the Dashboard at the index route', async () => {
+    renderRoute('/')
+    expect(await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND)).toBeInTheDocument()
   })
 
-  it('has an accessible label while loading', () => {
-    render(<PageSkeleton />)
-    expect(screen.getByLabelText('Loading page')).toBeInTheDocument()
+  it('renders the API Docs page at /api-docs', async () => {
+    renderRoute('/api-docs')
+    expect(await screen.findByRole('heading', { name: 'API Documentation' }, FIND)).toBeInTheDocument()
   })
 
-  it('marks itself as busy', () => {
-    render(<PageSkeleton />)
-    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Lazy loading behaviour — Suspense + React.lazy
-// ---------------------------------------------------------------------------
-describe('Route-level code splitting', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    localStorage.clear()
+  it('renders the Price Detail page at /prices/:pair', async () => {
+    renderRoute('/prices/BTC%2FUSD')
+    // The "Go back" control is unique to the Price Detail page and always rendered.
+    expect(await screen.findByRole('button', { name: 'Go back to dashboard' }, FIND)).toBeInTheDocument()
   })
 
-  it('shows PageSkeleton while Dashboard chunk loads, then resolves', async () => {
-    const LazyDashboard = await lazyImportDashboard()
-    const { AlertsProvider } = await import('./hooks/useAlerts')
-
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <AlertsProvider>
-          <Suspense fallback={<PageSkeleton />}>
-            <Routes>
-              <Route path="/" element={<LazyDashboard />} />
-            </Routes>
-          </Suspense>
-        </AlertsProvider>
-      </MemoryRouter>,
-    )
-
-    // After Suspense resolves, the page heading should be visible
-    await waitFor(() => {
-      expect(screen.getByText('Price Oracle Dashboard')).toBeInTheDocument()
-    })
-  })
-
-  it('resolves NotFound route via lazy import', async () => {
-    const LazyNotFound = await lazyImportNotFound()
-
-    render(
-      <MemoryRouter initialEntries={['/unknown-path']}>
-        <Suspense fallback={<PageSkeleton />}>
-          <Routes>
-            <Route path="*" element={<LazyNotFound />} />
-          </Routes>
-        </Suspense>
-      </MemoryRouter>,
-    )
-
-    await waitFor(() => {
-      expect(screen.getByText('404')).toBeInTheDocument()
-    })
+  it('renders the 404 NotFound page for an unknown route', async () => {
+    renderRoute('/this-route-does-not-exist')
+    expect(await screen.findByText('404', {}, FIND)).toBeInTheDocument()
     expect(screen.getByText('Page not found')).toBeInTheDocument()
   })
 
-  it('resolves ApiDocs route via lazy import', async () => {
-    const LazyApiDocs = await lazyImportApiDocs()
+  it('navigates between routes via the nav bar (route transitions)', async () => {
+    const user = userEvent.setup()
+    renderRoute('/')
+    await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND)
 
-    render(
-      <MemoryRouter initialEntries={['/api-docs']}>
-        <Suspense fallback={<PageSkeleton />}>
-          <Routes>
-            <Route path="/api-docs" element={<LazyApiDocs />} />
-          </Routes>
-        </Suspense>
-      </MemoryRouter>,
-    )
+    await user.click(screen.getByRole('link', { name: 'API Docs' }))
+    expect(await screen.findByRole('heading', { name: 'API Documentation' }, FIND)).toBeInTheDocument()
 
-    await waitFor(() => {
-      expect(screen.getByText('API Documentation')).toBeInTheDocument()
-    })
+    await user.click(screen.getByRole('link', { name: 'Dashboard' }))
+    expect(await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND)).toBeInTheDocument()
   })
 
-  it('resolves PriceDetail route via lazy import', async () => {
-    const LazyPriceDetail = await lazyImportPriceDetail()
+  it('recovers to the Dashboard from the 404 page via its link', async () => {
+    const user = userEvent.setup()
+    renderRoute('/nope')
+    await screen.findByText('404', {}, FIND)
 
-    render(
-      <MemoryRouter initialEntries={['/prices/XLM-USD']}>
-        <Suspense fallback={<PageSkeleton />}>
-          <Routes>
-            <Route path="/prices/:pair" element={<LazyPriceDetail />} />
-          </Routes>
-        </Suspense>
-      </MemoryRouter>,
-    )
-
-    // PriceDetail renders a back button regardless of loading state
-    await waitFor(() => {
-      expect(screen.getByLabelText('Go back')).toBeInTheDocument()
-    })
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Full App integration — confirms all four lazy routes wire up correctly
-// We bypass BrowserRouter's basename by rendering the lazy pages directly
-// inside MemoryRouter (same pattern used by all other page tests in this repo).
-// ---------------------------------------------------------------------------
-describe('App routing integration', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    localStorage.clear()
+    await user.click(screen.getByRole('link', { name: 'Back to Dashboard' }))
+    expect(await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND)).toBeInTheDocument()
   })
 
-  it('Dashboard lazy route resolves and renders its heading', async () => {
-    const { lazy } = await import('react')
-    const { AlertsProvider } = await import('./hooks/useAlerts')
+  it('navigates to Price Detail when a Dashboard price card is clicked', async () => {
+    const user = userEvent.setup()
+    renderRoute('/')
+    const card = await screen.findByRole('button', { name: 'View details for BTC/USD' }, FIND)
 
-    const LazyDashboard = lazy(() =>
-      import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })),
-    )
-
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <AlertsProvider>
-          <Suspense fallback={<PageSkeleton />}>
-            <Routes>
-              <Route path="/" element={<LazyDashboard />} />
-            </Routes>
-          </Suspense>
-        </AlertsProvider>
-      </MemoryRouter>,
-    )
-
-    await waitFor(() => {
-      expect(screen.getByText('Price Oracle Dashboard')).toBeInTheDocument()
-    })
-  })
-
-  it('all four lazy pages are importable without errors', async () => {
-    // Verify that each dynamic import resolves to the expected named export
-    const { Dashboard } = await import('./pages/Dashboard')
-    const { PriceDetail } = await import('./pages/PriceDetail')
-    const { ApiDocs } = await import('./pages/ApiDocs')
-    const { NotFound } = await import('./pages/NotFound')
-
-    expect(typeof Dashboard).toBe('function')
-    expect(typeof PriceDetail).toBe('function')
-    expect(typeof ApiDocs).toBe('function')
-    expect(typeof NotFound).toBe('function')
+    await user.click(card)
+    expect(await screen.findByRole('button', { name: 'Go back to dashboard' }, FIND)).toBeInTheDocument()
   })
 })

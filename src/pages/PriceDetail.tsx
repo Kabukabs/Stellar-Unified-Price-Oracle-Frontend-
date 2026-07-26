@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useSwr } from '../hooks/useSwr'
-import { fetchPrice, fetchPriceHistory } from '../api/rest'
+import { usePriceHistory } from '../hooks/usePriceHistory'
+import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
+import { CsvImportZone } from '../components/CsvImportZone'
+import { PriceChart } from '../components/PriceChart'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
-import type { PriceHistoryEntry } from '../types'
+import type { CsvRow } from '../components/CsvImportZone'
 
 const SOURCE_COLORS: Record<string, string> = {
   chainlink: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -12,49 +16,20 @@ const SOURCE_COLORS: Record<string, string> = {
   reflector: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
 }
 
-function MiniChart({ data }: { data: PriceHistoryEntry[] }) {
-  if (data.length < 2) return null
-
-  const W = 600
-  const H = 160
-  const PAD = 8
-
-  const prices = data.map((d) => d.price)
-  const min = Math.min(...prices)
-  const max = Math.max(...prices)
-  const range = max - min || 1
-
-  const pts = data.map((d, i) => {
-    const x = PAD + (i / (data.length - 1)) * (W - PAD * 2)
-    const y = H - PAD - ((d.price - min) / range) * (H - PAD * 2)
-    return `${x},${y}`
-  })
-
-  const areaPath = `M${pts[0]} L${pts.join(' L')} L${W - PAD},${H - PAD} L${PAD},${H - PAD} Z`
-  const linePath = `M${pts[0]} L${pts.join(' L')}`
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      preserveAspectRatio="none"
-      className="w-full h-48"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill="url(#chartGrad)" />
-      <path d={linePath} fill="none" stroke="#06b6d4" strokeWidth="2" />
-    </svg>
-  )
+function getConfidenceColor(confidence: number): string {
+  if (confidence > 0.9) {
+    return 'bg-green-500/20 text-green-400 border-green-500/30'
+  }
+  if (confidence > 0.8) {
+    return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+  }
+  return 'bg-red-500/20 text-red-400 border-red-500/30'
 }
 
 export function PriceDetail() {
   const { pair } = useParams<{ pair: string }>()
   const navigate = useNavigate()
+  const [importedData, setImportedData] = useState<CsvRow[] | null>(null)
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
 
@@ -64,21 +39,22 @@ export function PriceDetail() {
     { staleTime: 5000, retryCount: 2 },
   )
 
-  const { data: historyResponse, loading: historyLoading } = useSwr(
-    `history:${decodedPair}`,
-    () => fetchPriceHistory(decodedPair, 100),
-    { staleTime: 30000, retryCount: 2 },
+  // Use paginated history hook with configurable page size
+  const { history, loading: historyLoading, loadingMore, hasMore, error: historyError, loadMore } = usePriceHistory(
+    decodedPair || null,
+    { pageSize: 100 },
   )
 
-  const loading = priceLoading || historyLoading
+  const loading = priceLoading || (historyLoading && history.length === 0)
+  const showEmptyState = !loading && !priceError && !price
 
   return (
     <div>
       <button
         type="button"
-        onClick={() => navigate(-1)}
+        onClick={() => navigate('/dashboard')}
         className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 mb-6 transition-colors"
-        aria-label="Go back"
+        aria-label="Go back to dashboard"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -110,7 +86,9 @@ export function PriceDetail() {
             </p>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">Updated {timeAgo(price.timestamp)}</span>
-              <span className="text-cyan-400">{(price.confidence * 100).toFixed(1)}% confidence</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getConfidenceColor(price.confidence)}`}>
+                {(price.confidence * 100).toFixed(1)}% confidence
+              </span>
             </div>
             <p className="text-xs text-gray-600 mt-1">{formatTimestamp(price.timestamp)}</p>
           </div>
@@ -130,17 +108,39 @@ export function PriceDetail() {
             </div>
           </div>
 
-          {/* History chart */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History</p>
-            {historyResponse && historyResponse.history.length > 1 ? (
-              <MiniChart data={historyResponse.history} />
-            ) : (
-              <div className="h-48 flex items-center justify-center text-gray-600 text-sm">
-                No history available
+          {/* Paginated History chart */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Paginated)</p>
+            {historyError ? (
+              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
+                Failed to load price history: {historyError.message}
               </div>
+            ) : (
+              <PriceChart
+                data={history}
+                pair={decodedPair}
+                loading={historyLoading && history.length === 0}
+                loadingMore={loadingMore}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+              />
             )}
           </div>
+
+          {/* CSV import */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Import Price Data</p>
+            <CsvImportZone
+              hasImport={importedData !== null}
+              onImport={setImportedData}
+              onClear={() => setImportedData(null)}
+            />
+          </div>
+        </div>
+      ) : showEmptyState ? (
+        <div className="p-8 border border-gray-800 bg-gray-900/70 rounded-xl text-center" role="status">
+          <h2 className="text-xl font-semibold text-gray-100 mb-2">No price data available</h2>
+          <p className="text-sm text-gray-400">No price data available for this pair.</p>
         </div>
       ) : null}
     </div>
