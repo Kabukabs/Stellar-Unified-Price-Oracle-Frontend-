@@ -1,4 +1,4 @@
-import { lazy, type ReactElement } from 'react'
+import { lazy, Suspense, type ReactElement } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ErrorBoundary, PageErrorBoundary } from './components/ErrorBoundary'

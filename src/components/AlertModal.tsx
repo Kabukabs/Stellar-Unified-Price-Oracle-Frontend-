@@ -61,6 +61,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
   const [errors, setErrors] = useState<ValidationErrors>({})
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
+  const { containerRef, handleKeyDown: trapKeyDown } = useFocusTrap()
 
   useEffect(() => {
     if (isOpen) {
@@ -90,8 +91,9 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
       if (e.key === 'Escape') {
         onClose()
       }
+      trapKeyDown(e)
     },
-    [onClose],
+    [onClose, trapKeyDown],
   )
 
   const setAndValidate = useCallback((field: keyof AlertFormData, value: string | boolean) => {
@@ -137,7 +139,10 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
       role="presentation"
     >
       <div
-        ref={dialogRef}
+        ref={(node) => {
+          dialogRef.current = node
+          ;(containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+        }}
         role="dialog"
         aria-modal="true"
         aria-label={alert ? t('alertModal.ariaLabelEdit') : t('alertModal.ariaLabelNew')}

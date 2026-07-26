@@ -106,6 +106,12 @@ export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
         type="button"
         aria-label={t('csv.uploadAriaLabel')}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
         onDragOver={(e) => {
           e.preventDefault()
           setIsDragging(true)

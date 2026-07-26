@@ -6,7 +6,6 @@ exports[`snapshots > connected 1`] = `
 >
   <span
     class="cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
-    role="button"
     tabindex="0"
   >
     <span
@@ -30,7 +29,6 @@ exports[`snapshots > connecting 1`] = `
 >
   <span
     class="cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
-    role="button"
     tabindex="0"
   >
     <span
@@ -54,7 +52,6 @@ exports[`snapshots > disconnected 1`] = `
 >
   <span
     class="cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
-    role="button"
     tabindex="0"
   >
     <span
@@ -78,7 +75,6 @@ exports[`snapshots > rate limited 1`] = `
 >
   <span
     class="cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
-    role="button"
     tabindex="0"
   >
     <span
@@ -102,7 +98,6 @@ exports[`snapshots > reconnecting 1`] = `
 >
   <span
     class="cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 rounded"
-    role="button"
     tabindex="0"
   >
     <span

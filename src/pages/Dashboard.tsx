@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useTransition, useOptimistic } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
@@ -53,9 +53,20 @@ export function Dashboard() {
   const [dashboardView, setDashboardView] = useState<'card' | 'table'>('card')
   const [notifModalOpen, setNotifModalOpen] = useState(false)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  // Optimistic alerts: show immediately, revert if needed
+  const [optimisticAlerts, addOptimisticAlert] = useOptimistic(
+    [] as Array<{ assetPair: string; upperThreshold: number | null; lowerThreshold: number | null; triggerOnce: boolean }>,
+    (state, newAlert: { assetPair: string; upperThreshold: number | null; lowerThreshold: number | null; triggerOnce: boolean }) => [
+      ...state,
+      newAlert,
+    ],
+  )
+  void optimisticAlerts
 
   const search = searchParams.get('search') || ''
   const filterState = readFilterState(searchParams)
@@ -126,6 +137,12 @@ export function Dashboard() {
 
   const handleSave = useCallback(
     (data: AlertFormData) => {
+      addOptimisticAlert({
+        assetPair: data.assetPair,
+        upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
+        lowerThreshold: data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null,
+        triggerOnce: data.triggerOnce,
+      })
       addAlert({
         assetPair: data.assetPair,
         upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
@@ -135,7 +152,7 @@ export function Dashboard() {
       })
       setModalOpen(false)
     },
-    [addAlert],
+    [addAlert, addOptimisticAlert],
   )
 
   const toggleSelectMode = useCallback(() => {
@@ -227,7 +244,7 @@ export function Dashboard() {
             <div className="flex items-center rounded-lg border border-gray-700 overflow-hidden" role="group" aria-label={t('dashboard.viewToggle.ariaLabel')}>
               <button
                 type="button"
-                onClick={() => setDashboardView('card')}
+                onClick={() => startTransition(() => setDashboardView('card'))}
                 className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'card' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'card'}
                 aria-label={t('dashboard.viewToggle.card')}
@@ -241,7 +258,7 @@ export function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => setDashboardView('table')}
+                onClick={() => startTransition(() => setDashboardView('table'))}
                 className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'table'}
                 aria-label={t('dashboard.viewToggle.table')}
