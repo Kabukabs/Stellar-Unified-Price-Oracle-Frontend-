@@ -40,9 +40,28 @@ export const HealthSchema = z.object({
 export const AlertSchema = z.object({
   id: z.string(),
   assetPair: z.string(),
+
+  // Absolute threshold fields
   upperThreshold: z.number().nullable(),
   lowerThreshold: z.number().nullable(),
+
+  // Alert type: one-time vs persistent (#312)
   triggerOnce: z.boolean(),
+  fireCount: z.number().int().min(0).default(0),
+
+  // Percentage-based alert fields (#307)
+  percentageMode: z.boolean().default(false),
+  percentageThreshold: z.number().nullable().default(null),
+  percentageWindow: z.enum(['5min', '15min', '1hr', '24hr']).nullable().default(null),
+  percentageDirection: z.enum(['up', 'down', 'either']).nullable().default(null),
+  percentageRelativeTo: z.enum(['open', 'previousClose', 'movingAverage']).nullable().default(null),
+  percentageBaselinePrice: z.number().nullable().default(null),
+  percentageBaselineTimestamp: z.number().nullable().default(null),
+
+  // Snooze fields (#313)
+  snoozedUntil: z.number().nullable().default(null),
+
+  // State fields
   active: z.boolean(),
   createdAt: z.number(),
   lastTriggeredAt: z.number().nullable(),

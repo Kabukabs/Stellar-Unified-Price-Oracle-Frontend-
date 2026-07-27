@@ -44,7 +44,7 @@ export function Dashboard() {
   } = usePriceContext()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount } = useAlerts()
+  const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount, reEnableAlert } = useAlerts()
   const { exportCSV } = useExport()
   const [searchParams] = useSearchParams()
 
@@ -137,18 +137,25 @@ export function Dashboard() {
 
   const handleSave = useCallback(
     (data: AlertFormData) => {
+      const upperThreshold = data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null
+      const lowerThreshold = data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null
       addOptimisticAlert({
         assetPair: data.assetPair,
-        upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
-        lowerThreshold: data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null,
+        upperThreshold,
+        lowerThreshold,
         triggerOnce: data.triggerOnce,
       })
       addAlert({
         assetPair: data.assetPair,
-        upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
-        lowerThreshold: data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null,
+        upperThreshold,
+        lowerThreshold,
         triggerOnce: data.triggerOnce,
         active: true,
+        percentageMode: data.percentageMode,
+        percentageThreshold: data.percentageThreshold ? Number.parseFloat(data.percentageThreshold) : null,
+        percentageWindow: data.percentageMode ? data.percentageWindow : null,
+        percentageDirection: data.percentageMode ? data.percentageDirection : null,
+        percentageRelativeTo: data.percentageMode ? data.percentageRelativeTo : null,
       })
       setModalOpen(false)
     },
@@ -411,6 +418,15 @@ export function Dashboard() {
             ? () => {
                 const existing = alerts.find((a) => a.assetPair === modalPair)
                 if (existing) removeAlert(existing.id)
+                setModalOpen(false)
+              }
+            : undefined
+        }
+        onReEnable={
+          alerts.find((a) => a.assetPair === modalPair)
+            ? () => {
+                const existing = alerts.find((a) => a.assetPair === modalPair)
+                if (existing) reEnableAlert(existing.id)
                 setModalOpen(false)
               }
             : undefined

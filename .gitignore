@@ -1,19 +1,38 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
 dist
+build
+
+# ── Test coverage & reports ───────────────────────────────────────────────────
 coverage
-storybook-static
 reports
 sbom.json
 build-attestation.json
+
+# ── Storybook ─────────────────────────────────────────────────────────────────
+storybook-static
+
+# ── Environment variables ─────────────────────────────────────────────────────
 .env
 .env.local
+.env.*.local
+
+# ── TypeScript incremental build ──────────────────────────────────────────────
 *.tsbuildinfo
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
+
+# ── E2E test artifacts ────────────────────────────────────────────────────────
 e2e/results
 e2e/test-results
 test-results/
 playwright-report
-plans
+
+# ── Visual regression / snapshot files ───────────────────────────────────────
+**/__snapshots__/
 test/visual/baselines/
 test/visual/diffs/
 test/visual/reports/
