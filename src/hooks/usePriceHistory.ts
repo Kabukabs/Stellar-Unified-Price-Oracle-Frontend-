@@ -22,6 +22,7 @@ interface PriceHistoryState {
  * Hook for managing paginated price history with infinite scroll support.
  * Fetches historical price data for a given pair with pagination capabilities.
  * Includes a refresh interval to keep the latest data updated.
+ * Defers fetching until the page is visible using the Page Visibility API.
  */
 export function usePriceHistory(
   pair: string | null,
@@ -40,6 +41,12 @@ export function usePriceHistory(
   const isMountedRef = useRef(true)
   const loadingMoreRef = useRef(false)
   const hasMoreRef = useRef(true)
+  const hasFetchedRef = useRef(false)
+
+  // Track page visibility
+  const isVisibleRef = useRef(
+    typeof document !== 'undefined' ? !document.hidden : true,
+  )
 
   // Fetch initial data
   const refetch = useCallback(async () => {
@@ -59,6 +66,7 @@ export function usePriceHistory(
       setHasMore(hasMore)
       hasMoreRef.current = hasMore
       offsetRef.current = pageSize
+      hasFetchedRef.current = true
     } catch (err) {
       if (!isMountedRef.current) return
       const error = err instanceof Error ? err : new Error(String(err))
@@ -110,17 +118,50 @@ export function usePriceHistory(
     }
   }, [pair, pageSize, onError])
 
-  // Initial fetch and refresh interval
+  // Initial fetch and refresh interval with visibility deferral
   useEffect(() => {
-    refetch()
-    intervalRef.current = setInterval(refetch, refreshInterval)
+    if (!pair) return
+
+    // Defer initial fetch until page is visible
+    if (isVisibleRef.current) {
+      refetch()
+    }
+
+    // Set up refresh interval
+    if (refreshInterval > 0) {
+      intervalRef.current = setInterval(() => {
+        if (isVisibleRef.current) {
+          refetch()
+        }
+      }, refreshInterval)
+    }
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
     }
-  }, [refetch, refreshInterval])
+  }, [pair, refetch, refreshInterval])
+
+  // Page Visibility API: pause/resume fetching
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden
+      isVisibleRef.current = visible
+
+      // When becoming visible and haven't fetched yet, fetch now
+      if (visible && !hasFetchedRef.current && pair) {
+        refetch()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [pair, refetch])
 
   // Cleanup on unmount
   useEffect(() => {

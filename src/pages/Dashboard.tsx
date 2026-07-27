@@ -13,7 +13,7 @@ import { ConnectionBadge } from '../components/ConnectionBadge'
 import { NotificationChannelsModal } from '../components/NotificationChannelsModal'
 import { FilterPanel, readFilterState, countActiveFilters } from '../components/FilterPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-import { sanitizeSearchInput } from '../utils/sanitize'
+import { PairSearchBar } from '../components/PairSearchBar'
 import type { AlertFormData, LivePriceEntry, PriceData } from '../types'
 
 const SKELETON_COUNT = 8
@@ -44,7 +44,7 @@ export function Dashboard() {
   } = usePriceContext()
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount } = useAlerts()
+  const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount, reEnableAlert } = useAlerts()
   const { exportCSV } = useExport()
   const [searchParams] = useSearchParams()
 
@@ -137,18 +137,25 @@ export function Dashboard() {
 
   const handleSave = useCallback(
     (data: AlertFormData) => {
+      const upperThreshold = data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null
+      const lowerThreshold = data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null
       addOptimisticAlert({
         assetPair: data.assetPair,
-        upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
-        lowerThreshold: data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null,
+        upperThreshold,
+        lowerThreshold,
         triggerOnce: data.triggerOnce,
       })
       addAlert({
         assetPair: data.assetPair,
-        upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
-        lowerThreshold: data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null,
+        upperThreshold,
+        lowerThreshold,
         triggerOnce: data.triggerOnce,
         active: true,
+        percentageMode: data.percentageMode,
+        percentageThreshold: data.percentageThreshold ? Number.parseFloat(data.percentageThreshold) : null,
+        percentageWindow: data.percentageMode ? data.percentageWindow : null,
+        percentageDirection: data.percentageMode ? data.percentageDirection : null,
+        percentageRelativeTo: data.percentageMode ? data.percentageRelativeTo : null,
       })
       setModalOpen(false)
     },
@@ -182,19 +189,17 @@ export function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <input
-            type="text"
-            placeholder={t('dashboard.search.placeholder')}
+          <PairSearchBar
+            pairs={prices.map((p) => p.assetPair)}
+            allSources={[...new Set(prices.flatMap((p) => p.sources))]}
             value={search}
-            onChange={(e) => {
-              const value = sanitizeSearchInput(e.target.value)
+            onChange={(value) => {
               const params = new URLSearchParams(searchParams)
               if (value) params.set('search', value)
               else params.delete('search')
               navigate({ search: params.toString() }, { replace: true })
             }}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-700 bg-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-48"
-            aria-label={t('dashboard.search.ariaLabel')}
+            className="w-64"
           />
 
           <button
@@ -413,6 +418,15 @@ export function Dashboard() {
             ? () => {
                 const existing = alerts.find((a) => a.assetPair === modalPair)
                 if (existing) removeAlert(existing.id)
+                setModalOpen(false)
+              }
+            : undefined
+        }
+        onReEnable={
+          alerts.find((a) => a.assetPair === modalPair)
+            ? () => {
+                const existing = alerts.find((a) => a.assetPair === modalPair)
+                if (existing) reEnableAlert(existing.id)
                 setModalOpen(false)
               }
             : undefined

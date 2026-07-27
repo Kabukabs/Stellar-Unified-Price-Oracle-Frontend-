@@ -5,7 +5,7 @@ type Provider = 'plausible' | 'umami' | undefined
 const provider = (import.meta.env.VITE_ANALYTICS_PROVIDER as Provider) || undefined
 const id = (import.meta.env.VITE_ANALYTICS_ID as string) || undefined
 
-export function shouldCollect() {
+export function shouldCollect(): boolean {
   try {
     if (typeof navigator !== 'undefined' && (navigator as Navigator & { doNotTrack?: string }).doNotTrack === '1') return false
   } catch { /* ignore */ }
@@ -15,7 +15,7 @@ export function shouldCollect() {
   return true
 }
 
-export function initAnalytics() {
+export function initAnalytics(): void {
   if (!shouldCollect()) return
 
   if (provider === 'plausible' && id) {
@@ -40,7 +40,7 @@ type WindowWithAnalytics = Window & {
   umami?: { trackEvent?: (name: string, props?: Record<string, unknown>) => void; trackView?: (path?: string) => void }
 }
 
-export function trackEvent(name: string, props?: Record<string, unknown>) {
+export function trackEvent(name: string, props?: Record<string, unknown>): void {
   if (!shouldCollect()) return
   try {
     const w = window as WindowWithAnalytics
@@ -52,7 +52,7 @@ export function trackEvent(name: string, props?: Record<string, unknown>) {
   } catch { /* swallow */ }
 }
 
-export function trackPageview(path?: string) {
+export function trackPageview(path?: string): void {
   if (!shouldCollect()) return
   try {
     const w = window as WindowWithAnalytics

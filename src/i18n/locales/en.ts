@@ -138,6 +138,8 @@ const en = {
     ariaLabelNew: 'Create price alert',
     ariaLabelEdit: 'Edit price alert',
     close: 'Close modal',
+    firedOnceNotice: 'This alert fired on {{time}} ({{count}} total). Re-enable it to use again.',
+    fireCount: 'Fired {{count}} time(s)',
     fields: {
       assetPair: 'Asset Pair',
       assetPairPlaceholder: 'e.g. BTC/USD',
@@ -147,12 +149,38 @@ const en = {
       lowerPlaceholder: 'Min price',
       triggerOnce: 'Trigger once',
       triggerOnceDescription: 'Alert deactivates after being triggered',
+      // Alert mode (#307)
+      alertMode: 'Alert Mode',
+      alertModeAbsolute: 'Absolute Price',
+      alertModePercentage: 'Price Movement %',
+      // Percentage fields (#307)
+      percentageThreshold: 'Change Threshold',
+      percentageWindow: 'Time Window',
+      percentageDirection: 'Direction',
+      percentageRelativeTo: 'Relative To',
+      window5min: '5 minutes',
+      window15min: '15 minutes',
+      window1hr: '1 hour',
+      window24hr: '24 hours',
+      directionUp: '↑ Up',
+      directionDown: '↓ Down',
+      directionEither: '↕ Either',
+      relativeToOpen: 'Period Open',
+      relativeToPreviousClose: 'Previous Close',
+      relativeToMovingAverage: 'Moving Average',
+      // Alert type (#312)
+      alertType: 'Alert Type',
+      alertTypeOneTime: 'One-Time',
+      alertTypePersistent: 'Persistent',
+      alertTypeOneTimeDesc: 'Fires once and auto-disables. Re-enable to reuse.',
+      alertTypePersistentDesc: 'Fires every time the condition is met. Tracks fire count.',
     },
     actions: {
       delete: 'Delete Alert',
       cancel: 'Cancel',
       save: 'Save Changes',
       create: 'Create Alert',
+      reEnable: 'Re-enable Alert',
     },
     validation: {
       assetPairRequired: 'Asset pair is required',
@@ -168,10 +196,13 @@ const en = {
     title: 'Price Alerts',
     newBadge: '{{count}} New',
     empty: 'No alerts set yet',
+    close: 'Close alert panel',
     sections: {
       triggered: 'Triggered',
       active: 'Active Alerts',
       inactive: 'Inactive',
+      snoozed: 'Snoozed',
+      firedOnce: 'Fired (One-Time)',
     },
     triggered: {
       justNow: 'Just now',
@@ -187,11 +218,40 @@ const en = {
       resume: 'Resume alert',
       delete: 'Delete alert',
     },
+    // Snooze (#313)
+    snooze: {
+      button: 'Snooze',
+      unsnooze: 'Remove snooze',
+      '15min': '15 minutes',
+      '1hr': '1 hour',
+      '4hr': '4 hours',
+      '24hr': '24 hours',
+      tomorrow: 'Until tomorrow (8 AM)',
+      expiresInMins: 'Snoozed for {{mins}}m',
+      expiresInHrs: 'Snoozed for {{hrs}}h',
+    },
+    // Alert type badges (#312)
+    badge: {
+      oneTime: 'One-Time',
+      persistent: 'Persistent',
+      snoozed: 'Snoozed',
+      fired: 'Fired',
+    },
+    // Fired one-time (#312)
+    fired: {
+      at: 'Fired at {{time}}',
+      reEnable: 'Re-enable alert',
+    },
     conditions: {
       between: 'Between ${{lower}} and ${{upper}}',
       above: '↑ Above ${{upper}}',
       below: '↓ Below ${{lower}}',
       none: 'No threshold',
+      // Percentage condition (#307)
+      percentage: '{{direction}} {{pct}}% in {{window}}',
+      dir_up: '↑ Up',
+      dir_down: '↓ Down',
+      dir_either: '↕ Either',
     },
   },
 

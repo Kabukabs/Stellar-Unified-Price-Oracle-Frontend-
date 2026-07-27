@@ -8,9 +8,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Line,
+  LineChart,
 } from 'recharts'
 import type { PriceHistoryEntry } from '../types'
-import { formatChartTime, formatPriceShort } from '../utils/format'
+import { formatChartTimeWithTz, formatPriceShort, getTimezoneAbbr } from '../utils/format'
 
 export type TimeRange = '1h' | '24h' | '7d' | '30d' | '1y'
 
@@ -21,6 +23,9 @@ const TIME_RANGES: { label: string; value: TimeRange }[] = [
   { label: '30D', value: '30d' },
   { label: '1Y', value: '1y' },
 ]
+
+// Overlay pair colors — each additional pair gets a distinct color
+const OVERLAY_COLORS = ['#f59e0b', '#a78bfa', '#34d399', '#f87171', '#60a5fa']
 
 function filterByRange(data: PriceHistoryEntry[], range: TimeRange): PriceHistoryEntry[] {
   const now = Date.now()
@@ -36,6 +41,19 @@ function filterByRange(data: PriceHistoryEntry[], range: TimeRange): PriceHistor
   return filtered.length > 0 ? filtered : data
 }
 
+// Normalise a series of prices to percentage change relative to first point.
+function normaliseToPercent(data: { price: number; timestamp: number }[]): { pct: number; timestamp: number }[] {
+  if (data.length === 0) return []
+  const base = data[0].price
+  if (base === 0) return data.map((d) => ({ pct: 0, timestamp: d.timestamp }))
+  return data.map((d) => ({ pct: ((d.price - base) / base) * 100, timestamp: d.timestamp }))
+}
+
+export interface OverlayPair {
+  pair: string
+  data: PriceHistoryEntry[]
+}
+
 interface PriceChartProps {
   data: PriceHistoryEntry[]
   pair: string
@@ -45,6 +63,10 @@ interface PriceChartProps {
   onLoadMore?: () => Promise<void>
   timeRange?: TimeRange
   onTimeRangeChange?: (range: TimeRange) => void
+  /** IANA timezone identifier, 'UTC', or 'Local'. Defaults to 'UTC'. */
+  timezone?: string
+  /** Additional pairs to overlay on the same chart. */
+  overlayPairs?: OverlayPair[]
 }
 
 function ChartContent({
@@ -58,6 +80,8 @@ function ChartContent({
   loadingMore,
   hasMore,
   onLoadMore,
+  timezone = 'UTC',
+  overlayPairs = [],
 }: {
   data: PriceHistoryEntry[]
   pair: string
@@ -69,18 +93,57 @@ function ChartContent({
   loadingMore: boolean
   hasMore: boolean
   onLoadMore?: () => Promise<void>
+  timezone?: string
+  overlayPairs?: OverlayPair[]
 }) {
   // Zoom/pan state
   const [zoomDomain, setZoomDomain] = useState<[number, number] | null>(null)
   const [isPanning, setIsPanning] = useState(false)
   const panStartRef = useRef<{ x: number; domain: [number, number] } | null>(null)
+  // Toggle individual overlay pairs on/off
+  const [hiddenPairs, setHiddenPairs] = useState<Set<string>>(new Set())
+  // Whether to show normalised % change (used when overlays present)
+  const [normalised, setNormalised] = useState(false)
+  // Whether accessible data table is shown
+  const [tableVisible, setTableVisible] = useState(false)
 
+  const tzAbbr = getTimezoneAbbr(timezone)
   const filteredData = filterByRange(data, timeRange)
 
   const chartData = filteredData
     .slice()
     .reverse()
-    .map((d, i) => ({ ...d, time: formatChartTime(d.timestamp), idx: i }))
+    .map((d, i) => ({ ...d, time: formatChartTimeWithTz(d.timestamp, timezone), idx: i }))
+
+  // Build overlay series (filter by range, normalise if needed)
+  const hasOverlays = overlayPairs.length > 0
+  const activeOverlays = overlayPairs.filter((op) => !hiddenPairs.has(op.pair))
+
+  // Build a merged dataset for the overlay line chart
+  // Each row is keyed by index; primary pair uses 'price', overlays use pair name as key
+  const mergedChartData = useMemo(() => {
+    if (!hasOverlays) return chartData
+    // Normalise primary
+    const primaryNorm = normalised ? normaliseToPercent(chartData) : null
+    const base = chartData.map((d, i) => ({
+      ...d,
+      [pair]: normalised && primaryNorm ? primaryNorm[i].pct : d.price,
+    }))
+    // Merge each overlay
+    for (const op of overlayPairs) {
+      const opFiltered = filterByRange(op.data, timeRange).slice().reverse()
+      const opNorm = normalised ? normaliseToPercent(opFiltered) : null
+      opFiltered.forEach((pt, i) => {
+        if (i < base.length) {
+          base[i] = {
+            ...base[i],
+            [op.pair]: normalised && opNorm ? opNorm[i].pct : pt.price,
+          }
+        }
+      })
+    }
+    return base
+  }, [hasOverlays, chartData, pair, overlayPairs, normalised, timeRange])
 
   const prices = chartData.map((d) => d.price)
   const minP = Math.min(...prices)
@@ -96,7 +159,7 @@ function ChartContent({
     tooltipLabel: dark ? '#9ca3af' : '#6b7280',
   }
 
-  const totalPoints = chartData.length
+  const totalPoints = mergedChartData.length
   const activeDomain = useMemo<[number, number]>(
     () => zoomDomain ?? [0, totalPoints - 1],
     [zoomDomain, totalPoints],
@@ -146,7 +209,7 @@ function ChartContent({
 
   const handleMouseUp = useCallback(() => setIsPanning(false), [])
 
-  const visibleData = chartData.slice(activeDomain[0], activeDomain[1] + 1)
+  const visibleData = mergedChartData.slice(activeDomain[0], activeDomain[1] + 1)
 
   // Check if user scrolled near the start to trigger load more
   useEffect(() => {
@@ -191,9 +254,40 @@ function ChartContent({
               Loading more...
             </div>
           )}
+          <span className="text-xs text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded font-mono" title="Chart timezone">
+            {tzAbbr}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {rangeBar}
+          {hasOverlays && (
+            <button
+              type="button"
+              onClick={() => setNormalised((n) => !n)}
+              className={`px-2 py-1 text-xs rounded-lg border transition-colors ${
+                normalised
+                  ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                  : 'text-gray-400 border-gray-700 hover:text-gray-200 hover:bg-gray-700'
+              }`}
+              aria-pressed={normalised}
+              aria-label="Toggle % change normalisation"
+            >
+              % Change
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setTableVisible((v) => !v)}
+            className={`px-2 py-1 text-xs rounded-lg border transition-colors ${
+              tableVisible
+                ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40'
+                : 'text-gray-400 border-gray-700 hover:text-gray-200 hover:bg-gray-700'
+            }`}
+            aria-pressed={tableVisible}
+            aria-label={tableVisible ? 'Hide data table' : 'Show data table'}
+          >
+            Table
+          </button>
           {zoomDomain && (
             <button
               type="button"
@@ -224,6 +318,41 @@ function ChartContent({
         </div>
       </div>
 
+      {/* Overlay legend */}
+      {hasOverlays && (
+        <div className="flex flex-wrap items-center gap-3 mb-2" role="group" aria-label="Overlay pairs legend">
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="inline-block w-5 h-0 border-t-2 border-cyan-400" />
+            <span className="text-cyan-400">{pair}</span>
+          </div>
+          {overlayPairs.map((op, i) => {
+            const color = OVERLAY_COLORS[i % OVERLAY_COLORS.length]
+            const hidden = hiddenPairs.has(op.pair)
+            return (
+              <button
+                key={op.pair}
+                type="button"
+                onClick={() =>
+                  setHiddenPairs((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(op.pair)) next.delete(op.pair)
+                    else next.add(op.pair)
+                    return next
+                  })
+                }
+                className={`flex items-center gap-1.5 text-xs transition-opacity ${hidden ? 'opacity-40' : ''}`}
+                aria-pressed={!hidden}
+                aria-label={`Toggle ${op.pair} overlay`}
+                style={{ color }}
+              >
+                <span className="inline-block w-5 h-0 border-t-2" style={{ borderColor: color }} />
+                {op.pair}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <div
         className={`flex-1 min-h-0 ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
         onWheel={handleWheel}
@@ -234,52 +363,109 @@ function ChartContent({
         role="img"
         aria-label={`${pair} price chart with ${chartData.length} data points`}
       >
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={visibleData}>
-            <defs>
-              <linearGradient id={`priceGradient${fullScreen ? 'Fs' : ''}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={colors.gridStroke} />
-            <XAxis
-              dataKey="time"
-              tick={{ fill: colors.tickFill, fontSize: 11 }}
-              axisLine={{ stroke: colors.axisLine }}
-              tickLine={false}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              domain={[minP - pad, maxP + pad]}
-              tick={{ fill: colors.tickFill, fontSize: 11 }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={formatPriceShort}
-              width={80}
-            />
-            <Tooltip
-              contentStyle={{
-                background: colors.tooltipBg,
-                border: `1px solid ${colors.tooltipBorder}`,
-                borderRadius: '8px',
-                fontSize: '13px',
-              }}
-              labelStyle={{ color: colors.tooltipLabel }}
-              formatter={(value: number) => [`$${formatPriceShort(value)}`, pair]}
-              labelFormatter={(label) => `Time: ${label}`}
-            />
-            <Area
-              type="monotone"
-              dataKey="price"
-              stroke="#22d3ee"
-              strokeWidth={2}
-              fill={`url(#priceGradient${fullScreen ? 'Fs' : ''})`}
-              dot={false}
-              activeDot={{ r: 4, fill: '#22d3ee' }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        {hasOverlays ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={visibleData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.gridStroke} />
+              <XAxis
+                dataKey="time"
+                tick={{ fill: colors.tickFill, fontSize: 11 }}
+                axisLine={{ stroke: colors.axisLine }}
+                tickLine={false}
+                interval="preserveStartEnd"
+                label={{ value: tzAbbr, position: 'insideBottomRight', offset: -5, fill: colors.tickFill, fontSize: 10 }}
+              />
+              <YAxis
+                tick={{ fill: colors.tickFill, fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={normalised ? (v: number) => `${v.toFixed(1)}%` : formatPriceShort}
+                width={80}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: colors.tooltipBg,
+                  border: `1px solid ${colors.tooltipBorder}`,
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                }}
+                labelStyle={{ color: colors.tooltipLabel }}
+                formatter={(value: number, name: string) => [
+                  normalised ? `${value.toFixed(2)}%` : `$${formatPriceShort(value)}`,
+                  name,
+                ]}
+                labelFormatter={(label) => `Time: ${label} (${tzAbbr})`}
+              />
+              <Line
+                type="monotone"
+                dataKey={pair}
+                stroke="#22d3ee"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 4 }}
+              />
+              {activeOverlays.map((op, i) => (
+                <Line
+                  key={op.pair}
+                  type="monotone"
+                  dataKey={op.pair}
+                  stroke={OVERLAY_COLORS[i % OVERLAY_COLORS.length]}
+                  strokeWidth={1.5}
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={visibleData}>
+              <defs>
+                <linearGradient id={`priceGradient${fullScreen ? 'Fs' : ''}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#22d3ee" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={colors.gridStroke} />
+              <XAxis
+                dataKey="time"
+                tick={{ fill: colors.tickFill, fontSize: 11 }}
+                axisLine={{ stroke: colors.axisLine }}
+                tickLine={false}
+                interval="preserveStartEnd"
+                label={{ value: tzAbbr, position: 'insideBottomRight', offset: -5, fill: colors.tickFill, fontSize: 10 }}
+              />
+              <YAxis
+                domain={[minP - pad, maxP + pad]}
+                tick={{ fill: colors.tickFill, fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={formatPriceShort}
+                width={80}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: colors.tooltipBg,
+                  border: `1px solid ${colors.tooltipBorder}`,
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                }}
+                labelStyle={{ color: colors.tooltipLabel }}
+                formatter={(value: number) => [`$${formatPriceShort(value)}`, pair]}
+                labelFormatter={(label) => `Time: ${label} (${tzAbbr})`}
+              />
+              <Area
+                type="monotone"
+                dataKey="price"
+                stroke="#22d3ee"
+                strokeWidth={2}
+                fill={`url(#priceGradient${fullScreen ? 'Fs' : ''})`}
+                dot={false}
+                activeDot={{ r: 4, fill: '#22d3ee' }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
       <div className="flex items-center justify-between mt-2 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
         <div>
@@ -291,6 +477,61 @@ function ChartContent({
             Scroll to zoom · Drag to pan · Press Esc to close
           </p>
         )}
+      </div>
+
+      {/* #304 Accessible data table fallback */}
+      {tableVisible && (
+        <div className="mt-4 overflow-x-auto max-h-60 overflow-y-auto rounded-lg border border-gray-700">
+          <table
+            className="w-full text-xs text-gray-300"
+            aria-label={`${pair} price history data table (${tzAbbr})`}
+          >
+            <thead className="bg-gray-800 sticky top-0">
+              <tr>
+                <th scope="col" className="px-3 py-2 text-left font-medium text-gray-400">
+                  Time ({tzAbbr})
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-400">
+                  Price (USD)
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium text-gray-400">
+                  Confidence
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleData.map((d, i) => (
+                <tr key={i} className={i % 2 === 0 ? 'bg-gray-900' : 'bg-gray-850'}>
+                  <td className="px-3 py-1.5 font-mono">{d.time}</td>
+                  <td className="px-3 py-1.5 text-right font-mono">${formatPriceShort(d.price)}</td>
+                  <td className="px-3 py-1.5 text-right">{(d.confidence * 100).toFixed(1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {/* sr-only table always present for screen readers */}
+      <div className="sr-only" aria-live="polite">
+        <table aria-label={`${pair} price history accessible data`}>
+          <caption>{pair} price data — {chartData.length} points ({tzAbbr})</caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">Price USD</th>
+              <th scope="col">Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {chartData.slice(0, 50).map((d, i) => (
+              <tr key={i}>
+                <td>{d.time}</td>
+                <td>{formatPriceShort(d.price)}</td>
+                <td>{(d.confidence * 100).toFixed(1)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )
@@ -305,6 +546,8 @@ export const PriceChart = memo(function PriceChart({
   onLoadMore,
   timeRange: externalRange,
   onTimeRangeChange: externalOnChange,
+  timezone = 'UTC',
+  overlayPairs = [],
 }: PriceChartProps) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [fullScreen, setFullScreen] = useState(false)
@@ -371,6 +614,8 @@ export const PriceChart = memo(function PriceChart({
         loadingMore={loadingMore}
         hasMore={hasMore}
         onLoadMore={onLoadMore}
+        timezone={timezone}
+        overlayPairs={overlayPairs}
       />
     </div>
   )
@@ -395,6 +640,8 @@ export const PriceChart = memo(function PriceChart({
               loadingMore={loadingMore}
               hasMore={hasMore}
               onLoadMore={onLoadMore}
+              timezone={timezone}
+              overlayPairs={overlayPairs}
             />
           </div>
         </div>,

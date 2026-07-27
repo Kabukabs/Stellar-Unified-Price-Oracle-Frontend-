@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, type ReactElement } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -42,7 +42,7 @@ interface Props {
   availableSources?: readonly string[]
 }
 
-export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props) {
+export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactElement {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { t } = useTranslation()

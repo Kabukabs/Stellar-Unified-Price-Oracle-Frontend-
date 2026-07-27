@@ -26,14 +26,8 @@ export const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
 
 export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
   analyticsOptOut: false,
-}
-
-export const DEFAULT_PREFERENCES: Preferences = {
-  ...DEFAULT_DATA_PREFERENCES,
-  ...DEFAULT_LAYOUT_PREFERENCES,
-  ...DEFAULT_ACCESSIBILITY_PREFERENCES,
-  ...DEFAULT_PRIVACY_PREFERENCES,
-}
+  chartTimezone: 'UTC',
+} as const
 
 export const MAX_UNDO_DEPTH = 20
 
@@ -55,4 +49,12 @@ export const STALE_THRESHOLD_OPTIONS = [
   { value: 5, label: '5 minutes' },
   { value: 15, label: '15 minutes' },
   { value: 30, label: '30 minutes' },
+] as const
+
+export const CHART_TIMEZONE_OPTIONS = [
+  { value: 'UTC' as const, label: 'UTC', abbr: 'UTC' },
+  { value: 'Local' as const, label: 'Local', abbr: 'Local' },
+  { value: 'America/New_York' as const, label: 'New York (ET)', abbr: 'ET' },
+  { value: 'Europe/London' as const, label: 'London (GMT/BST)', abbr: 'London' },
+  { value: 'Asia/Tokyo' as const, label: 'Tokyo (JST)', abbr: 'JST' },
 ] as const

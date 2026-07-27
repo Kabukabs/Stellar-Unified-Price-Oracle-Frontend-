@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 
 const STORAGE_KEY = 'notification-channels'
@@ -71,7 +71,7 @@ function StatusDot({ active }: { active: boolean }) {
   )
 }
 
-export function NotificationChannelsModal({ isOpen, onClose }: Props) {
+export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElement | null {
   const [config, setConfig] = useState<NotificationConfig>(loadConfig)
   const [activeTab, setActiveTab] = useState<TabId>('email')
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default')
