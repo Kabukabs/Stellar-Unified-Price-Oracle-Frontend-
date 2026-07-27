@@ -1,19 +1,59 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
 dist
-storybook-static
+build
+
+# ── Test coverage & reports ───────────────────────────────────────────────────
+coverage
 reports
 sbom.json
 build-attestation.json
+
+# ── Storybook ─────────────────────────────────────────────────────────────────
+storybook-static
+
+# ── Environment variables ─────────────────────────────────────────────────────
 .env
 .env.local
+.env.*.local
+
+# ── TypeScript incremental build ──────────────────────────────────────────────
 *.tsbuildinfo
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
+
+# ── E2E test artifacts ────────────────────────────────────────────────────────
 e2e/results
 e2e/test-results
 test-results/
 playwright-report
-plans
+
+# ── Visual regression / snapshot files ───────────────────────────────────────
+**/__snapshots__/
 test/visual/baselines/
 test/visual/diffs/
 test/visual/reports/
 e2e/visual/__snapshots__/
+
+# Test snapshots
+src/**/__snapshots__/
+**/*.snap
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# AI agent directories
+.kiro/
+
+# Bundle analysis (generated, not source)
+reports/bundle-stats.html
+

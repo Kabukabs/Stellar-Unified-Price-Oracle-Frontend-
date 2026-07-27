@@ -10,6 +10,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   highContrast: false,
   largeText: false,
   analyticsOptOut: false,
+  chartTimezone: 'UTC',
 } as const
 
 export const MAX_UNDO_DEPTH = 20
@@ -32,4 +33,12 @@ export const STALE_THRESHOLD_OPTIONS = [
   { value: 5, label: '5 minutes' },
   { value: 15, label: '15 minutes' },
   { value: 30, label: '30 minutes' },
+] as const
+
+export const CHART_TIMEZONE_OPTIONS = [
+  { value: 'UTC' as const, label: 'UTC', abbr: 'UTC' },
+  { value: 'Local' as const, label: 'Local', abbr: 'Local' },
+  { value: 'America/New_York' as const, label: 'New York (ET)', abbr: 'ET' },
+  { value: 'Europe/London' as const, label: 'London (GMT/BST)', abbr: 'London' },
+  { value: 'Asia/Tokyo' as const, label: 'Tokyo (JST)', abbr: 'JST' },
 ] as const

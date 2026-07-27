@@ -1,23 +1,8 @@
 import { useCallback, type ReactElement } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 export const KNOWN_SOURCES = ['chainlink', 'redstone', 'band', 'reflector'] as const
-
-const SORT_OPTIONS = [
-  { value: 'pair', label: 'Pair (A–Z)' },
-  { value: 'price-high', label: 'Price (High → Low)' },
-  { value: 'price-low', label: 'Price (Low → High)' },
-  { value: 'confidence', label: 'Confidence' },
-  { value: 'recent', label: 'Last Updated' },
-] as const
-
-const UPDATED_WITHIN_OPTIONS = [
-  { value: 'all', label: 'Any time' },
-  { value: '1h', label: '1 h' },
-  { value: '6h', label: '6 h' },
-  { value: '24h', label: '24 h' },
-  { value: '7d', label: '7 d' },
-] as const
 
 export interface FilterState {
   sources: string[]
@@ -60,7 +45,24 @@ interface Props {
 export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactElement {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const f = readFilterState(searchParams)
+
+  const SORT_OPTIONS = [
+    { value: 'pair', label: t('filter.sort.pair') },
+    { value: 'price-high', label: t('filter.sort.priceHigh') },
+    { value: 'price-low', label: t('filter.sort.priceLow') },
+    { value: 'confidence', label: t('filter.sort.confidence') },
+    { value: 'recent', label: t('filter.sort.recent') },
+  ] as const
+
+  const UPDATED_WITHIN_OPTIONS = [
+    { value: 'all', label: t('filter.updatedWithin.all') },
+    { value: '1h', label: t('filter.updatedWithin.1h') },
+    { value: '6h', label: t('filter.updatedWithin.6h') },
+    { value: '24h', label: t('filter.updatedWithin.24h') },
+    { value: '7d', label: t('filter.updatedWithin.7d') },
+  ] as const
 
   const setParam = useCallback(
     (key: string, value: string) => {
@@ -99,14 +101,14 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-4">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-medium text-gray-300">Filters &amp; Sort</span>
+        <span className="text-sm font-medium text-gray-300">{t('filter.title')}</span>
         {activeCount > 0 && (
           <button
             type="button"
             onClick={clearAll}
             className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
-            Clear all ({activeCount})
+            {t('filter.clearAll', { count: activeCount })}
           </button>
         )}
       </div>
@@ -114,7 +116,7 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Sources */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Oracle Sources</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t('filter.sources')}</p>
           <div className="flex flex-wrap gap-3">
             {availableSources.map((src) => (
               <label key={src} className="flex items-center gap-1.5 cursor-pointer select-none">
@@ -132,7 +134,7 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
 
         {/* Last Updated */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Last Updated</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t('filter.lastUpdated')}</p>
           <div className="flex flex-wrap gap-1.5">
             {UPDATED_WITHIN_OPTIONS.map((opt) => (
               <button
@@ -154,11 +156,11 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
         {/* Confidence Range */}
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-            Confidence: {f.minConf}%–{f.maxConf}%
+            {t('filter.confidence', { min: f.minConf, max: f.maxConf })}
           </p>
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600 w-5">Min</span>
+              <span className="text-xs text-gray-600 w-5">{t('filter.confidenceMin')}</span>
               <input
                 type="range"
                 min="0"
@@ -169,13 +171,12 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
                   if (val <= f.maxConf) setParam('minConf', val === 0 ? '' : String(val))
                 }}
                 className="flex-1 accent-cyan-500"
-                aria-label="Minimum confidence"
-                aria-valuetext={`${f.minConf}%`}
+                aria-label={t('filter.ariaLabels.minConfidence')}
               />
               <span className="text-xs text-gray-400 w-8 text-right">{f.minConf}%</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600 w-5">Max</span>
+              <span className="text-xs text-gray-600 w-5">{t('filter.confidenceMax')}</span>
               <input
                 type="range"
                 min="0"
@@ -186,8 +187,7 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
                   if (val >= f.minConf) setParam('maxConf', val === 100 ? '' : String(val))
                 }}
                 className="flex-1 accent-cyan-500"
-                aria-label="Maximum confidence"
-                aria-valuetext={`${f.maxConf}%`}
+                aria-label={t('filter.ariaLabels.maxConfidence')}
               />
               <span className="text-xs text-gray-400 w-8 text-right">{f.maxConf}%</span>
             </div>
@@ -196,28 +196,28 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
 
         {/* Price Range */}
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Price Range</p>
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t('filter.priceRange')}</p>
           <div className="flex items-center gap-2">
             <input
               type="number"
               min="0"
               step="any"
-              placeholder="Min"
+              placeholder={t('filter.priceMin')}
               value={f.minPrice}
               onChange={(e) => setParam('minPrice', e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              aria-label="Minimum price"
+              aria-label={t('filter.ariaLabels.minPrice')}
             />
             <span className="text-gray-600 text-sm shrink-0">–</span>
             <input
               type="number"
               min="0"
               step="any"
-              placeholder="Max"
+              placeholder={t('filter.priceMax')}
               value={f.maxPrice}
               onChange={(e) => setParam('maxPrice', e.target.value)}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              aria-label="Maximum price"
+              aria-label={t('filter.ariaLabels.maxPrice')}
             />
           </div>
         </div>
@@ -225,15 +225,15 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
 
       {/* Sort */}
       <div className="mt-4 pt-4 border-t border-gray-800">
-        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Sort By</p>
+        <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{t('filter.sortBy')}</p>
         <div className="flex items-center gap-2">
           <select
             value={f.sort}
             onChange={(e) => setParam('sort', e.target.value)}
             className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            aria-label="Sort by"
+            aria-label={t('filter.ariaLabels.sortBy')}
           >
-            <option value="">Default</option>
+            <option value="">{t('filter.sortDefault')}</option>
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -243,8 +243,10 @@ export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactE
           <button
             type="button"
             onClick={() => setParam('sortDir', f.sortDir === 'asc' ? 'desc' : 'asc')}
-            title={f.sortDir === 'asc' ? 'Ascending' : 'Descending'}
-            aria-label={`Sort direction: ${f.sortDir === 'asc' ? 'ascending' : 'descending'}`}
+            title={f.sortDir === 'asc' ? t('filter.sortDirection.ascending') : t('filter.sortDirection.descending')}
+            aria-label={t('filter.sortDirection.ariaLabel', {
+              direction: f.sortDir === 'asc' ? t('filter.sortDirection.ascending') : t('filter.sortDirection.descending'),
+            })}
             className="p-1.5 border border-gray-700 rounded-lg text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
           >
             {f.sortDir === 'asc' ? (

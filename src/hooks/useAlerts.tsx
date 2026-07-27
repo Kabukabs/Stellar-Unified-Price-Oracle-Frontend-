@@ -1,18 +1,54 @@
 import { useState, useCallback, useEffect, createContext, useContext, ReactNode } from 'react'
-import type { Alert, AlertsContextType } from '../types'
+import type { Alert, AlertsContextType, AlertSnoozeDuration } from '../types'
 import { usePriceContext } from '../context/PriceContext'
+import { AlertsArraySchema } from '../api/schemas'
 
 const STORAGE_KEY = 'price-alerts'
+
+/** Compute snooze expiry timestamp from a duration string */
+function snoozeDurationMs(duration: AlertSnoozeDuration): number {
+  const now = Date.now()
+  switch (duration) {
+    case '15min':
+      return now + 15 * 60 * 1000
+    case '1hr':
+      return now + 60 * 60 * 1000
+    case '4hr':
+      return now + 4 * 60 * 60 * 1000
+    case '24hr':
+      return now + 24 * 60 * 60 * 1000
+    case 'tomorrow': {
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      tomorrow.setHours(8, 0, 0, 0)
+      return tomorrow.getTime()
+    }
+  }
+}
+
+/** Returns the window duration in milliseconds for a percentage alert window */
+function windowMs(window: string): number {
+  switch (window) {
+    case '5min':  return 5 * 60 * 1000
+    case '15min': return 15 * 60 * 1000
+    case '1hr':   return 60 * 60 * 1000
+    case '24hr':  return 24 * 60 * 60 * 1000
+    default:      return 60 * 60 * 1000
+  }
+}
 
 function loadAlerts(): Alert[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((a: unknown): a is Alert =>
-      typeof a === 'object' && a !== null && typeof (a as Alert).id === 'string' && typeof (a as Alert).assetPair === 'string'
-    )
+    const parsed: unknown = JSON.parse(raw)
+    const result = AlertsArraySchema.safeParse(parsed)
+    if (!result.success) {
+      console.warn('[useAlerts] Invalid alerts in localStorage, resetting:', result.error.issues)
+      return []
+    }
+    // Zod fills in defaults for new fields on legacy data
+    return result.data as Alert[]
   } catch {
     return []
   }
@@ -27,63 +63,133 @@ const AlertsContext = createContext<AlertsContextType | null>(null)
 /**
  * Provides the {@link AlertsContextType} to its subtree.
  *
- * Persists alerts to `localStorage` and evaluates them against live prices from {@link usePriceContext}.
- * Fires browser notifications when a threshold is crossed (if permission is granted).
+ * Persists alerts to `localStorage` and evaluates them against live prices from
+ * {@link usePriceContext}. Handles:
+ *  - Absolute threshold alerts (upper/lower)
+ *  - Percentage-based movement alerts (#307)
+ *  - One-time vs persistent alerts with fire counts (#312)
+ *  - Alert snooze with auto-unsnooze (#313)
+ *
  * Must be rendered inside `PriceProvider`.
  */
 export function AlertsProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>(loadAlerts)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
-  
-  // Real-time price context
+
   const { livePrices } = usePriceContext()
+
+  // Auto-unsnooze expired snoozes every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now()
+      setAlerts((prev) => {
+        const changed = prev.some((a) => a.snoozedUntil !== null && a.snoozedUntil <= now)
+        if (!changed) return prev
+        return prev.map((a) =>
+          a.snoozedUntil !== null && a.snoozedUntil <= now
+            ? { ...a, snoozedUntil: null }
+            : a,
+        )
+      })
+    }, 30_000)
+    return () => clearInterval(interval)
+  }, [])
 
   // Evaluate alerts against live prices
   useEffect(() => {
     let changed = false
+    const now = Date.now()
+
     const newAlerts = alerts.map((alert) => {
+      // Skip inactive alerts
       if (!alert.active) return alert
+
+      // Skip snoozed alerts
+      if (alert.snoozedUntil !== null && alert.snoozedUntil > now) return alert
 
       const livePriceData = livePrices.get(alert.assetPair)
       if (!livePriceData) return alert
-      
+
       const currentPrice = livePriceData.data.price
       let triggered = false
+      let updatedAlert = { ...alert }
 
-      if (alert.upperThreshold !== null && currentPrice >= alert.upperThreshold) {
-        triggered = true
-      } else if (alert.lowerThreshold !== null && currentPrice <= alert.lowerThreshold) {
-        triggered = true
-      }
+      if (alert.percentageMode) {
+        // ── Percentage-based alert evaluation (#307) ──────────────────────
+        const threshold = alert.percentageThreshold ?? 0
+        const window = alert.percentageWindow ?? '1hr'
+        const direction = alert.percentageDirection ?? 'either'
+        const windowDuration = windowMs(window)
 
-      if (triggered && alert.lastTriggeredAt === null) {
-        // Just triggered now
-        changed = true
-        
-        // Show browser notification
-        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-          new Notification('Price Alert Triggered', {
-            body: `${alert.assetPair} has crossed your threshold! Current price: $${currentPrice}`,
-          })
+        // Initialise or refresh baseline if it's expired
+        if (
+          alert.percentageBaselinePrice === null ||
+          alert.percentageBaselineTimestamp === null ||
+          now - alert.percentageBaselineTimestamp >= windowDuration
+        ) {
+          // Set new baseline; don't trigger on the same tick as baseline reset
+          changed = true
+          updatedAlert = {
+            ...updatedAlert,
+            percentageBaselinePrice: currentPrice,
+            percentageBaselineTimestamp: now,
+            lastTriggeredAt: null,
+          }
+          return updatedAlert
         }
 
-        return {
-          ...alert,
-          lastTriggeredAt: Date.now(),
-          active: !alert.triggerOnce // Disable if triggerOnce is true
+        const baseline = alert.percentageBaselinePrice
+        const pctChange = baseline !== 0 ? ((currentPrice - baseline) / baseline) * 100 : 0
+        const absPctChange = Math.abs(pctChange)
+
+        if (direction === 'up' && pctChange >= threshold) triggered = true
+        else if (direction === 'down' && pctChange <= -threshold) triggered = true
+        else if (direction === 'either' && absPctChange >= threshold) triggered = true
+      } else {
+        // ── Absolute threshold evaluation ─────────────────────────────────
+        if (alert.upperThreshold !== null && currentPrice >= alert.upperThreshold) {
+          triggered = true
+        } else if (alert.lowerThreshold !== null && currentPrice <= alert.lowerThreshold) {
+          triggered = true
         }
       }
 
-      // Reset lastTriggeredAt if price falls back out of range (so it can trigger again later)
-      if (!triggered && alert.lastTriggeredAt !== null && !alert.triggerOnce) {
-        changed = true
-        return {
-          ...alert,
-          lastTriggeredAt: null
+      if (triggered) {
+        // For persistent alerts: re-trigger every time the condition is met
+        // For one-time alerts: only trigger if not yet triggered
+        const shouldFire = alert.triggerOnce
+          ? alert.lastTriggeredAt === null
+          : alert.lastTriggeredAt === null // reset after going out-of-range
+
+        if (shouldFire) {
+          changed = true
+          const newFireCount = (updatedAlert.fireCount ?? 0) + 1
+
+          // Show browser notification
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            const body = alert.percentageMode
+              ? `${alert.assetPair} moved ${alert.percentageThreshold ?? 0}% in ${alert.percentageWindow ?? '1hr'}! Current: $${currentPrice.toFixed(4)}`
+              : `${alert.assetPair} crossed your threshold! Current price: $${currentPrice.toFixed(4)}`
+            new Notification('Price Alert Triggered', { body })
+          }
+
+          return {
+            ...updatedAlert,
+            fireCount: newFireCount,
+            lastTriggeredAt: now,
+            // One-time: auto-disable. Persistent: stays active.
+            active: !alert.triggerOnce,
+          }
+        }
+      } else {
+        // Reset lastTriggeredAt when price goes back out-of-range (for persistent re-trigger)
+        if (!alert.triggerOnce && alert.lastTriggeredAt !== null) {
+          changed = true
+          return { ...updatedAlert, lastTriggeredAt: null }
         }
       }
 
-      return alert
+      return updatedAlert
     })
 
     if (changed) {
@@ -102,16 +208,23 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     saveAlerts(alerts)
   }, [alerts])
 
-  const addAlert = useCallback((alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt'>) => {
-    const newAlert: Alert = {
-      ...alert,
-      id: crypto.randomUUID(),
-      createdAt: Date.now(),
-      lastTriggeredAt: null,
-    }
-    setAlerts((prev) => [...prev, newAlert])
-    return newAlert
-  }, [])
+  const addAlert = useCallback(
+    (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => {
+      const newAlert: Alert = {
+        ...alert,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        lastTriggeredAt: null,
+        fireCount: 0,
+        snoozedUntil: null,
+        percentageBaselinePrice: null,
+        percentageBaselineTimestamp: null,
+      }
+      setAlerts((prev) => [...prev, newAlert])
+      return newAlert
+    },
+    [],
+  )
 
   const updateAlert = useCallback((id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => {
     setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)))
@@ -126,7 +239,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     [alerts],
   )
 
-  const activeCount = alerts.filter((a) => a.active).length
+  const activeCount = alerts.filter((a) => a.active && (a.snoozedUntil === null || a.snoozedUntil <= Date.now())).length
 
   const hasAlertsForPair = useCallback(
     (assetPair: string) => alerts.some((a) => a.assetPair === assetPair && a.active),
@@ -136,12 +249,38 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   const togglePanel = useCallback(() => setIsPanelOpen((p) => !p), [])
 
   const markAsRead = useCallback((id: string) => {
-    setAlerts((prev) => prev.map((a) =>
-      a.id === id ? { ...a, lastTriggeredAt: a.lastTriggeredAt ?? Date.now() } : a
-    ))
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, lastTriggeredAt: a.lastTriggeredAt ?? Date.now() } : a)),
+    )
   }, [])
 
-  const value = {
+  /** Snooze an alert for a given duration (#313) */
+  const snoozeAlert = useCallback((id: string, duration: AlertSnoozeDuration) => {
+    const until = snoozeDurationMs(duration)
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, snoozedUntil: until, lastTriggeredAt: null } : a,
+      ),
+    )
+  }, [])
+
+  /** Remove snooze from an alert immediately (#313) */
+  const unsnoozeAlert = useCallback((id: string) => {
+    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, snoozedUntil: null } : a)))
+  }, [])
+
+  /** Re-enable a fired one-time alert so it can fire again (#312) */
+  const reEnableAlert = useCallback((id: string) => {
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, active: true, lastTriggeredAt: null, fireCount: 0, snoozedUntil: null }
+          : a,
+      ),
+    )
+  }, [])
+
+  const value: AlertsContextType = {
     alerts,
     addAlert,
     updateAlert,
@@ -151,7 +290,10 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     activeCount,
     isPanelOpen,
     togglePanel,
-    markAsRead
+    markAsRead,
+    snoozeAlert,
+    unsnoozeAlert,
+    reEnableAlert,
   }
 
   return <AlertsContext.Provider value={value}>{children}</AlertsContext.Provider>

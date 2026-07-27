@@ -38,6 +38,47 @@ export function formatChartTime(ts: number): string {
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * Formats a Unix timestamp in ms for chart x-axis labels using the given IANA
+ * timezone identifier (or 'UTC' / 'Local').
+ * Returns "HH:MM" format with the timezone abbreviation appended when it is
+ * different from the browser local timezone.
+ */
+export function formatChartTimeWithTz(ts: number, timezone: string): string {
+  const tz = timezone === 'Local' ? undefined : timezone
+  const d = new Date(ts)
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: tz,
+  })
+}
+
+/**
+ * Returns the short timezone abbreviation (e.g. "UTC", "EST", "JST") for a
+ * given IANA timezone string and a reference timestamp. Falls back to the raw
+ * timezone value if the Intl API is unavailable.
+ */
+export function getTimezoneAbbr(timezone: string, ts = Date.now()): string {
+  if (timezone === 'Local') {
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' }).formatToParts(ts)
+      return parts.find((p) => p.type === 'timeZoneName')?.value ?? 'Local'
+    } catch {
+      return 'Local'
+    }
+  }
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short',
+    }).formatToParts(ts)
+    return parts.find((p) => p.type === 'timeZoneName')?.value ?? timezone
+  } catch {
+    return timezone
+  }
+}
+
 /** Formats a price value for chart y-axis tick labels using the same scale tiers as {@link formatPrice}. */
 export function formatChartPrice(val: number): string {
   if (val >= 1000) return val.toLocaleString('en-US', { minimumFractionDigits: 2 })
