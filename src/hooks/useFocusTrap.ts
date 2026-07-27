@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, type RefObject } from 'react'
 
 const FOCUSABLE_SELECTORS =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -7,7 +7,7 @@ const FOCUSABLE_SELECTORS =
  * Traps keyboard focus within a container element.
  * Returns ref to attach to the container and handleKeyDown for the container.
  */
-export function useFocusTrap() {
+export function useFocusTrap(): { containerRef: RefObject<HTMLDivElement | null>; handleKeyDown: (e: React.KeyboardEvent) => void } {
   const containerRef = useRef<HTMLDivElement>(null)
 
   const handleKeyDown = useCallback(

@@ -38,7 +38,7 @@ function parseCsv(text: string, errorMessages: { empty: string; noValidRows: str
   return { rows: rows.sort((a, b) => a.timestamp - b.timestamp), error: null }
 }
 
-export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
+export function CsvImportZone({ onImport, onClear, hasImport }: Props): ReactElement {
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)

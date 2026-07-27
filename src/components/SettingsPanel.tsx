@@ -52,7 +52,7 @@ function AccessibilityToggle({
   )
 }
 
-export function SettingsPanel({ onClose }: SettingsPanelProps) {
+export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
   const { preferences, updatePreference, undo, redo, canUndo, canRedo, clearHistory } =
     usePreferences()
   const { t, i18n } = useTranslation()

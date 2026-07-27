@@ -8,7 +8,7 @@ interface ExportButtonProps {
   disabled?: boolean
 }
 
-export function ExportButton({ onExport, exporting, disabled }: ExportButtonProps) {
+export const ExportButton = memo(function ExportButton({ onExport, exporting, disabled }: ExportButtonProps): ReactElement {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
@@ -76,4 +76,4 @@ export function ExportButton({ onExport, exporting, disabled }: ExportButtonProp
       )}
     </div>
   )
-}
+})

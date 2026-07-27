@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 import { createPortal } from 'react-dom'
 import { useToast, type Toast, type ToastType } from '../context/ToastContext'
 
@@ -96,7 +96,7 @@ function ToastItem({ toast }: { toast: Toast }) {
   )
 }
 
-export function ToastContainer() {
+export function ToastContainer(): ReactElement | null {
   const { toasts } = useToast()
 
   if (toasts.length === 0) return null

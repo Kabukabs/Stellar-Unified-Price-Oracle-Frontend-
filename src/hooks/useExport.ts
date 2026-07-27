@@ -11,7 +11,11 @@ import {
 
 export type ExportFormat = 'csv' | 'json' | 'xlsx'
 
-export function useExport() {
+interface UseExportReturn {
+  exportCSV: (items: PriceData[]) => void
+}
+
+export function useExport(): UseExportReturn {
   const exportCSV = useCallback((items: PriceData[]) => {
     const { rows, headers } = priceDataToCsvRows(items)
     const csv = toCsv(rows, headers)
