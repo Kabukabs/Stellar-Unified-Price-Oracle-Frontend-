@@ -18,3 +18,23 @@ test/visual/baselines/
 test/visual/diffs/
 test/visual/reports/
 e2e/visual/__snapshots__/
+
+# Test snapshots
+src/**/__snapshots__/
+**/*.snap
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# AI agent directories
+.kiro/
+
+# Bundle analysis (generated, not source)
+reports/bundle-stats.html
+
