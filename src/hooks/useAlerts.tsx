@@ -3,7 +3,9 @@ import type { Alert, AlertsContextType, AlertSnoozeDuration } from '../types'
 import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
 
-const STORAGE_KEY = 'price-alerts'
+function isAlertArray(value: unknown): value is Alert[] {
+  return Array.isArray(value)
+}
 
 /** Compute snooze expiry timestamp from a duration string */
 function snoozeDurationMs(duration: AlertSnoozeDuration): number {
@@ -55,7 +57,7 @@ function loadAlerts(): Alert[] {
 }
 
 function saveAlerts(alerts: Alert[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts))
+  writeJson(STORAGE_KEYS.alerts, alerts)
 }
 
 const AlertsContext = createContext<AlertsContextType | null>(null)

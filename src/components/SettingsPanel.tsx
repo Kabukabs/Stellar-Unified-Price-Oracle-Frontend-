@@ -223,7 +223,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
                 checked={!preferences.analyticsOptOut}
                 onChange={(val) => {
                   updatePreference('analyticsOptOut', !val)
-                  try { localStorage.setItem('analyticsOptOut', !val ? '0' : '1') } catch { /* storage unavailable */ }
+                  writeRaw(STORAGE_KEYS.analyticsOptOut, !val ? '0' : '1')
                 }}
               />
             </div>

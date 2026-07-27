@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { config } from '../config'
 
+/** How long the "Copied!" confirmation stays visible after copying a snippet. */
+const COPY_FEEDBACK_RESET_MS = 1500
+
 type Method = 'GET' | 'POST' | 'WS'
 type SnippetLang = 'curl' | 'javascript' | 'python'
 
@@ -191,7 +194,7 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(snippet).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_RESET_MS)
     })
   }
 

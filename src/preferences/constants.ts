@@ -1,14 +1,30 @@
-import type { Preferences } from './types'
+import type {
+  AccessibilityPreferences,
+  DataPreferences,
+  LayoutPreferences,
+  Preferences,
+  PrivacyPreferences,
+} from './types'
 
-export const DEFAULT_PREFERENCES: Preferences = {
+/** Defaults grouped to match the slices in `slices.ts`. */
+export const DEFAULT_DATA_PREFERENCES: DataPreferences = {
   refreshInterval: 10000,
   chartTimeRange: '24h',
   staleThresholdMinutes: 5,
+}
+
+export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
   dashboardView: 'card',
   cardOrder: [],
+}
+
+export const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
   reducedMotion: false,
   highContrast: false,
   largeText: false,
+}
+
+export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
   analyticsOptOut: false,
   chartTimezone: 'UTC',
 } as const

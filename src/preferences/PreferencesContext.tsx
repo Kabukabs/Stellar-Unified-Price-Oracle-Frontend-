@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useUndoRedo, type Command } from '../hooks/useUndoRedo'
 import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import { idbCache } from '../hooks/useIndexedDB'
+import { preferencesReducer, setPreference } from './slices'
 import type { Preferences } from './types'
 
 const PREFS_IDB_KEY = 'user-preferences'
@@ -55,9 +56,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       const previousValue = preferences[key]
       if (previousValue === value) return
 
+      // Both directions go through the slice reducers, so an update can only ever
+      // touch the slice that owns `key`.
       const command: Command<Preferences> = {
-        apply: (s) => ({ ...s, [key]: value }),
-        undo: (s) => ({ ...s, [key]: previousValue }),
+        apply: (s) => preferencesReducer(s, setPreference(key, value)),
+        undo: (s) => preferencesReducer(s, setPreference(key, previousValue)),
         description: `${key}: ${previousValue} → ${value}`,
       }
       execute(command)
