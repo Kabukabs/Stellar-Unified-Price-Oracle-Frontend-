@@ -8,8 +8,10 @@ import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
 import { PriceChart } from '../components/PriceChart'
 import { PriceHistoryTable } from '../components/PriceHistoryTable'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
 import { isValidAssetPair } from '../types'
+import { usePreferences } from '../preferences/PreferencesContext'
 import type { CsvRow } from '../components/CsvImportZone'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -33,6 +35,7 @@ export function PriceDetail() {
   const { pair } = useParams<{ pair: string }>()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { preferences } = usePreferences()
   const [importedData, setImportedData] = useState<CsvRow[] | null>(null)
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
@@ -145,6 +148,7 @@ export function PriceDetail() {
                   loadingMore={loadingMore}
                   hasMore={hasMore}
                   onLoadMore={loadMore}
+                  timezone={preferences.chartTimezone}
                 />
               </ErrorBoundary>
             )}
