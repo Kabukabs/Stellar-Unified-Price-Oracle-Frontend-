@@ -58,10 +58,16 @@ export function useIdbQuery<T>(
   return { data, loading, error }
 }
 
+interface UseIdbMutationReturn {
+  set: <T>(store: StoreName, key: string, value: T) => Promise<void>
+  remove: (store: StoreName, key: string) => Promise<void>
+  clear: (store: StoreName) => Promise<void>
+}
+
 /**
  * Provides a setter that writes to IndexedDB and notifies subscribers.
  */
-export function useIdbMutation() {
+export function useIdbMutation(): UseIdbMutationReturn {
   const set = useCallback(
     async <T>(store: StoreName, key: string, value: T) => {
       await idbCache.set(store, key, value)

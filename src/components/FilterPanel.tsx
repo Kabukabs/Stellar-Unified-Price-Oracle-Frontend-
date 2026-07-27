@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, type ReactElement } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 export const KNOWN_SOURCES = ['chainlink', 'redstone', 'band', 'reflector'] as const
@@ -57,7 +57,7 @@ interface Props {
   availableSources?: readonly string[]
 }
 
-export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props) {
+export function FilterPanel({ availableSources = KNOWN_SOURCES }: Props): ReactElement {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const f = readFilterState(searchParams)

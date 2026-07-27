@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type ReactElement } from 'react'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 
@@ -37,7 +37,7 @@ function parseCsv(text: string): { rows: CsvRow[]; error: string | null } {
   return { rows: rows.sort((a, b) => a.timestamp - b.timestamp), error: null }
 }
 
-export function CsvImportZone({ onImport, onClear, hasImport }: Props) {
+export function CsvImportZone({ onImport, onClear, hasImport }: Props): ReactElement {
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)

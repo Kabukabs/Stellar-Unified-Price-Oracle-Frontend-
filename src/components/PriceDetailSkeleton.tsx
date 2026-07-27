@@ -1,4 +1,6 @@
-export function PriceDetailSkeleton() {
+import { type ReactElement } from 'react'
+
+export function PriceDetailSkeleton(): ReactElement {
   return (
     <div role="status" className="animate-pulse" aria-label="Loading price detail" aria-busy="true">
       {/* Header */}

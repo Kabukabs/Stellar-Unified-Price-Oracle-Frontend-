@@ -15,10 +15,15 @@ const defaultHistory = {
   refetch: vi.fn(),
 }
 
+const chartThrowRef = { current: false }
+
 vi.mock('../hooks/useSwr', () => ({ useSwr: vi.fn() }))
 vi.mock('../hooks/usePriceHistory', () => ({ usePriceHistory: vi.fn() }))
 vi.mock('../components/PriceChart', () => ({
-  PriceChart: () => <div data-testid="price-chart" />,
+  PriceChart: () => {
+    if (chartThrowRef.current) throw new Error('Chart render failed')
+    return <div data-testid="price-chart" />
+  },
 }))
 vi.mock('../components/CsvImportZone', () => ({
   CsvImportZone: () => null,
@@ -84,5 +89,26 @@ describe('PriceDetail', () => {
 
     renderWithPair()
     expect(screen.getByTestId('price-chart')).toBeInTheDocument()
+  })
+
+  it('renders chart error fallback when PriceChart throws', async () => {
+    const { useSwr } = await import('../hooks/useSwr')
+    vi.mocked(useSwr).mockReturnValue({
+      data: { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
+      loading: false,
+      error: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    chartThrowRef.current = true
+
+    renderWithPair()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('Chart failed to render. Please try refreshing the page.')).toBeInTheDocument()
+
+    chartThrowRef.current = false
+    spy.mockRestore()
   })
 })

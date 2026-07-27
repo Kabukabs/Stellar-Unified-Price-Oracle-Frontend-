@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect, type ReactElement } from 'react'
 import type { ExportFormat } from '../hooks/useExport'
 
 interface ExportButtonProps {
@@ -7,7 +7,7 @@ interface ExportButtonProps {
   disabled?: boolean
 }
 
-export function ExportButton({ onExport, exporting, disabled }: ExportButtonProps) {
+export const ExportButton = memo(function ExportButton({ onExport, exporting, disabled }: ExportButtonProps): ReactElement {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -69,4 +69,4 @@ export function ExportButton({ onExport, exporting, disabled }: ExportButtonProp
       )}
     </div>
   )
-}
+})

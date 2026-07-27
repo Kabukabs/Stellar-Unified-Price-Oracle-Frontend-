@@ -1,3 +1,4 @@
+import { type ReactElement } from 'react'
 import { usePreferences } from '../preferences/PreferencesContext'
 import {
   REFRESH_INTERVAL_OPTIONS,
@@ -49,7 +50,7 @@ function AccessibilityToggle({
   )
 }
 
-export function SettingsPanel({ onClose }: SettingsPanelProps) {
+export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
   const { preferences, updatePreference, undo, redo, canUndo, canRedo, clearHistory } =
     usePreferences()
 

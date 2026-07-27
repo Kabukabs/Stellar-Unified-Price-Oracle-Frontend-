@@ -41,7 +41,7 @@ function sendToAnalytics(report: WebVitalReport) {
   }
 }
 
-export function useWebVitals() {
+export function useWebVitals(): void {
   useEffect(() => {
     if (!shouldTrack()) return
 
