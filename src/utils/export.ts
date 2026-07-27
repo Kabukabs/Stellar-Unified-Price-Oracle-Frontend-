@@ -54,9 +54,333 @@ export function downloadFile(content: string, filename: string, mimeType: string
   URL.revokeObjectURL(url)
 }
 
+/** Triggers a browser file download for binary data (Uint8Array). */
+export function downloadBinaryFile(data: Uint8Array, filename: string, mimeType: string): void {
+  const blob = new Blob([data], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /** Generates a safe export filename like `XLM-USD_2024-01-01T12-00-00.csv` for a given asset pair and format. */
-export function exportFilename(pair: string, format: 'csv' | 'json'): string {
+export function exportFilename(pair: string, format: 'csv' | 'json' | 'xlsx'): string {
   const safe = pair.replace(/\//g, '-')
   const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
   return `${safe}_${ts}.${format}`
+}
+
+// ── Minimal pure-JS .xlsx generator (#314) ────────────────────────────────────
+// Implements a minimal OOXML Spreadsheet writer without any external dependencies.
+// Produces a valid .xlsx file with a single worksheet, typed columns, and a
+// styled header row (bold + background fill).
+
+/** Escape special XML characters in cell string values. */
+function xmlEscape(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+/** Convert a 1-based column index to Excel letter notation (1→A, 27→AA). */
+function colLetter(n: number): string {
+  let result = ''
+  while (n > 0) {
+    const rem = (n - 1) % 26
+    result = String.fromCharCode(65 + rem) + result
+    n = Math.floor((n - 1) / 26)
+  }
+  return result
+}
+
+/** Cell address from 1-based col/row (e.g. col=1, row=2 → "A2"). */
+function cellAddr(col: number, row: number): string {
+  return `${colLetter(col)}${row}`
+}
+
+interface XlsxSheet {
+  name: string
+  headers: string[]
+  rows: Array<Record<string, unknown>>
+}
+
+/**
+ * Builds a minimal .xlsx binary (Uint8Array) from one or more sheets.
+ *
+ * The generated workbook:
+ * - Uses inline strings (no shared string table) for simplicity.
+ * - Applies bold + yellow background (#FFD700) to the header row.
+ * - Formats number columns as numbers, string columns as text.
+ * - Optimises file size by omitting unused OOXML parts.
+ */
+export function buildXlsx(sheets: XlsxSheet[]): Uint8Array {
+  // Build each worksheet XML
+  const worksheetXmls: string[] = sheets.map((sheet) => {
+    const rows: string[] = []
+
+    // Header row (row 1) — styled with cellStyle="1" (bold header)
+    const headerCells = sheet.headers
+      .map((h, ci) => {
+        const addr = cellAddr(ci + 1, 1)
+        return `<c r="${addr}" t="inlineStr" s="1"><is><t>${xmlEscape(h)}</t></is></c>`
+      })
+      .join('')
+    rows.push(`<row r="1">${headerCells}</row>`)
+
+    // Data rows
+    sheet.rows.forEach((rowData, ri) => {
+      const rowNum = ri + 2
+      const cells = sheet.headers
+        .map((h, ci) => {
+          const val = rowData[h]
+          const addr = cellAddr(ci + 1, rowNum)
+          if (typeof val === 'number') {
+            return `<c r="${addr}"><v>${val}</v></c>`
+          }
+          const str = String(val ?? '')
+          return `<c r="${addr}" t="inlineStr"><is><t>${xmlEscape(str)}</t></is></c>`
+        })
+        .join('')
+      rows.push(`<row r="${rowNum}">${cells}</row>`)
+    })
+
+    const lastCol = colLetter(sheet.headers.length)
+    const lastRow = sheet.rows.length + 1
+    const dimension = `A1:${lastCol}${lastRow}`
+
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="${dimension}"/>
+  <sheetData>${rows.join('')}</sheetData>
+</worksheet>`
+  })
+
+  // Styles XML — defines font/fill for header cells (styleIndex=1)
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="3">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFFD700"/></patternFill></fill>
+  </fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>
+  </cellXfs>
+</styleSheet>`
+
+  // Workbook XML
+  const sheetRefs = sheets.map((s, i) => `<sheet name="${xmlEscape(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')
+  const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>${sheetRefs}</sheets>
+</workbook>`
+
+  // Workbook relationships
+  const sheetRelsEntries = sheets
+    .map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`)
+    .join('')
+  const workbookRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${sheetRelsEntries}
+  <Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`
+
+  // Root [Content_Types].xml
+  const contentTypesEntries = sheets
+    .map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`)
+    .join('')
+  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  ${contentTypesEntries}
+</Types>`
+
+  // Root _rels/.rels
+  const rootRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+
+  // Build a minimal ZIP containing all OOXML parts
+  const files: Array<{ name: string; content: string }> = [
+    { name: '[Content_Types].xml', content: contentTypesXml },
+    { name: '_rels/.rels', content: rootRelsXml },
+    { name: 'xl/workbook.xml', content: workbookXml },
+    { name: 'xl/_rels/workbook.xml.rels', content: workbookRelsXml },
+    { name: 'xl/styles.xml', content: stylesXml },
+    ...worksheetXmls.map((xml, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, content: xml })),
+  ]
+
+  return buildZip(files)
+}
+
+// ── Minimal ZIP builder ────────────────────────────────────────────────────────
+// Implements just enough of the ZIP specification (PKZIP) to produce a valid
+// .xlsx container: stored (uncompressed) entries + central directory + EOCD.
+
+function encodeUtf8(str: string): Uint8Array {
+  return new TextEncoder().encode(str)
+}
+
+function uint16LE(n: number): number[] {
+  return [n & 0xff, (n >> 8) & 0xff]
+}
+
+function uint32LE(n: number): number[] {
+  return [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff]
+}
+
+/** CRC-32 table (IEEE polynomial) */
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256)
+  for (let i = 0; i < 256; i++) {
+    let c = i
+    for (let j = 0; j < 8; j++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    }
+    table[i] = c
+  }
+  return table
+})()
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff
+  for (let i = 0; i < data.length; i++) {
+    crc = CRC32_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8)
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function buildZip(files: Array<{ name: string; content: string }>): Uint8Array {
+  const parts: Uint8Array[] = []
+  const centralDirEntries: Uint8Array[] = []
+  let offset = 0
+
+  for (const file of files) {
+    const nameBytes = encodeUtf8(file.name)
+    const dataBytes = encodeUtf8(file.content)
+    const crc = crc32(dataBytes)
+    const size = dataBytes.length
+
+    // Local file header
+    const localHeader = new Uint8Array([
+      0x50, 0x4b, 0x03, 0x04, // local file header sig
+      ...uint16LE(20),         // version needed (2.0)
+      ...uint16LE(0),          // flags
+      ...uint16LE(0),          // compression (stored)
+      ...uint16LE(0),          // mod time
+      ...uint16LE(0),          // mod date
+      ...uint32LE(crc),        // CRC-32
+      ...uint32LE(size),       // compressed size
+      ...uint32LE(size),       // uncompressed size
+      ...uint16LE(nameBytes.length), // file name length
+      ...uint16LE(0),          // extra field length
+    ])
+
+    const localEntry = new Uint8Array(localHeader.length + nameBytes.length + dataBytes.length)
+    localEntry.set(localHeader, 0)
+    localEntry.set(nameBytes, localHeader.length)
+    localEntry.set(dataBytes, localHeader.length + nameBytes.length)
+    parts.push(localEntry)
+
+    // Central directory entry
+    const cdEntry = new Uint8Array([
+      0x50, 0x4b, 0x01, 0x02, // central dir sig
+      ...uint16LE(20),         // version made by
+      ...uint16LE(20),         // version needed
+      ...uint16LE(0),          // flags
+      ...uint16LE(0),          // compression
+      ...uint16LE(0),          // mod time
+      ...uint16LE(0),          // mod date
+      ...uint32LE(crc),        // CRC-32
+      ...uint32LE(size),       // compressed size
+      ...uint32LE(size),       // uncompressed size
+      ...uint16LE(nameBytes.length), // file name length
+      ...uint16LE(0),          // extra field length
+      ...uint16LE(0),          // file comment length
+      ...uint16LE(0),          // disk number start
+      ...uint16LE(0),          // int file attrs
+      ...uint32LE(0),          // ext file attrs
+      ...uint32LE(offset),     // relative offset
+    ])
+    const cdEntryFull = new Uint8Array(cdEntry.length + nameBytes.length)
+    cdEntryFull.set(cdEntry, 0)
+    cdEntryFull.set(nameBytes, cdEntry.length)
+    centralDirEntries.push(cdEntryFull)
+
+    offset += localEntry.length
+  }
+
+  // Central directory size and offset
+  const cdSize = centralDirEntries.reduce((s, e) => s + e.length, 0)
+  const cdOffset = offset
+
+  // End of central directory record
+  const eocd = new Uint8Array([
+    0x50, 0x4b, 0x05, 0x06, // EOCD sig
+    ...uint16LE(0),           // disk number
+    ...uint16LE(0),           // disk with CD
+    ...uint16LE(files.length),// entries on disk
+    ...uint16LE(files.length),// total entries
+    ...uint32LE(cdSize),      // CD size
+    ...uint32LE(cdOffset),    // CD offset
+    ...uint16LE(0),           // comment length
+  ])
+
+  // Concatenate everything
+  const totalSize = offset + cdSize + eocd.length
+  const result = new Uint8Array(totalSize)
+  let pos = 0
+  for (const p of parts) {
+    result.set(p, pos)
+    pos += p.length
+  }
+  for (const e of centralDirEntries) {
+    result.set(e, pos)
+    pos += e.length
+  }
+  result.set(eocd, pos)
+
+  return result
+}
+
+/** Converts an array of {@link PriceData} to a single-sheet .xlsx Uint8Array. */
+export function priceDataToXlsx(prices: PriceData[]): Uint8Array {
+  const headers = ['Asset Pair', 'Price', 'Timestamp', 'Confidence', 'Sources']
+  const rows = prices.map((p) => ({
+    'Asset Pair': p.assetPair,
+    'Price': p.price,
+    'Timestamp': isoTs(p.timestamp),
+    'Confidence': p.confidence,
+    'Sources': p.sources.join(';'),
+  }))
+  return buildXlsx([{ name: 'Price Data', headers, rows }])
+}
+
+/** Converts a pair's price history to a single-sheet .xlsx Uint8Array. */
+export function historyToXlsx(pair: string, history: PriceHistoryEntry[]): Uint8Array {
+  const headers = ['Asset Pair', 'Price', 'Timestamp', 'Confidence', 'Sources']
+  const rows = history.map((h) => ({
+    'Asset Pair': pair,
+    'Price': h.price,
+    'Timestamp': isoTs(h.timestamp),
+    'Confidence': h.confidence,
+    'Sources': h.sources.join(';'),
+  }))
+  return buildXlsx([{ name: pair, headers, rows }])
 }
