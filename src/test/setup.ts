@@ -1,7 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 import { toHaveNoViolations } from 'vitest-axe/dist/matchers.js'
 import { expect, vi } from 'vitest'
-import 'fake-indexeddb/auto'
+// Initialise i18n with English translations so all components render real strings
+// (not raw keys like "notFound.heading") during unit tests.
+import '../i18n'
 
 expect.extend({ toHaveNoViolations })
 

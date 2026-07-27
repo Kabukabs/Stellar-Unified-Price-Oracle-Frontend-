@@ -1,4 +1,5 @@
 import { memo, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { PriceData } from '../types'
 import { formatPrice, timeAgo } from '../utils/format'
 
@@ -17,14 +18,6 @@ interface PriceTableViewProps {
   onToggleSelect?: (pair: string) => void
 }
 
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: 'assetPair', label: 'Pair' },
-  { key: 'price', label: 'Price' },
-  { key: 'confidence', label: 'Confidence' },
-  { key: 'sources', label: 'Sources' },
-  { key: 'timestamp', label: 'Updated' },
-]
-
 export const PriceTableView = memo(function PriceTableView({
   items,
   livePairs,
@@ -36,8 +29,17 @@ export const PriceTableView = memo(function PriceTableView({
   selected,
   onToggleSelect,
 }: PriceTableViewProps) {
+  const { t } = useTranslation()
   const [sortKey, setSortKey] = useState<SortKey>('assetPair')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  const COLUMNS: { key: SortKey; label: string }[] = [
+    { key: 'assetPair', label: t('table.columns.pair') },
+    { key: 'price', label: t('table.columns.price') },
+    { key: 'confidence', label: t('table.columns.confidence') },
+    { key: 'sources', label: t('table.columns.sources') },
+    { key: 'timestamp', label: t('table.columns.updated') },
+  ]
 
   const handleSort = useCallback(
     (key: SortKey) => {
@@ -63,12 +65,12 @@ export const PriceTableView = memo(function PriceTableView({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-800">
-      <table className="min-w-full text-sm" aria-label="Price feeds table">
+      <table className="min-w-full text-sm" aria-label={t('table.ariaLabel')}>
         <thead>
           <tr className="sticky top-0 bg-gray-900 border-b border-gray-800">
             {selectMode && (
               <th scope="col" className="px-4 py-3 w-10">
-                <span className="sr-only">Select</span>
+                <span className="sr-only">{t('table.columns.select')}</span>
               </th>
             )}
             {COLUMNS.map(({ key, label }) => (
@@ -90,7 +92,7 @@ export const PriceTableView = memo(function PriceTableView({
               </th>
             ))}
             <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
-              Alert
+              {t('table.columns.alert')}
             </th>
           </tr>
         </thead>
@@ -112,7 +114,7 @@ export const PriceTableView = memo(function PriceTableView({
                 role="button"
                 tabIndex={0}
                 className={`border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer transition-colors ${isStale ? 'opacity-60' : ''} ${isSelected ? 'bg-cyan-900/20' : ''}`}
-                aria-label={`View details for ${p.assetPair}`}
+                aria-label={t('table.row.rowAriaLabel', { pair: p.assetPair })}
                 aria-selected={selectMode ? isSelected : undefined}
               >
                 {selectMode && (
@@ -133,10 +135,18 @@ export const PriceTableView = memo(function PriceTableView({
                   <span className="flex items-center gap-2">
                     {p.assetPair}
                     {isLive && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" role="status" aria-label="Live data" />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"
+                        role="status"
+                        aria-label={t('table.row.liveAriaLabel')}
+                      />
                     )}
                     {hasAlert && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" role="status" aria-label="Active alert" />
+                      <span
+                        className="w-1.5 h-1.5 rounded-full bg-amber-400"
+                        role="status"
+                        aria-label={t('table.row.alertAriaLabel')}
+                      />
                     )}
                   </span>
                 </td>
@@ -154,9 +164,9 @@ export const PriceTableView = memo(function PriceTableView({
                       onAlertClick(e, p.assetPair)
                     }}
                     className={`text-xs font-medium transition-colors ${hasAlert ? 'text-amber-400 hover:text-amber-300' : 'text-gray-500 hover:text-gray-300'}`}
-                    aria-label={`Set alert for ${p.assetPair}`}
+                    aria-label={t('table.row.alertButtonAriaLabel', { pair: p.assetPair })}
                   >
-                    {hasAlert ? 'Alert set' : 'Set alert'}
+                    {hasAlert ? t('table.row.alertSet') : t('table.row.setAlert')}
                   </button>
                 </td>
               </tr>

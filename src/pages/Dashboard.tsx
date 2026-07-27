@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, useTransition, useOptimistic } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
 import { useAlerts } from '../hooks/useAlerts'
 import { useExport } from '../hooks/useExport'
@@ -11,6 +12,7 @@ import { AlertBadge } from '../components/AlertBadge'
 import { ConnectionBadge } from '../components/ConnectionBadge'
 import { NotificationChannelsModal } from '../components/NotificationChannelsModal'
 import { FilterPanel, readFilterState, countActiveFilters } from '../components/FilterPanel'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { sanitizeSearchInput } from '../utils/sanitize'
 import type { AlertFormData, LivePriceEntry, PriceData } from '../types'
 
@@ -41,6 +43,7 @@ export function Dashboard() {
     rateLimitRetryAfterMs,
   } = usePriceContext()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount } = useAlerts()
   const { exportCSV } = useExport()
   const [searchParams] = useSearchParams()
@@ -80,14 +83,12 @@ export function Dashboard() {
     let result = merged
     if (search) result = result.filter((p) => p.assetPair.toLowerCase().includes(search.toLowerCase()))
 
-    // Source filter: new 'sources' param takes precedence over legacy 'source'
     if (sources.length > 0) {
       result = result.filter((p) => p.sources.some((s) => sources.includes(s)))
     } else if (legacySource !== 'all') {
       result = result.filter((p) => p.sources.some((s) => s.toLowerCase() === legacySource.toLowerCase()))
     }
 
-    // Confidence filter: new minConf/maxConf take precedence over legacy 'confidence'
     if (minConf > 0 || maxConf < 100) {
       if (minConf > 0) result = result.filter((p) => p.confidence * 100 >= minConf)
       if (maxConf < 100) result = result.filter((p) => p.confidence * 100 <= maxConf)
@@ -173,15 +174,17 @@ export function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Price Oracle Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {t('dashboard.title')}
+          </h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-            Aggregated from Chainlink, Redstone, Band &amp; Reflector
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <input
             type="text"
-            placeholder="Search by asset pair..."
+            placeholder={t('dashboard.search.placeholder')}
             value={search}
             onChange={(e) => {
               const value = sanitizeSearchInput(e.target.value)
@@ -191,7 +194,7 @@ export function Dashboard() {
               navigate({ search: params.toString() }, { replace: true })
             }}
             className="px-3 py-1.5 text-sm rounded-lg border border-gray-700 bg-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-48"
-            aria-label="Search by asset pair"
+            aria-label={t('dashboard.search.ariaLabel')}
           />
 
           <button
@@ -203,12 +206,12 @@ export function Dashboard() {
                 : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
             }`}
             aria-pressed={filterPanelOpen}
-            aria-label="Toggle filter panel"
+            aria-label={t('dashboard.filter.ariaLabel')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
             </svg>
-            Filter
+            {t('dashboard.filter.toggle')}
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold bg-cyan-500 text-gray-900 rounded-full px-1">
                 {activeFilterCount}
@@ -226,24 +229,25 @@ export function Dashboard() {
                   : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
               }`}
               aria-pressed={selectMode}
-              aria-label="Toggle selection mode"
+              aria-label={t('dashboard.select.ariaLabel')}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              {selectMode ? `Select (${selected.size})` : 'Select'}
+              {selectMode
+                ? t('dashboard.select.buttonWithCount', { count: selected.size })
+                : t('dashboard.select.button')}
             </button>
           )}
 
           {!pricesLoading && prices.length > 0 && (
-            <div className="flex items-center rounded-lg border border-gray-700 overflow-hidden" role="group" aria-label="View toggle">
+            <div className="flex items-center rounded-lg border border-gray-700 overflow-hidden" role="group" aria-label={t('dashboard.viewToggle.ariaLabel')}>
               <button
                 type="button"
                 onClick={() => startTransition(() => setDashboardView('card'))}
                 className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'card' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'card'}
-                aria-label="Card view"
-                disabled={isPending}
+                aria-label={t('dashboard.viewToggle.card')}
               >
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                   <rect x="1" y="1" width="6" height="6" rx="1" />
@@ -257,8 +261,7 @@ export function Dashboard() {
                 onClick={() => startTransition(() => setDashboardView('table'))}
                 className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'table'}
-                aria-label="Table view"
-                disabled={isPending}
+                aria-label={t('dashboard.viewToggle.table')}
               >
                 <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                   <rect x="1" y="1" width="14" height="3" rx="0.5" />
@@ -273,43 +276,45 @@ export function Dashboard() {
             type="button"
             onClick={() => setNotifModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
-            aria-label="Configure notification channels"
-            title="Notification channels"
+            aria-label={t('dashboard.alerts.ariaLabel')}
+            title={t('dashboard.alerts.title')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
-            Alerts
+            {t('dashboard.alerts.title')}
           </button>
           <ConnectionBadge status={wsStatus} rateLimitStatus={rateLimitStatus} retryAfterMs={rateLimitRetryAfterMs} />
         </div>
       </div>
 
       {filterPanelOpen && (
-        <FilterPanel availableSources={[...new Set(prices.flatMap((p) => p.sources))].length > 0
-          ? [...new Set(prices.flatMap((p) => p.sources))]
-          : undefined}
-        />
+        <ErrorBoundary boundaryId="filter-panel" featureLabel="Filter Panel">
+          <FilterPanel availableSources={[...new Set(prices.flatMap((p) => p.sources))].length > 0
+            ? [...new Set(prices.flatMap((p) => p.sources))]
+            : undefined}
+          />
+        </ErrorBoundary>
       )}
 
       {selectMode && (
         <div className="mb-4 p-3 bg-gray-900 border border-cyan-800 rounded-xl flex flex-wrap items-center gap-3">
           <span className="text-sm text-gray-300 font-medium">
-            {selected.size} selected
+            {t('dashboard.selection.count', { count: selected.size })}
           </span>
           <button
             type="button"
             onClick={selectAll}
             className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
           >
-            Select all
+            {t('dashboard.selection.selectAll')}
           </button>
           <button
             type="button"
             onClick={deselectAll}
             className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
           >
-            Deselect all
+            {t('dashboard.selection.deselectAll')}
           </button>
           <div className="flex-1" />
           <button
@@ -324,65 +329,75 @@ export function Dashboard() {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Export CSV
+            {t('dashboard.selection.exportCsv')}
           </button>
         </div>
       )}
 
       {pricesError && (
         <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
-          {pricesError}
+          {pricesError.message}
         </div>
       )}
 
       {pricesLoading && prices.length === 0 ? (
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Loading price cards">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label={t('dashboard.loadingAriaLabel')}>
           {Array.from({ length: SKELETON_COUNT }, (_, i) => (
             <PriceCardSkeleton key={i} />
           ))}
         </section>
       ) : dashboardView === 'table' ? (
-        <PriceTableView
-          items={filtered}
-          livePairs={new Set(livePrices.keys())}
-          isStale={pricesValidating}
-          onRowClick={handleCardClick}
-          onAlertClick={handleAlertClick}
-          hasAlertFn={hasAlertsForPair}
-          selectMode={selectMode}
-          selected={selected}
-          onToggleSelect={onToggleSelect}
-        />
+        <ErrorBoundary boundaryId="price-table-view" featureLabel="Price Table">
+          <PriceTableView
+            items={filtered}
+            livePairs={new Set(livePrices.keys())}
+            isStale={pricesValidating}
+            onRowClick={handleCardClick}
+            onAlertClick={handleAlertClick}
+            hasAlertFn={hasAlertsForPair}
+            selectMode={selectMode}
+            selected={selected}
+            onToggleSelect={onToggleSelect}
+          />
+        </ErrorBoundary>
       ) : (
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Price feeds">
-          {filtered.map((p) => (
-            <PriceCard
-              key={p.assetPair}
-              price={p}
-              isLive={livePrices.has(p.assetPair)}
-              isStale={pricesValidating}
-              hasAlert={hasAlertsForPair(p.assetPair)}
-              onClick={() => handleCardClick(p.assetPair)}
-              onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
-              selectMode={selectMode}
-              isSelected={selected.has(p.assetPair)}
-            />
-          ))}
-        </section>
+        <ErrorBoundary boundaryId="price-card-grid" featureLabel="Price Cards">
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Price feeds">
+            {filtered.map((p) => (
+              <PriceCard
+                key={p.assetPair}
+                price={p}
+                isLive={livePrices.has(p.assetPair)}
+                isStale={pricesValidating}
+                hasAlert={hasAlertsForPair(p.assetPair)}
+                onClick={() => handleCardClick(p.assetPair)}
+                onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
+                selectMode={selectMode}
+                isSelected={selected.has(p.assetPair)}
+              />
+            ))}
+          </section>
+        </ErrorBoundary>
       )}
 
       {!pricesLoading && merged.length === 0 && (
         <div className="text-center py-32 text-gray-500">
-          <p className="text-lg mb-2">No price feeds available</p>
-          <p className="text-sm">Connect to the aggregator API to see price data.</p>
+          <p className="text-lg mb-2">{t('dashboard.emptyState.noFeeds')}</p>
+          <p className="text-sm">{t('dashboard.emptyState.noFeedsDetail')}</p>
         </div>
       )}
 
       {!pricesLoading && merged.length > 0 && filtered.length === 0 && (
         <div className="text-center py-16 text-gray-500">
-          <p className="text-lg mb-2">No results{search ? ` for "${search}"` : ''}</p>
+          <p className="text-lg mb-2">
+            {search
+              ? t('dashboard.emptyState.noResultsSearch', { search })
+              : t('dashboard.emptyState.noResults')}
+          </p>
           <p className="text-sm">
-            {activeFilterCount > 0 ? 'Try adjusting your filters.' : 'Try a different search term.'}
+            {activeFilterCount > 0
+              ? t('dashboard.emptyState.noResultsFilterHint')
+              : t('dashboard.emptyState.noResultsSearchHint')}
           </p>
         </div>
       )}

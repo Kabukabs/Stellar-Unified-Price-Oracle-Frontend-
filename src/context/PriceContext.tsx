@@ -13,7 +13,7 @@ export interface PriceContextValue {
   /** `true` while the initial REST fetch has not yet resolved. */
   pricesLoading: boolean
   /** Error message from the last failed REST fetch, or `null` on success. */
-  pricesError: string | null
+  pricesError: Error | null
   /** `true` whenever a background REST revalidation is in flight. */
   pricesValidating: boolean
   /** Live price entries keyed by asset pair, updated optimistically on each WebSocket message. */
