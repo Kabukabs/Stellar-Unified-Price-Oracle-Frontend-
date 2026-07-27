@@ -1,5 +1,6 @@
 const ja = {
   nav: {
+    home: 'ホーム',
     dashboard: 'ダッシュボード',
     apiDocs: 'APIドキュメント',
     toggleMenu: 'メニューを切り替え',
@@ -51,6 +52,12 @@ const ja = {
     },
     loadingAriaLabel: '価格カードを読み込み中',
     feedsAriaLabel: '価格フィード',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: '下に引いて更新',
+      release: '離して更新',
+      refreshing: '更新中…',
+    },
   },
 
   filter: {
@@ -310,6 +317,48 @@ const ja = {
     copy: 'コピー',
     copied: 'コピーしました！',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'マーケット概要ヒーローセクション',
+      liveStatus: 'ライブ · 全オラクル稼働中',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Chainlink、Redstone、Band、Reflectorから集計されたリアルタイム資産価格 — REST・WebSocket経由でアプリに直接配信。',
+      cta: 'ダッシュボードを開く',
+      ctaAriaLabel: '価格オラクルダッシュボードを開く',
+      apiDocs: 'APIドキュメント',
+    },
+    stats: {
+      totalPairs: '追跡ペア数',
+      totalPairsDetail: '監視中の資産ペア',
+      activeSources: 'オラクルソース',
+      activeSourcesDetail: '稼働中のデータプロバイダー',
+      avgConfidence: '平均信頼度',
+      avgConfidenceDetail: '全ペアの平均',
+      highConfidence: '高信頼度',
+      highConfidenceDetail: '90%超のペア',
+    },
+    topPairs: {
+      title: '信頼度上位ペア',
+      pairAriaLabel: '{{pair}}の価格詳細を見る',
+      sources: 'ソース',
+      confidence: '信頼度',
+    },
+    powered: {
+      label: '提供元',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'ドラッグして並べ替え',
+    ariaLabel: '価格カードをドラッグして並べ替え',
+    dropTarget: 'ここにドロップ',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default ja

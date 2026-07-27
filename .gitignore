@@ -38,22 +38,28 @@ test/visual/diffs/
 test/visual/reports/
 e2e/visual/__snapshots__/
 
-# Test snapshots
-src/**/__snapshots__/
+# ── Vitest / Jest snapshots ───────────────────────────────────────────────────
 **/*.snap
+src/**/__snapshots__/
 
-# IDE / editor
+# ── IDE / editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 Thumbs.db
 
-# AI agent directories
+# ── AI agent directories ──────────────────────────────────────────────────────
 .kiro/
 
-# Bundle analysis (generated, not source)
+# ── Bundle analysis (generated, not source) ───────────────────────────────────
 reports/bundle-stats.html
 
+# ── Temporary / scratch files ─────────────────────────────────────────────────
+*.tmp
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
