@@ -14,7 +14,8 @@ import {
 } from 'recharts'
 import type { TooltipProps } from 'recharts'
 import type { PriceHistoryEntry } from '../types'
-import { formatChartTimeWithTz, formatPriceShort, getTimezoneAbbr } from '../utils/format'
+import { formatChartTimeWithTz, formatPriceShort, formatTimestamp, getTimezoneAbbr } from '../utils/format'
+import { exportChartAsPng, exportChartAsSvg } from '../utils/chartExport'
 
 // ---------------------------------------------------------------------------
 // #305 – Chart annotation types
@@ -209,12 +210,34 @@ function ChartContent({
   const [zoomDomain, setZoomDomain] = useState<[number, number] | null>(null)
   const [isPanning, setIsPanning] = useState(false)
   const panStartRef = useRef<{ x: number; domain: [number, number] } | null>(null)
+  // Touch zoom/pan state (#301) — single-finger pan, two-finger pinch zoom
+  const touchStateRef = useRef<
+    | { mode: 'pan'; startX: number; domain: [number, number] }
+    | { mode: 'pinch'; startDist: number; domain: [number, number] }
+    | null
+  >(null)
   // Toggle individual overlay pairs on/off
   const [hiddenPairs, setHiddenPairs] = useState<Set<string>>(new Set())
   // Whether to show normalised % change (used when overlays present)
   const [normalised, setNormalised] = useState(false)
   // Whether accessible data table is shown
   const [tableVisible, setTableVisible] = useState(false)
+  // Chart export (#299)
+  const chartWrapperRef = useRef<HTMLDivElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const [exportMenuOpen, setExportMenuOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    if (!exportMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [exportMenuOpen])
 
   // #302 – Track previous data length to detect incremental real-time appends.
   // Only animate (isAnimationActive) on first render or time-range change;
@@ -342,7 +365,89 @@ function ChartContent({
 
   const handleMouseUp = useCallback(() => setIsPanning(false), [])
 
+  const handleDoubleClick = useCallback(() => setZoomDomain(null), [])
+
+  // Touch pan/pinch-zoom (#301) — mirrors the mouse wheel/drag behaviour for touch devices
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStateRef.current = { mode: 'pan', startX: e.touches[0].clientX, domain: [...activeDomain] as [number, number] }
+      } else if (e.touches.length === 2) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        )
+        touchStateRef.current = { mode: 'pinch', startDist: dist, domain: [...activeDomain] as [number, number] }
+      }
+    },
+    [activeDomain],
+  )
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      const state = touchStateRef.current
+      if (!state) return
+
+      if (state.mode === 'pan' && e.touches.length === 1) {
+        e.preventDefault()
+        const dx = e.touches[0].clientX - state.startX
+        const [lo, hi] = state.domain
+        const span = hi - lo
+        const shift = -Math.round((dx / 300) * span)
+        const newLo = Math.max(0, Math.min(totalPoints - 1 - span, lo + shift))
+        setZoomDomain([newLo, newLo + span])
+      } else if (state.mode === 'pinch' && e.touches.length === 2) {
+        e.preventDefault()
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        )
+        const ratio = state.startDist / (dist || 1)
+        const [lo, hi] = state.domain
+        const span = hi - lo
+        const newSpan = Math.max(2, Math.min(totalPoints - 1, Math.round(span * ratio)))
+        const center = (lo + hi) / 2
+        const newLo = Math.max(0, Math.round(center - newSpan / 2))
+        const newHi = Math.min(totalPoints - 1, newLo + newSpan)
+        setZoomDomain([newLo, newHi])
+      }
+    },
+    [totalPoints],
+  )
+
+  const handleTouchEnd = useCallback(() => {
+    touchStateRef.current = null
+  }, [])
+
   const visibleData = mergedChartData.slice(activeDomain[0], activeDomain[1] + 1)
+
+  // Human-readable label for the currently zoomed date range (#301)
+  const zoomedRangeLabel =
+    zoomDomain && visibleData.length > 0
+      ? `${formatTimestamp(visibleData[0].timestamp)} – ${formatTimestamp(visibleData[visibleData.length - 1].timestamp)}`
+      : null
+
+  const handleExport = useCallback(
+    async (format: 'png' | 'svg') => {
+      const container = chartWrapperRef.current
+      if (!container) return
+      setExportMenuOpen(false)
+      setExporting(true)
+      try {
+        const bgColor = dark ? '#111827' : '#ffffff'
+        const safePair = pair.replace(/\//g, '-')
+        const filename = `${safePair}_${timeRange}.${format}`
+        if (format === 'svg') {
+          exportChartAsSvg(container, filename, bgColor)
+        } else {
+          await exportChartAsPng(container, filename, bgColor)
+        }
+      } finally {
+        setExporting(false)
+      }
+    },
+    [dark, pair, timeRange],
+  )
 
   // Check if user scrolled near the start to trigger load more
   useEffect(() => {
@@ -421,6 +526,11 @@ function ChartContent({
           >
             Table
           </button>
+          {zoomedRangeLabel && (
+            <span className="text-xs text-cyan-400 font-mono" aria-live="polite">
+              {zoomedRangeLabel}
+            </span>
+          )}
           {zoomDomain && (
             <button
               type="button"
@@ -431,6 +541,52 @@ function ChartContent({
               Reset
             </button>
           )}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen((o) => !o)}
+              disabled={exporting}
+              className="px-2 py-1 text-xs rounded-lg border text-gray-400 border-gray-700 hover:text-gray-200 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              aria-haspopup="true"
+              aria-expanded={exportMenuOpen}
+              aria-label="Export chart"
+            >
+              {exporting ? (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : (
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              )}
+              Export
+            </button>
+            {exportMenuOpen && (
+              <div
+                className="absolute right-0 mt-1 w-32 bg-gray-800 border border-gray-700 rounded-xl shadow-lg z-10 overflow-hidden"
+                role="menu"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleExport('png')}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 transition-colors"
+                >
+                  Export as PNG
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleExport('svg')}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 transition-colors"
+                >
+                  Export as SVG
+                </button>
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={onToggleFullScreen}
@@ -487,12 +643,17 @@ function ChartContent({
       )}
 
       <div
+        ref={chartWrapperRef}
         className={`flex-1 min-h-0 ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onDoubleClick={handleDoubleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         role="img"
         aria-label={`${pair} price chart with ${chartData.length} data points`}
       >
@@ -761,7 +922,7 @@ function ChartContent({
         </div>
         {fullScreen && (
           <p className="text-gray-600 dark:text-gray-600">
-            Scroll to zoom · Drag to pan · Press Esc to close
+            Scroll or pinch to zoom · Drag to pan · Double-click to reset · Press Esc to close
           </p>
         )}
       </div>

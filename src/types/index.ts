@@ -65,6 +65,10 @@ export interface Alert {
   /** Unix timestamp (ms) when the snooze expires. Null if not snoozed. */
   snoozedUntil: number | null
 
+  // ── Cooldown (#310) ────────────────────────────────────────────────────────
+  /** Minimum minutes between re-fires of a persistent alert, to prevent notification spam while price oscillates around the threshold. */
+  cooldownMinutes: number
+
   // ── State fields ──────────────────────────────────────────────────────────
   active: boolean
   createdAt: number
@@ -82,6 +86,26 @@ export interface AlertFormData {
   percentageWindow: AlertTimeWindow
   percentageDirection: AlertPercentageDirection
   percentageRelativeTo: AlertPercentageRelativeTo
+  // Cooldown (#310)
+  cooldownMinutes: string
+}
+
+/** A single record of a fired alert, kept for the alert history log (#309). */
+export interface AlertHistoryEntry {
+  id: string
+  alertId: string
+  assetPair: string
+  /** Unix timestamp (ms) when the alert fired. */
+  triggeredAt: number
+  /** The price that triggered the alert. */
+  price: number
+  triggerOnce: boolean
+  percentageMode: boolean
+  upperThreshold: number | null
+  lowerThreshold: number | null
+  percentageThreshold: number | null
+  percentageWindow: AlertTimeWindow | null
+  percentageDirection: AlertPercentageDirection | null
 }
 
 export interface AlertsContextType {
@@ -98,6 +122,9 @@ export interface AlertsContextType {
   snoozeAlert: (id: string, duration: AlertSnoozeDuration) => void
   unsnoozeAlert: (id: string) => void
   reEnableAlert: (id: string) => void
+  // Alert history log (#309)
+  alertHistory: AlertHistoryEntry[]
+  clearAlertHistory: () => void
 }
 
 // ---------------------------------------------------------------------------

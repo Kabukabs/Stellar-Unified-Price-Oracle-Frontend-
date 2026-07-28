@@ -176,6 +176,7 @@ export function Dashboard() {
         percentageWindow: data.percentageMode ? data.percentageWindow : null,
         percentageDirection: data.percentageMode ? data.percentageDirection : null,
         percentageRelativeTo: data.percentageMode ? data.percentageRelativeTo : null,
+        cooldownMinutes: data.cooldownMinutes ? Number.parseInt(data.cooldownMinutes, 10) : 5,
       })
       setModalOpen(false)
     },

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, createContext, useContext, ReactNode } from 'react'
-import type { Alert, AlertsContextType, AlertSnoozeDuration } from '../types'
+import type { Alert, AlertHistoryEntry, AlertsContextType, AlertSnoozeDuration } from '../types'
 import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
@@ -136,6 +136,27 @@ function saveAlerts(alerts: Alert[]): void {
   writeJson(STORAGE_KEYS.alerts, alerts)
 }
 
+/** Loads the fired-alert history log (#309), tolerating legacy/invalid data. */
+function loadHistory(): AlertHistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.alertHistory)
+    if (!raw) return []
+    const parsed: unknown = JSON.parse(raw)
+    const result = AlertHistoryArraySchema.safeParse(parsed)
+    if (!result.success) {
+      console.warn('[useAlerts] Invalid alert history in localStorage, resetting:', result.error.issues)
+      return []
+    }
+    return result.data as AlertHistoryEntry[]
+  } catch {
+    return []
+  }
+}
+
+function saveHistory(history: AlertHistoryEntry[]): void {
+  writeJson(STORAGE_KEYS.alertHistory, history)
+}
+
 const AlertsContext = createContext<AlertsContextType | null>(null)
 
 /**
@@ -147,11 +168,14 @@ const AlertsContext = createContext<AlertsContextType | null>(null)
  *  - Percentage-based movement alerts (#307)
  *  - One-time vs persistent alerts with fire counts (#312)
  *  - Alert snooze with auto-unsnooze (#313)
+ *  - Cooldown between re-fires of a persistent alert (#310)
+ *  - A capped history log of fired alerts (#309)
  *
  * Must be rendered inside `PriceProvider`.
  */
 export function AlertsProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>(loadAlerts)
+  const [history, setHistory] = useState<AlertHistoryEntry[]>(loadHistory)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
 
   const { livePrices } = usePriceContext()
@@ -177,6 +201,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let changed = false
     const now = Date.now()
+    const firedEntries: AlertHistoryEntry[] = []
 
     const newAlerts = alerts.map((alert) => {
       // Skip inactive alerts
@@ -232,12 +257,16 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Minimum time between re-fires of a persistent alert (#310) — prevents
+      // notification spam when the price oscillates around the threshold.
+      const cooldownMs = Math.max(0, alert.cooldownMinutes ?? 5) * 60_000
+
       if (triggered) {
-        // For persistent alerts: re-trigger every time the condition is met
-        // For one-time alerts: only trigger if not yet triggered
+        // One-time alerts: only ever fire once.
+        // Persistent alerts: re-fire once the cooldown window has elapsed.
         const shouldFire = alert.triggerOnce
           ? alert.lastTriggeredAt === null
-          : alert.lastTriggeredAt === null // reset after going out-of-range
+          : alert.lastTriggeredAt === null || now - alert.lastTriggeredAt >= cooldownMs
 
         if (shouldFire) {
           changed = true
@@ -245,6 +274,21 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
 
           // #315 – Dispatch to all enabled notification channels (push, email, webhook)
           void dispatchNotifications(alert, currentPrice)
+
+          firedEntries.push({
+            id: crypto.randomUUID(),
+            alertId: alert.id,
+            assetPair: alert.assetPair,
+            triggeredAt: now,
+            price: currentPrice,
+            triggerOnce: alert.triggerOnce,
+            percentageMode: alert.percentageMode,
+            upperThreshold: alert.upperThreshold,
+            lowerThreshold: alert.lowerThreshold,
+            percentageThreshold: alert.percentageThreshold,
+            percentageWindow: alert.percentageWindow,
+            percentageDirection: alert.percentageDirection,
+          })
 
           return {
             ...updatedAlert,
@@ -255,8 +299,9 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
           }
         }
       } else {
-        // Reset lastTriggeredAt when price goes back out-of-range (for persistent re-trigger)
-        if (!alert.triggerOnce && alert.lastTriggeredAt !== null) {
+        // Re-arm a persistent alert once its cooldown window has elapsed (#310),
+        // so it can fire again next time the condition is met.
+        if (!alert.triggerOnce && alert.lastTriggeredAt !== null && now - alert.lastTriggeredAt >= cooldownMs) {
           changed = true
           return { ...updatedAlert, lastTriggeredAt: null }
         }
@@ -267,6 +312,10 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
 
     if (changed) {
       setAlerts(newAlerts)
+    }
+    if (firedEntries.length > 0) {
+      // Newest first, capped to HISTORY_LIMIT (#309)
+      setHistory((prev) => [...firedEntries.reverse(), ...prev].slice(0, HISTORY_LIMIT))
     }
   }, [livePrices, alerts])
 
@@ -280,6 +329,10 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveAlerts(alerts)
   }, [alerts])
+
+  useEffect(() => {
+    saveHistory(history)
+  }, [history])
 
   const addAlert = useCallback(
     (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => {
@@ -353,6 +406,9 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  /** Clears the fired-alert history log (#309) */
+  const clearAlertHistory = useCallback(() => setHistory([]), [])
+
   const value: AlertsContextType = {
     alerts,
     addAlert,
@@ -367,6 +423,8 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     snoozeAlert,
     unsnoozeAlert,
     reEnableAlert,
+    alertHistory: history,
+    clearAlertHistory,
   }
 
   return <AlertsContext.Provider value={value}>{children}</AlertsContext.Provider>

@@ -42,6 +42,8 @@ import { idbCache } from '../hooks/useIndexedDB'
 export const STORAGE_KEYS = {
   /** Price alert definitions (asset pair + thresholds). */
   alerts: 'price-alerts',
+  /** Log of fired alerts, capped to the most recent entries (#309). */
+  alertHistory: 'alert-history',
   /** Notification routing config. Never includes the webhook secret — see the policy above. */
   notificationChannels: 'notification-channels',
   /** `'1'` when the user has opted out of analytics. */

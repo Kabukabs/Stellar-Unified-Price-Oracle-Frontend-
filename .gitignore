@@ -26,6 +26,13 @@ storybook-static
 # ── TypeScript incremental build ──────────────────────────────────────────────
 *.tsbuildinfo
 
+# ── Lint / tooling caches ──────────────────────────────────────────────────────
+.eslintcache
+vite.config.*.timestamp-*
+
+# ── Editor swap / log files ───────────────────────────────────────────────────
+*.log
+
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
