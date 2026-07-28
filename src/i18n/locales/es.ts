@@ -1,5 +1,6 @@
 const es = {
   nav: {
+    home: 'Inicio',
     dashboard: 'Panel de control',
     apiDocs: 'Documentación API',
     toggleMenu: 'Alternar menú',
@@ -51,6 +52,12 @@ const es = {
     },
     loadingAriaLabel: 'Cargando tarjetas de precios',
     feedsAriaLabel: 'Feeds de precios',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Desliza hacia abajo para actualizar',
+      release: 'Suelta para actualizar',
+      refreshing: 'Actualizando…',
+    },
   },
 
   filter: {
@@ -409,6 +416,48 @@ const es = {
       'Reflector es un oráculo nativo de Stellar que publica precios de activos directamente en la red Stellar.',
     defaultTooltip: '{{source}} contribuyó un feed de precios a este valor agregado.',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Sección de presentación del mercado',
+      liveStatus: 'En vivo · Todos los oráculos activos',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Precios de activos en tiempo real y agregados de Chainlink, Redstone, Band y Reflector — transmitidos a tu aplicación vía REST y WebSocket.',
+      cta: 'Abrir Panel',
+      ctaAriaLabel: 'Abrir el panel del oráculo de precios',
+      apiDocs: 'Docs API',
+    },
+    stats: {
+      totalPairs: 'Pares seguidos',
+      totalPairsDetail: 'pares de activos monitoreados',
+      activeSources: 'Fuentes oracle',
+      activeSourcesDetail: 'proveedores de datos activos',
+      avgConfidence: 'Confianza media',
+      avgConfidenceDetail: 'entre todos los pares',
+      highConfidence: 'Alta confianza',
+      highConfidenceDetail: 'pares por encima del 90%',
+    },
+    topPairs: {
+      title: 'Principales pares por confianza',
+      pairAriaLabel: 'Ver detalles de precio para {{pair}}',
+      sources: 'fuentes',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Impulsado por',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Arrastra para reordenar',
+    ariaLabel: 'Arrastra para reordenar las tarjetas de precios',
+    dropTarget: 'Soltar aquí',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default es

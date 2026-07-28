@@ -1,6 +1,7 @@
 const en = {
   // ── Layout ──────────────────────────────────────────────────────────────
   nav: {
+    home: 'Home',
     dashboard: 'Dashboard',
     apiDocs: 'API Docs',
     toggleMenu: 'Toggle menu',
@@ -53,6 +54,12 @@ const en = {
     },
     loadingAriaLabel: 'Loading price cards',
     feedsAriaLabel: 'Price feeds',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Pull down to refresh',
+      release: 'Release to refresh',
+      refreshing: 'Refreshing…',
+    },
   },
 
   // ── FilterPanel ──────────────────────────────────────────────────────────
@@ -437,6 +444,48 @@ const en = {
       'Reflector is a Stellar-native oracle that publishes asset prices directly on the Stellar network.',
     defaultTooltip: '{{source}} contributed a price feed to this aggregated value.',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Market overview hero section',
+      liveStatus: 'Live · All oracles active',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Aggregated, real-time asset prices from Chainlink, Redstone, Band, and Reflector — streamed directly to your app via REST & WebSocket.',
+      cta: 'Open Dashboard',
+      ctaAriaLabel: 'Open the price oracle dashboard',
+      apiDocs: 'API Docs',
+    },
+    stats: {
+      totalPairs: 'Tracked Pairs',
+      totalPairsDetail: 'asset pairs monitored',
+      activeSources: 'Oracle Sources',
+      activeSourcesDetail: 'active data providers',
+      avgConfidence: 'Avg Confidence',
+      avgConfidenceDetail: 'across all pairs',
+      highConfidence: 'High Confidence',
+      highConfidenceDetail: 'pairs above 90%',
+    },
+    topPairs: {
+      title: 'Top Pairs by Confidence',
+      pairAriaLabel: 'View price details for {{pair}}',
+      sources: 'sources',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Powered by',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Drag to reorder',
+    ariaLabel: 'Drag to reorder price cards',
+    dropTarget: 'Drop here',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default en

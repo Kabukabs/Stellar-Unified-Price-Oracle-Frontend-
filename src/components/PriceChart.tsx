@@ -10,10 +10,115 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
 } from 'recharts'
+import type { TooltipProps } from 'recharts'
 import type { PriceHistoryEntry } from '../types'
 import { formatChartTimeWithTz, formatPriceShort, formatTimestamp, getTimezoneAbbr } from '../utils/format'
 import { exportChartAsPng, exportChartAsSvg } from '../utils/chartExport'
+
+// ---------------------------------------------------------------------------
+// #305 – Chart annotation types
+// ---------------------------------------------------------------------------
+export interface ChartAnnotation {
+  /** Unique id for the annotation */
+  id: string
+  /** Unix timestamp (ms) of the event being annotated */
+  timestamp: number
+  /** Short label shown on the chart line */
+  label: string
+  /** Optional longer note shown in the tooltip */
+  note?: string
+  /** Hex colour for the reference line. Defaults to amber. */
+  color?: string
+}
+
+// ---------------------------------------------------------------------------
+// #300 – Custom tooltip component
+// ---------------------------------------------------------------------------
+interface ChartPoint {
+  price: number
+  timestamp: number
+  confidence: number
+  sources: string[]
+  time: string
+  idx: number
+  [key: string]: unknown
+}
+
+interface CustomTooltipProps extends TooltipProps<number, string> {
+  tzAbbr: string
+  pair: string
+  allData: ChartPoint[]
+  normalised?: boolean
+}
+
+function CustomTooltip({ active, payload, label, tzAbbr, pair, allData, normalised }: CustomTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null
+
+  // The first payload entry carries the primary series data
+  const raw = payload[0]?.payload as ChartPoint | undefined
+  if (!raw) return null
+
+  const price = typeof raw.price === 'number' ? raw.price : (payload[0]?.value as number | undefined)
+  const confidence = typeof raw.confidence === 'number' ? raw.confidence : null
+  const sources: string[] = Array.isArray(raw.sources) ? raw.sources : []
+
+  // % change vs previous visible point
+  let pctChange: number | null = null
+  if (!normalised && typeof raw.idx === 'number' && raw.idx > 0) {
+    const prev = allData[raw.idx - 1]
+    if (prev && prev.price && price) {
+      pctChange = ((price - prev.price) / prev.price) * 100
+    }
+  }
+
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs shadow-xl min-w-[160px]">
+      <p className="text-gray-400 mb-2">
+        {label} <span className="text-gray-600">({tzAbbr})</span>
+      </p>
+      {price !== undefined && (
+        <p className="text-white font-mono font-semibold text-sm mb-1">
+          {normalised
+            ? `${typeof payload[0]?.value === 'number' ? payload[0].value.toFixed(2) : '—'}%`
+            : `$${formatPriceShort(price)}`}
+        </p>
+      )}
+      {pctChange !== null && (
+        <p className={`mb-1 font-mono ${pctChange >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          {pctChange >= 0 ? '▲' : '▼'} {Math.abs(pctChange).toFixed(3)}% vs prev
+        </p>
+      )}
+      {confidence !== null && (
+        <p className="text-gray-400 mb-1">
+          Confidence: <span className="text-gray-200">{(confidence * 100).toFixed(1)}%</span>
+        </p>
+      )}
+      {sources.length > 0 && (
+        <div className="mt-1.5 pt-1.5 border-t border-gray-800">
+          <p className="text-gray-500 mb-1">
+            {sources.length} oracle{sources.length !== 1 ? 's' : ''}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {sources.map((s) => (
+              <span key={s} className="bg-gray-800 text-cyan-400 rounded px-1.5 py-0.5 font-mono">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {payload.slice(1).map((p) => (
+        <div key={p.dataKey} className="mt-1.5 pt-1.5 border-t border-gray-800">
+          <p style={{ color: p.color ?? '#fff' }} className="font-mono">
+            {p.name}: {normalised ? `${typeof p.value === 'number' ? p.value.toFixed(2) : '—'}%` : `$${formatPriceShort(p.value as number)}`}
+          </p>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export type TimeRange = '1h' | '24h' | '7d' | '30d' | '1y'
 
@@ -68,6 +173,8 @@ interface PriceChartProps {
   timezone?: string
   /** Additional pairs to overlay on the same chart. */
   overlayPairs?: OverlayPair[]
+  /** #305 – Optional chart annotations (events / user notes). */
+  annotations?: ChartAnnotation[]
 }
 
 function ChartContent({
@@ -83,6 +190,7 @@ function ChartContent({
   onLoadMore,
   timezone = 'UTC',
   overlayPairs = [],
+  annotations = [],
 }: {
   data: PriceHistoryEntry[]
   pair: string
@@ -96,6 +204,7 @@ function ChartContent({
   onLoadMore?: () => Promise<void>
   timezone?: string
   overlayPairs?: OverlayPair[]
+  annotations?: ChartAnnotation[]
 }) {
   // Zoom/pan state
   const [zoomDomain, setZoomDomain] = useState<[number, number] | null>(null)
@@ -129,6 +238,33 @@ function ChartContent({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [exportMenuOpen])
+
+  // #302 – Track previous data length to detect incremental real-time appends.
+  // Only animate (isAnimationActive) on first render or time-range change;
+  // suppress it on incremental appends so the chart doesn't re-animate on every tick.
+  const prevDataLengthRef = useRef<number>(0)
+  const prevTimeRangeRef = useRef<TimeRange>(timeRange)
+  const isRangeChange = prevTimeRangeRef.current !== timeRange
+  if (isRangeChange) prevTimeRangeRef.current = timeRange
+  const filteredLength = filterByRange(data, timeRange).length
+  const isIncremental = !isRangeChange && prevDataLengthRef.current > 0 && filteredLength > prevDataLengthRef.current
+  prevDataLengthRef.current = filteredLength
+  // Animate only on initial mount or range change, not on real-time appends
+  const shouldAnimate = !isIncremental
+
+  // #305 – Annotation management state
+  const [localAnnotations, setLocalAnnotations] = useState<ChartAnnotation[]>(annotations)
+  const [annotationFormOpen, setAnnotationFormOpen] = useState(false)
+  const [annotationDraft, setAnnotationDraft] = useState<{ timestamp: number; label: string; note: string }>({
+    timestamp: Date.now(),
+    label: '',
+    note: '',
+  })
+
+  // Sync external annotations prop into local state
+  useEffect(() => {
+    setLocalAnnotations(annotations)
+  }, [annotations])
 
   const tzAbbr = getTimezoneAbbr(timezone)
   const filteredData = filterByRange(data, timeRange)
@@ -177,9 +313,6 @@ function ChartContent({
     gridStroke: dark ? '#1f2937' : '#e5e7eb',
     tickFill: dark ? '#6b7280' : '#9ca3af',
     axisLine: dark ? '#1f2937' : '#e5e7eb',
-    tooltipBg: dark ? '#111827' : '#ffffff',
-    tooltipBorder: dark ? '#1f2937' : '#e5e7eb',
-    tooltipLabel: dark ? '#9ca3af' : '#6b7280',
   }
 
   const totalPoints = mergedChartData.length
@@ -526,6 +659,7 @@ function ChartContent({
       >
         {hasOverlays ? (
           <ResponsiveContainer width="100%" height="100%">
+            {/* #302 – isAnimationActive suppressed on incremental real-time appends */}
             <LineChart data={visibleData}>
               <CartesianGrid strokeDasharray="3 3" stroke={colors.gridStroke} />
               <XAxis
@@ -543,20 +677,35 @@ function ChartContent({
                 tickFormatter={normalised ? (v: number) => `${v.toFixed(1)}%` : formatPriceShort}
                 width={80}
               />
+              {/* #300 – Custom tooltip with sources, confidence, oracle count, % change */}
               <Tooltip
-                contentStyle={{
-                  background: colors.tooltipBg,
-                  border: `1px solid ${colors.tooltipBorder}`,
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                }}
-                labelStyle={{ color: colors.tooltipLabel }}
-                formatter={(value: number, name: string) => [
-                  normalised ? `${value.toFixed(2)}%` : `$${formatPriceShort(value)}`,
-                  name,
-                ]}
-                labelFormatter={(label) => `Time: ${label} (${tzAbbr})`}
+                content={
+                  <CustomTooltip
+                    tzAbbr={tzAbbr}
+                    pair={pair}
+                    allData={visibleData as ChartPoint[]}
+                    normalised={normalised}
+                  />
+                }
               />
+              {/* #305 – Annotations as vertical reference lines */}
+              {localAnnotations.map((ann) => {
+                const annTime = formatChartTimeWithTz(ann.timestamp, timezone)
+                return (
+                  <ReferenceLine
+                    key={ann.id}
+                    x={annTime}
+                    stroke={ann.color ?? '#f59e0b'}
+                    strokeDasharray="4 2"
+                    label={{
+                      value: ann.label,
+                      position: 'top',
+                      fill: ann.color ?? '#f59e0b',
+                      fontSize: 10,
+                    }}
+                  />
+                )
+              })}
               <Line
                 type="monotone"
                 dataKey={pair}
@@ -564,6 +713,9 @@ function ChartContent({
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4 }}
+                isAnimationActive={shouldAnimate}
+                animationDuration={400}
+                animationEasing="ease-out"
               />
               {activeOverlays.map((op, i) => (
                 <Line
@@ -574,12 +726,16 @@ function ChartContent({
                   strokeWidth={1.5}
                   dot={false}
                   activeDot={{ r: 3 }}
+                  isAnimationActive={shouldAnimate}
+                  animationDuration={400}
+                  animationEasing="ease-out"
                 />
               ))}
             </LineChart>
           </ResponsiveContainer>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
+            {/* #302 – isAnimationActive suppressed on incremental real-time appends */}
             <AreaChart data={visibleData}>
               <defs>
                 <linearGradient id={`priceGradient${fullScreen ? 'Fs' : ''}`} x1="0" y1="0" x2="0" y2="1">
@@ -604,17 +760,35 @@ function ChartContent({
                 tickFormatter={formatPriceShort}
                 width={80}
               />
+              {/* #300 – Custom tooltip with sources, confidence, oracle count, % change */}
               <Tooltip
-                contentStyle={{
-                  background: colors.tooltipBg,
-                  border: `1px solid ${colors.tooltipBorder}`,
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                }}
-                labelStyle={{ color: colors.tooltipLabel }}
-                formatter={(value: number) => [`$${formatPriceShort(value)}`, pair]}
-                labelFormatter={(label) => `Time: ${label} (${tzAbbr})`}
+                content={
+                  <CustomTooltip
+                    tzAbbr={tzAbbr}
+                    pair={pair}
+                    allData={visibleData as ChartPoint[]}
+                    normalised={false}
+                  />
+                }
               />
+              {/* #305 – Annotations as vertical reference lines */}
+              {localAnnotations.map((ann) => {
+                const annTime = formatChartTimeWithTz(ann.timestamp, timezone)
+                return (
+                  <ReferenceLine
+                    key={ann.id}
+                    x={annTime}
+                    stroke={ann.color ?? '#f59e0b'}
+                    strokeDasharray="4 2"
+                    label={{
+                      value: ann.label,
+                      position: 'top',
+                      fill: ann.color ?? '#f59e0b',
+                      fontSize: 10,
+                    }}
+                  />
+                )
+              })}
               <Area
                 type="monotone"
                 dataKey="price"
@@ -623,11 +797,124 @@ function ChartContent({
                 fill={`url(#priceGradient${fullScreen ? 'Fs' : ''})`}
                 dot={false}
                 activeDot={{ r: 4, fill: '#22d3ee' }}
+                isAnimationActive={shouldAnimate}
+                animationDuration={400}
+                animationEasing="ease-out"
               />
             </AreaChart>
           </ResponsiveContainer>
         )}
       </div>
+      {/* #305 – Annotation controls */}
+      <div className="flex items-center gap-2 mt-2 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setAnnotationFormOpen((v) => !v)}
+          className={`px-2 py-1 text-xs rounded-lg border transition-colors ${
+            annotationFormOpen
+              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+              : 'text-gray-400 border-gray-700 hover:text-gray-200 hover:bg-gray-700'
+          }`}
+          aria-expanded={annotationFormOpen}
+          aria-label="Toggle annotation form"
+        >
+          + Annotate
+        </button>
+        {localAnnotations.length > 0 && (
+          <span className="text-xs text-gray-500">{localAnnotations.length} annotation{localAnnotations.length !== 1 ? 's' : ''}</span>
+        )}
+      </div>
+      {annotationFormOpen && (
+        <div className="mt-2 p-3 rounded-lg border border-gray-700 bg-gray-900/50 flex flex-col gap-2 flex-shrink-0">
+          <p className="text-xs text-gray-400 font-medium">Add Chart Annotation</p>
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="text"
+              placeholder="Label (e.g. Fed announcement)"
+              value={annotationDraft.label}
+              onChange={(e) => setAnnotationDraft((d) => ({ ...d, label: e.target.value }))}
+              className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              aria-label="Annotation label"
+            />
+            <input
+              type="text"
+              placeholder="Note (optional)"
+              value={annotationDraft.note}
+              onChange={(e) => setAnnotationDraft((d) => ({ ...d, note: e.target.value }))}
+              className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              aria-label="Annotation note"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400" htmlFor="ann-timestamp">Time (ms)</label>
+            <input
+              id="ann-timestamp"
+              type="number"
+              value={annotationDraft.timestamp}
+              onChange={(e) => setAnnotationDraft((d) => ({ ...d, timestamp: Number(e.target.value) }))}
+              className="w-36 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              aria-label="Annotation timestamp"
+            />
+            <button
+              type="button"
+              onClick={() => setAnnotationDraft((d) => ({ ...d, timestamp: Date.now() }))}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              Now
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={!annotationDraft.label.trim()}
+              onClick={() => {
+                const ann: ChartAnnotation = {
+                  id: crypto.randomUUID(),
+                  timestamp: annotationDraft.timestamp,
+                  label: annotationDraft.label.trim(),
+                  note: annotationDraft.note.trim() || undefined,
+                  color: '#f59e0b',
+                }
+                setLocalAnnotations((prev) => [...prev, ann])
+                setAnnotationDraft({ timestamp: Date.now(), label: '', note: '' })
+                setAnnotationFormOpen(false)
+              }}
+              className="px-3 py-1 text-xs bg-amber-600 text-white rounded hover:bg-amber-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnnotationFormOpen(false)}
+              className="px-3 py-1 text-xs text-gray-400 rounded hover:text-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {localAnnotations.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2 flex-shrink-0">
+          {localAnnotations.map((ann) => (
+            <span
+              key={ann.id}
+              className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border"
+              style={{ borderColor: ann.color ?? '#f59e0b', color: ann.color ?? '#f59e0b' }}
+              title={ann.note}
+            >
+              {ann.label}
+              <button
+                type="button"
+                onClick={() => setLocalAnnotations((prev) => prev.filter((a) => a.id !== ann.id))}
+                className="ml-1 opacity-60 hover:opacity-100 transition-opacity"
+                aria-label={`Remove annotation ${ann.label}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center justify-between mt-2 flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
         <div>
           {chartData.length > 0 && `${chartData.length} price points`}
@@ -709,6 +996,7 @@ export const PriceChart = memo(function PriceChart({
   onTimeRangeChange: externalOnChange,
   timezone = 'UTC',
   overlayPairs = [],
+  annotations = [],
 }: PriceChartProps) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [fullScreen, setFullScreen] = useState(false)
@@ -777,6 +1065,7 @@ export const PriceChart = memo(function PriceChart({
         onLoadMore={onLoadMore}
         timezone={timezone}
         overlayPairs={overlayPairs}
+        annotations={annotations}
       />
     </div>
   )
@@ -803,6 +1092,7 @@ export const PriceChart = memo(function PriceChart({
               onLoadMore={onLoadMore}
               timezone={timezone}
               overlayPairs={overlayPairs}
+              annotations={annotations}
             />
           </div>
         </div>,

@@ -1,6 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { AlertsProvider } from '../hooks/useAlerts'
@@ -99,7 +98,7 @@ describe('Layout', () => {
     expect(links.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('has a mobile menu button with aria-label', () => {
+  it('does not render a hamburger menu button (replaced by bottom nav)', () => {
     render(
       <MemoryRouter>
         <AlertsProvider>
@@ -109,8 +108,9 @@ describe('Layout', () => {
         </AlertsProvider>
       </MemoryRouter>,
     )
-    const buttons = screen.getAllByLabelText('Toggle menu')
-    expect(buttons.length).toBeGreaterThanOrEqual(1)
+    // The hamburger "Toggle menu" button is no longer present — mobile
+    // navigation is handled by the bottom navigation bar instead.
+    expect(screen.queryByLabelText('Toggle menu')).not.toBeInTheDocument()
   })
 
   it('highlights the active nav link based on current route', () => {
@@ -145,40 +145,35 @@ describe('Layout', () => {
       expect(getByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
       expect(getByRole('link', { name: 'API Docs' })).toBeInTheDocument()
     })
-
-    it('does not render the mobile dropdown nav when the menu is closed', () => {
-      renderLayout()
-
-      expect(screen.getAllByRole('link', { name: 'Dashboard' })).toHaveLength(1)
-      expect(screen.getAllByRole('link', { name: 'API Docs' })).toHaveLength(1)
-    })
   })
 
-  describe('mobile hamburger menu', () => {
-    it('opens the mobile dropdown nav when the hamburger button is clicked', async () => {
-      const user = userEvent.setup()
+  describe('mobile bottom navigation bar (#292)', () => {
+    it('renders a bottom navigation bar with Dashboard and API Docs links', () => {
       renderLayout()
 
-      expect(screen.getAllByRole('link', { name: 'Dashboard' })).toHaveLength(1)
+      const mobileNav = screen.getByRole('navigation', { name: 'Mobile navigation' })
+      expect(mobileNav).toBeInTheDocument()
 
-      await user.click(screen.getByLabelText('Toggle menu'))
-
-      // Once open, the mobile dropdown renders a second copy of each nav link
-      // alongside the always-present desktop copy.
-      expect(screen.getAllByRole('link', { name: 'Dashboard' })).toHaveLength(2)
-      expect(screen.getAllByRole('link', { name: 'API Docs' })).toHaveLength(2)
+      const { getAllByRole } = within(mobileNav)
+      const links = getAllByRole('link')
+      const linkTexts = links.map((l) => l.textContent ?? '')
+      expect(linkTexts.some((t) => t.includes('Dashboard'))).toBe(true)
+      expect(linkTexts.some((t) => t.includes('API Docs'))).toBe(true)
     })
 
-    it('closes the mobile dropdown nav when a mobile nav link is clicked', async () => {
-      const user = userEvent.setup()
+    it('renders an Alerts button in the bottom navigation bar', () => {
       renderLayout()
 
-      await user.click(screen.getByLabelText('Toggle menu'))
-      const mobileDashboardLink = screen.getAllByRole('link', { name: 'Dashboard' })[1]
+      const mobileNav = screen.getByRole('navigation', { name: 'Mobile navigation' })
+      const alertsBtn = within(mobileNav).getByLabelText('Toggle price alerts')
+      expect(alertsBtn).toBeInTheDocument()
+    })
 
-      await user.click(mobileDashboardLink)
-
-      expect(screen.getAllByRole('link', { name: 'Dashboard' })).toHaveLength(1)
+    it('renders nav links in both the top bar and the bottom bar', () => {
+      renderLayout()
+      // With the bottom bar always visible, Dashboard appears in both navbars
+      expect(screen.getAllByRole('link', { name: /Dashboard/i }).length).toBeGreaterThanOrEqual(2)
+      expect(screen.getAllByRole('link', { name: /API Docs/i }).length).toBeGreaterThanOrEqual(2)
     })
   })
 
@@ -192,11 +187,13 @@ describe('Layout', () => {
   })
 
   describe('accessibility landmarks', () => {
-    it('renders nav, main, and footer landmarks', () => {
+    it('renders main navigation, mobile navigation, main, and footer landmarks', () => {
       renderLayout()
 
       expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
+      expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toBeInTheDocument()
       expect(screen.getByRole('main')).toBeInTheDocument()
+      // footer is in the DOM but visually hidden on mobile via CSS
       expect(screen.getByRole('contentinfo')).toBeInTheDocument()
     })
   })

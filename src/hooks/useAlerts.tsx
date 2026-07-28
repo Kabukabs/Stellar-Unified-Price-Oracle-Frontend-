@@ -1,11 +1,83 @@
 import { useState, useCallback, useEffect, createContext, useContext, ReactNode } from 'react'
 import type { Alert, AlertHistoryEntry, AlertsContextType, AlertSnoozeDuration } from '../types'
 import { usePriceContext } from '../context/PriceContext'
-import { AlertsArraySchema, AlertHistoryArraySchema } from '../api/schemas'
-import { STORAGE_KEYS, writeJson } from '../utils/storage'
+import { AlertsArraySchema } from '../api/schemas'
+import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 
-/** Maximum number of fired-alert records kept in the history log (#309). */
-const HISTORY_LIMIT = 500
+// ---------------------------------------------------------------------------
+// #315 – Notification channel types (mirrors NotificationChannelsModal)
+// ---------------------------------------------------------------------------
+interface NotifConfig {
+  email: { address: string; enabled: boolean }
+  webPush: { enabled: boolean }
+  webhook: { url: string; enabled: boolean }
+}
+
+/** Load the persisted (secret-free) notification config. */
+function loadNotifConfig(): NotifConfig {
+  return readJson<NotifConfig>(STORAGE_KEYS.notificationChannels, {
+    email: { address: '', enabled: false },
+    webPush: { enabled: false },
+    webhook: { url: '', enabled: false },
+  })
+}
+
+/**
+ * #315 – Fire all enabled notification channels for a triggered alert.
+ * Browser push is fired in-process; email/webhook are best-effort fetch calls
+ * (the backend or a serverless function should handle delivery — here we POST
+ * the payload to the configured URL so the wiring is complete end-to-end).
+ */
+async function dispatchNotifications(alert: Alert, currentPrice: number): Promise<void> {
+  const cfg = loadNotifConfig()
+  const body = alert.percentageMode
+    ? `${alert.assetPair} moved ${alert.percentageThreshold ?? 0}% in ${alert.percentageWindow ?? '1hr'}! Current: $${currentPrice.toFixed(4)}`
+    : `${alert.assetPair} crossed your threshold! Current price: $${currentPrice.toFixed(4)}`
+
+  // Web Push – browser Notification API
+  if (cfg.webPush.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    new Notification('Price Alert Triggered', { body })
+  }
+
+  // Email – POST to a backend endpoint if one is configured
+  if (cfg.email.enabled && cfg.email.address) {
+    try {
+      await fetch('/api/notifications/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: cfg.email.address,
+          subject: 'Price Alert Triggered',
+          message: body,
+          assetPair: alert.assetPair,
+          price: currentPrice,
+        }),
+      })
+    } catch {
+      // Best-effort; don't let a network error break the alert system
+    }
+  }
+
+  // Webhook – POST alert payload to configured URL
+  if (cfg.webhook.enabled && cfg.webhook.url) {
+    try {
+      await fetch(cfg.webhook.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'alert_triggered',
+          assetPair: alert.assetPair,
+          price: currentPrice,
+          message: body,
+          alertId: alert.id,
+          timestamp: Date.now(),
+        }),
+      })
+    } catch {
+      // Best-effort
+    }
+  }
+}
 
 function isAlertArray(value: unknown): value is Alert[] {
   return Array.isArray(value)
@@ -200,13 +272,8 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
           changed = true
           const newFireCount = (updatedAlert.fireCount ?? 0) + 1
 
-          // Show browser notification
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            const body = alert.percentageMode
-              ? `${alert.assetPair} moved ${alert.percentageThreshold ?? 0}% in ${alert.percentageWindow ?? '1hr'}! Current: $${currentPrice.toFixed(4)}`
-              : `${alert.assetPair} crossed your threshold! Current price: $${currentPrice.toFixed(4)}`
-            new Notification('Price Alert Triggered', { body })
-          }
+          // #315 – Dispatch to all enabled notification channels (push, email, webhook)
+          void dispatchNotifications(alert, currentPrice)
 
           firedEntries.push({
             id: crypto.randomUUID(),

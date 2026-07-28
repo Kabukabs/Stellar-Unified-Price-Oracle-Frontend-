@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AppContent } from './App'
+import { PriceProvider } from './context/PriceContext'
+import { ToastProvider } from './context/ToastContext'
+import { PreferencesProvider } from './preferences/PreferencesContext'
+import { ErrorReporterProvider } from './context/ErrorReporterContext'
+import type { ReactNode } from 'react'
 
 /**
  * Regression guard for issue #157 ("mount missing context providers in App"),
@@ -9,29 +15,29 @@ import { AppContent } from './App'
  * actually rendered around AlertsProvider, so any real usePriceContext()
  * call (e.g. from AlertsProvider or Dashboard) throws at runtime.
  *
- * Unlike App.test.tsx, this file deliberately does NOT mock
- * `./context/PriceContext` — it mocks only PriceProvider's own network
- * dependencies (useSwr, api/rest, api/websocket) so the *real* PriceProvider
- * and the *real* usePriceContext throw-if-missing check are exercised. If
- * PriceProvider is ever dropped from the tree again, `tsc --noEmit` will
- * flag the now-unused import (see #181), but this test independently proves
- * the runtime symptom: rendering the app would throw instead of showing the
- * Dashboard.
+ * This file deliberately does NOT mock `./context/PriceContext` — it mocks only
+ * PriceProvider's own network dependencies (TanStack Query, api/rest, api/websocket)
+ * so the *real* PriceProvider and the *real* usePriceContext throw-if-missing
+ * check are exercised.
  */
 
 vi.mock('./hooks/useAccessibility', () => ({ useAccessibility: () => {} }))
 
-vi.mock('./hooks/useSwr', () => ({
-  useSwr: vi.fn(() => ({
-    data: [
-      { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
-    ],
-    loading: false,
-    error: null,
-    isValidating: false,
-    refetch: vi.fn(),
-  })),
-}))
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>()
+  return {
+    ...actual,
+    useQuery: vi.fn(() => ({
+      data: [
+        { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
+      ],
+      isLoading: false,
+      error: null,
+      isFetching: false,
+      refetch: vi.fn(),
+    })),
+  }
+})
 
 vi.mock('./api/rest', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./api/rest')>()
@@ -61,7 +67,44 @@ vi.mock('./api/websocket', () => ({
   })),
 }))
 
+vi.mock('./preferences/PreferencesContext', () => ({
+  PreferencesProvider: ({ children }: { children: ReactNode }) => children,
+  usePreferences: vi.fn(() => ({
+    preferences: {},
+    updatePreference: vi.fn(),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    canUndo: false,
+    canRedo: false,
+    clearHistory: vi.fn(),
+  })),
+}))
+
 const FIND = { timeout: 5000 }
+
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+}
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <MemoryRouter initialEntries={['/']}>
+      <QueryClientProvider client={makeQueryClient()}>
+        <ErrorReporterProvider>
+          <PreferencesProvider>
+            <ToastProvider>
+              <PriceProvider>
+                {children}
+              </PriceProvider>
+            </ToastProvider>
+          </PreferencesProvider>
+        </ErrorReporterProvider>
+      </QueryClientProvider>
+    </MemoryRouter>
+  )
+}
 
 beforeEach(() => {
   localStorage.clear()
@@ -71,11 +114,7 @@ afterEach(cleanup)
 
 describe('App provider hierarchy', () => {
   it('renders the Dashboard without throwing when PriceProvider wraps consumers for real', async () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <AppContent />
-      </MemoryRouter>,
-    )
+    render(<AppContent />, { wrapper: Wrapper })
 
     expect(
       await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND),
