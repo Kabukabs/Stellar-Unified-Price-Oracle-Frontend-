@@ -1,3 +1,41 @@
+/**
+ * @file ExportButton
+ *
+ * A dropdown button for exporting price data in CSV, JSON, or XLSX format.
+ * Delegates the actual export operation to the `onExport` callback so the
+ * component stays presentation-only.
+ *
+ * @example In the Dashboard toolbar
+ * ```tsx
+ * const { exportData, exporting } = useExport()
+ *
+ * <ExportButton
+ *   onExport={exportData}
+ *   exporting={exporting}
+ *   disabled={prices.length === 0}
+ * />
+ * ```
+ *
+ * ## Props table
+ * | prop       | type                           | required | description                                      |
+ * |------------|--------------------------------|----------|--------------------------------------------------|
+ * | `onExport` | `(format: ExportFormat) => void` | yes    | Called with the chosen format when user selects  |
+ * | `exporting`| `boolean`                      | yes      | Shows spinner and disables button while truthy   |
+ * | `disabled` | `boolean`                      | no       | Disables the button (e.g. when data is empty)    |
+ *
+ * ## Edge cases
+ * - **`exporting = true`** — shows an animated spinner icon and disables both the
+ *   trigger button and format items.
+ * - **`disabled = true`** — the trigger button is non-interactive; the dropdown
+ *   never opens.
+ * - **Outside click** — the dropdown closes when the user clicks anywhere outside the
+ *   component wrapper.
+ *
+ * ## Accessibility
+ * - Trigger button has `aria-haspopup="true"` and `aria-expanded` reflecting open state.
+ * - `aria-label` on the trigger comes from the i18n key `export.ariaLabel`.
+ * - Dropdown items have `role="menuitem"` inside a `role="menu"` container.
+ */
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ExportFormat } from '../hooks/useExport'

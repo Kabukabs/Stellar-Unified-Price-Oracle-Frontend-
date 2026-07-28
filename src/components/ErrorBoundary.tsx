@@ -1,3 +1,64 @@
+/**
+ * @file ErrorBoundary
+ *
+ * React class-based error boundary that catches render-time errors in its
+ * subtree and displays a contextual fallback UI with recovery actions.
+ *
+ * @example Wrapping a page route
+ * ```tsx
+ * <ErrorBoundary showGoBack>
+ *   <PriceDetail />
+ * </ErrorBoundary>
+ * ```
+ *
+ * @example Wrapping a feature widget with a custom label
+ * ```tsx
+ * <ErrorBoundary featureLabel="Price Chart">
+ *   <PriceChart data={history} />
+ * </ErrorBoundary>
+ * ```
+ *
+ * @example Integrating with an error reporter
+ * ```tsx
+ * const { report } = useErrorReporter()
+ *
+ * <ErrorBoundary
+ *   boundaryId="dashboard-table"
+ *   onError={(error, info) => report(error, { boundaryId: 'dashboard-table', info })}
+ * >
+ *   <PriceTableView ... />
+ * </ErrorBoundary>
+ * ```
+ *
+ * @example Custom fallback element
+ * ```tsx
+ * <ErrorBoundary fallback={<p className="text-red-500">Chart unavailable</p>}>
+ *   <PriceChart data={history} />
+ * </ErrorBoundary>
+ * ```
+ *
+ * ## Recovery actions
+ * - **Retry** — resets boundary state so the subtree is re-mounted from scratch.
+ * - **Go back** — calls `history.back()`. Only shown when `showGoBack` is `true`.
+ * - **Show details** — toggles the raw error message. Visible in development
+ *   (`import.meta.env.DEV`) and hidden in production builds.
+ *
+ * ## Edge cases
+ * - **Error in the fallback itself** — React will unmount the boundary entirely and
+ *   propagate the error to the next boundary up the tree.
+ * - **Async errors** — only synchronous render-time errors are caught. Errors in
+ *   `useEffect`, event handlers, or async functions must be caught separately (use
+ *   `useErrorReporter` for those).
+ * - **Retry loops** — if the underlying bug persists, pressing Retry re-mounts and
+ *   re-throws, leaving the fallback visible again with no infinite loop.
+ *
+ * ## Accessibility
+ * - The fallback heading uses the `featureLabel` prop to give context, e.g.
+ *   "Something went wrong in Price Chart".
+ * - All interactive recovery buttons are standard `<button>` elements with
+ *   descriptive labels.
+ * - Error detail text is wrapped in `<pre>` for screen-reader compatibility.
+ */
 import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 
 export interface ErrorBoundaryProps {

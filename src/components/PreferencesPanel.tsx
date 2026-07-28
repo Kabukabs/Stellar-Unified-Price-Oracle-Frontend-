@@ -1,3 +1,47 @@
+/**
+ * @file PreferencesPanel
+ *
+ * A compact form for adjusting data-fetching and display preferences. Reads
+ * from and writes to `PreferencesContext`, which persists state to IndexedDB
+ * and supports undo/redo.
+ *
+ * Kept intentionally small so it can be embedded in a sidebar, popover, or the
+ * full `SettingsPanel` without pulling in unrelated UI.
+ *
+ * @example Inside a settings popover
+ * ```tsx
+ * <PreferencesProvider>
+ *   <PreferencesPanel />
+ * </PreferencesProvider>
+ * ```
+ *
+ * ## Exposed controls
+ * | Control           | Preference key          | Options                     |
+ * |-------------------|-------------------------|-----------------------------|
+ * | Refresh interval  | `refreshInterval`       | 5 s, 10 s, 30 s, 60 s      |
+ * | Chart time range  | `chartTimeRange`        | 1 h, 6 h, 24 h, 7 d, 30 d  |
+ * | Stale threshold   | `staleThresholdMinutes` | 1, 2, 5, 10, 30 min         |
+ *
+ * ## Undo / Redo
+ * Each preference change is recorded as a command in the undo stack (depth
+ * capped by `MAX_UNDO_DEPTH`). The Undo/Redo buttons are disabled when the
+ * stack is empty or at its head.
+ *
+ * Keyboard shortcuts `Ctrl+Z` / `Cmd+Z` and `Ctrl+Shift+Z` / `Cmd+Shift+Z`
+ * are also registered by `PreferencesContext` globally.
+ *
+ * ## Edge cases
+ * - **Must be inside `PreferencesProvider`** — `usePreferences()` throws if the
+ *   context is missing; wrap the component tree in `<PreferencesProvider>`.
+ * - **Navigation resets undo history** — `PreferencesContext` clears the stack on
+ *   route change to prevent cross-page undo surprises.
+ *
+ * ## Accessibility
+ * - Root `<section>` has `aria-label="Preferences"`.
+ * - All `<select>` elements are associated with `<label>` elements via `id`/`htmlFor`.
+ * - Undo/Redo buttons have descriptive `aria-label` attributes and are `disabled`
+ *   when the action is unavailable.
+ */
 import { memo } from 'react'
 import { usePreferences } from '../preferences/PreferencesContext'
 import {
