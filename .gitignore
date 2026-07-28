@@ -30,6 +30,7 @@ e2e/results
 e2e/test-results
 test-results/
 playwright-report
+playwright/.cache
 
 # ── Visual regression / snapshot files ───────────────────────────────────────
 **/__snapshots__/
@@ -38,22 +39,34 @@ test/visual/diffs/
 test/visual/reports/
 e2e/visual/__snapshots__/
 
-# Test snapshots
+# Test snapshots (Vitest / Jest)
 src/**/__snapshots__/
 **/*.snap
 
-# IDE / editor
+# ── IDE / editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 Thumbs.db
+Desktop.ini
 
-# AI agent directories
+# ── AI agent directories ──────────────────────────────────────────────────────
 .kiro/
+.cursor/
+.aider*
 
-# Bundle analysis (generated, not source)
+# ── Bundle analysis (generated, not source) ───────────────────────────────────
 reports/bundle-stats.html
+
+# ── Misc generated files ──────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
