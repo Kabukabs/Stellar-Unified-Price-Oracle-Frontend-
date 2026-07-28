@@ -110,7 +110,12 @@ export interface AlertHistoryEntry {
 
 export interface AlertsContextType {
   alerts: Alert[]
-  addAlert: (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => Alert
+  /**
+   * Create a new alert.
+   * Rate-limited to {@link RATE_LIMIT_CONFIGS}.alertCreate (5 per minute).
+   * Returns the new Alert when allowed, or `null` when throttled.
+   */
+  addAlert: (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => Alert | null
   updateAlert: (id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => void
   removeAlert: (id: string) => void
   getAlertsForPair: (assetPair: string) => Alert[]
@@ -125,6 +130,9 @@ export interface AlertsContextType {
   // Alert history log (#309)
   alertHistory: AlertHistoryEntry[]
   clearAlertHistory: () => void
+  /** Rate-limit info for alert creation — used by UI to disable buttons and show countdown. */
+  alertCreateAllowed: boolean
+  alertCreateCooldownSec: number
 }
 
 // ---------------------------------------------------------------------------

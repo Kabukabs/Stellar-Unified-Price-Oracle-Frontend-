@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { sanitizeSearchInput } from '../utils/sanitize'
+import { useSearchRateLimit } from '../hooks/useSearchRateLimit'
 
 const MAX_RECENT = 5
 const RECENT_KEY = 'pairSearchRecent'
@@ -62,14 +63,18 @@ export const PairSearchBar = memo(function PairSearchBar({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
 
+  // Debounce + rate-limit the search value (max 1 per 100 ms) so that
+  // the expensive fuzzy-filter only runs on the debounced input.
+  const { debouncedValue } = useSearchRateLimit(value)
+
   // Suggestions: fuzzy-match pairs by name, base asset, or quote asset
   const suggestions = useMemo(() => {
-    if (!value && !sourceFilter) return []
+    if (!debouncedValue && !sourceFilter) return []
     return pairs.filter((p) => {
-      const matchesText = !value || fuzzyMatch(p, value)
+      const matchesText = !debouncedValue || fuzzyMatch(p, debouncedValue)
       return matchesText
     })
-  }, [pairs, value, sourceFilter])
+  }, [pairs, debouncedValue, sourceFilter])
 
   const items: string[] = value || sourceFilter ? suggestions : recent
 
