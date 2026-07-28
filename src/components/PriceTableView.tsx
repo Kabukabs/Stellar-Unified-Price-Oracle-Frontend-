@@ -76,7 +76,7 @@ export const PriceTableView = memo(function PriceTableView({
                 key={key}
                 scope="col"
                 onClick={() => handleSort(key)}
-                className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none whitespace-nowrap hover:text-gray-200 transition-colors"
+                className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none whitespace-nowrap hover:text-gray-200 transition-colors ${key === 'assetPair' ? 'sticky-col-header bg-gray-900' : ''}`}
                 aria-sort={sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
               >
                 <span className="flex items-center gap-1">
@@ -129,7 +129,7 @@ export const PriceTableView = memo(function PriceTableView({
                     </span>
                   </td>
                 )}
-                <td className="px-4 py-3 font-semibold text-gray-100 whitespace-nowrap">
+                <td className="sticky-col bg-gray-900 px-4 py-3 font-semibold text-gray-100 whitespace-nowrap">
                   <span className="flex items-center gap-2">
                     {p.assetPair}
                     {isLive && (

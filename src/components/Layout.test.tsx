@@ -97,7 +97,7 @@ describe('Layout', () => {
         </AlertsProvider>
       </MemoryRouter>,
     )
-    const buttons = screen.getAllByLabelText('Toggle menu')
+    const buttons = screen.getAllByLabelText('Open menu')
     expect(buttons.length).toBeGreaterThanOrEqual(1)
   })
 

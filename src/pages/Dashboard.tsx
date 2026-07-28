@@ -171,14 +171,14 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Price Oracle Dashboard</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Price Oracle Dashboard</h1>
           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
             Aggregated from Chainlink, Redstone, Band &amp; Reflector
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             placeholder="Search by asset pair..."
@@ -190,14 +190,14 @@ export function Dashboard() {
               else params.delete('search')
               navigate({ search: params.toString() }, { replace: true })
             }}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-700 bg-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-48"
+            className="px-3 py-1.5 text-sm rounded-lg border border-gray-700 bg-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 w-full sm:w-48"
             aria-label="Search by asset pair"
           />
 
           <button
             type="button"
             onClick={() => setFilterPanelOpen((o) => !o)}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+            className={`relative min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
               filterPanelOpen
                 ? 'bg-cyan-600 border-cyan-500 text-white'
                 : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
@@ -220,7 +220,7 @@ export function Dashboard() {
             <button
               type="button"
               onClick={toggleSelectMode}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+              className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 selectMode
                   ? 'bg-cyan-600 border-cyan-500 text-white'
                   : 'border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
@@ -231,7 +231,8 @@ export function Dashboard() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              {selectMode ? `Select (${selected.size})` : 'Select'}
+              <span className="hidden sm:inline">{selectMode ? `Select (${selected.size})` : 'Select'}</span>
+              <span className="sm:hidden">{selectMode ? `${selected.size}` : 'Sel'}</span>
             </button>
           )}
 
@@ -240,7 +241,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => startTransition(() => setDashboardView('card'))}
-                className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'card' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                className={`min-h-[44px] min-w-[44px] flex items-center justify-center px-3 py-1.5 text-sm transition-colors ${dashboardView === 'card' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'card'}
                 aria-label="Card view"
                 disabled={isPending}
@@ -255,7 +256,7 @@ export function Dashboard() {
               <button
                 type="button"
                 onClick={() => startTransition(() => setDashboardView('table'))}
-                className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                className={`min-h-[44px] min-w-[44px] flex items-center justify-center px-3 py-1.5 text-sm transition-colors ${dashboardView === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'table'}
                 aria-label="Table view"
                 disabled={isPending}
@@ -272,14 +273,14 @@ export function Dashboard() {
           <button
             type="button"
             onClick={() => setNotifModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+            className="min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
             aria-label="Configure notification channels"
             title="Notification channels"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
-            Alerts
+            <span className="hidden sm:inline">Alerts</span>
           </button>
           <ConnectionBadge status={wsStatus} rateLimitStatus={rateLimitStatus} retryAfterMs={rateLimitRetryAfterMs} />
         </div>

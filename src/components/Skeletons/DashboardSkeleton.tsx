@@ -14,8 +14,9 @@ export function DashboardSkeleton(): ReactElement {
         <div className="flex items-center gap-3">
           <div className="h-9 w-48 rounded-lg bg-gray-200 dark:bg-gray-800" />
           <div className="h-9 w-20 rounded-lg bg-gray-200 dark:bg-gray-800" />
-          <div className="h-9 w-24 rounded-lg bg-gray-200 dark:bg-gray-800" />
+          <div className="h-9 w-20 rounded-lg bg-gray-200 dark:bg-gray-800" />
           <div className="h-9 w-16 rounded-lg bg-gray-200 dark:bg-gray-800" />
+          <div className="h-9 w-20 rounded-lg bg-gray-200 dark:bg-gray-800 hidden sm:block" />
         </div>
       </div>
 
