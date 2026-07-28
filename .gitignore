@@ -42,6 +42,7 @@ e2e/visual/__snapshots__/
 # Test snapshots (Vitest / Jest)
 src/**/__snapshots__/
 **/*.snap
+src/**/__snapshots__/
 
 # ── IDE / editor ──────────────────────────────────────────────────────────────
 .vscode/

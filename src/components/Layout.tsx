@@ -24,7 +24,8 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
   const { t } = useTranslation()
 
   const NAV_ITEMS = [
-    { path: '/', label: t('nav.dashboard') },
+    { path: '/', label: t('nav.home') },
+    { path: '/dashboard', label: t('nav.dashboard') },
     { path: '/api-docs', label: t('nav.apiDocs') },
   ]
 
