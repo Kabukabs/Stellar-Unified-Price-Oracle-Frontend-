@@ -2,10 +2,7 @@ import { useState, useCallback, useEffect, createContext, useContext, ReactNode 
 import type { Alert, AlertsContextType, AlertSnoozeDuration } from '../types'
 import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
-
-function isAlertArray(value: unknown): value is Alert[] {
-  return Array.isArray(value)
-}
+import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 
 /** Compute snooze expiry timestamp from a duration string */
 function snoozeDurationMs(duration: AlertSnoozeDuration): number {
@@ -40,20 +37,14 @@ function windowMs(window: string): number {
 }
 
 function loadAlerts(): Alert[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    const result = AlertsArraySchema.safeParse(parsed)
-    if (!result.success) {
-      console.warn('[useAlerts] Invalid alerts in localStorage, resetting:', result.error.issues)
-      return []
-    }
-    // Zod fills in defaults for new fields on legacy data
-    return result.data as Alert[]
-  } catch {
+  const raw = readJson<unknown>(STORAGE_KEYS.alerts, [])
+  const result = AlertsArraySchema.safeParse(raw)
+  if (!result.success) {
+    console.warn('[useAlerts] Invalid alerts in localStorage, resetting:', result.error.issues)
     return []
   }
+  // Zod fills in defaults for new fields on legacy data
+  return result.data as Alert[]
 }
 
 function saveAlerts(alerts: Alert[]): void {

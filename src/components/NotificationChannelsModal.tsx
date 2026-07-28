@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
-
-const STORAGE_KEY = 'notification-channels'
+import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 
 interface NotificationConfig {
   email: { address: string; enabled: boolean }

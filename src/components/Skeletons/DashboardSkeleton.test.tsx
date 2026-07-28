@@ -6,7 +6,7 @@ import { checkAccessibility } from '../../test/accessibility'
 describe('DashboardSkeleton', () => {
   it('renders without crashing', () => {
     const { container } = render(<DashboardSkeleton />)
-    expect(container.querySelector('.animate-pulse')).toBeInTheDocument()
+    expect(container.querySelector('.skeleton-shimmer')).toBeInTheDocument()
   })
 
   it('has aria-busy and aria-label during loading', () => {

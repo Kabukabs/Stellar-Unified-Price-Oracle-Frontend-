@@ -113,7 +113,7 @@ describe('Dashboard', () => {
         </AlertsProvider>
       </MemoryRouter>,
     )
-    expect(document.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('.skeleton-offscreen').length).toBeGreaterThan(0)
   })
 
   it('shows error alert when there is an error', async () => {
@@ -702,7 +702,7 @@ describe('Dashboard', () => {
     )
     // Should render 8 skeletons (SKELETON_COUNT = 8)
     expect(screen.getByLabelText('Loading price cards')).toBeInTheDocument()
-    const skeletons = document.querySelectorAll('.animate-pulse')
+    const skeletons = document.querySelectorAll('.skeleton-offscreen')
     expect(skeletons.length).toBe(8)
   })
 

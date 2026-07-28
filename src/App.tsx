@@ -1,25 +1,21 @@
-import { lazy, Suspense, type ReactElement } from 'react'
+import { lazy, type ReactElement } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { ErrorBoundary, PageErrorBoundary } from './components/ErrorBoundary'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { RouteSuspense } from './components/Skeletons/RouteSuspense'
 import { DashboardSkeleton } from './components/Skeletons/DashboardSkeleton'
 import { PriceDetailSkeleton } from './components/PriceDetailSkeleton'
 import { ApiDocsSkeleton } from './components/Skeletons/ApiDocsSkeleton'
 import { NotFoundSkeleton } from './components/Skeletons/NotFoundSkeleton'
+import { PriceProvider } from './context/PriceContext'
 import { AlertsProvider } from './hooks/useAlerts'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
-import { ErrorReporterProvider, useErrorReporter } from './context/ErrorReporterContext'
+import { useErrorReporter } from './context/ErrorReporterContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics, trackPageview } from './hooks/useAnalytics'
 import type { ErrorInfo } from 'react'
-
-const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
-const PriceDetail = lazy(() => import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })))
-const ApiDocs = lazy(() => import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })))
-const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
 
 // Route-level code splitting: each page becomes its own chunk.
 // All four pages use named exports, so we re-export them as `default`
