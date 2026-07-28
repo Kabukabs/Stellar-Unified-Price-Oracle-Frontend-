@@ -5,7 +5,7 @@ node_modules
 dist
 build
 
-# ── Test coverage & reports ───────────────────────────────────────────────────
+# ── Test coverage, reports & artifacts ────────────────────────────────────────
 coverage
 reports
 sbom.json
@@ -32,8 +32,14 @@ test-results/
 playwright-report
 playwright/.cache
 
-# ── Visual regression / snapshot files ───────────────────────────────────────
+# ── Vitest cache ──────────────────────────────────────────────────────────────
+.vitest-cache/
+.vite/
+
+# ── Test snapshot files (auto-generated, must not be committed) ───────────────
 **/__snapshots__/
+src/**/__snapshots__/
+**/*.snap
 test/visual/baselines/
 test/visual/diffs/
 test/visual/reports/

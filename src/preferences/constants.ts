@@ -31,6 +31,17 @@ export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
 
 export const MAX_UNDO_DEPTH = 20
 
+/**
+ * Flat composite of all default preference slices.
+ * Consumed by PreferencesContext, the Zustand preferences store, and tests.
+ */
+export const DEFAULT_PREFERENCES: Preferences = {
+  ...DEFAULT_DATA_PREFERENCES,
+  ...DEFAULT_LAYOUT_PREFERENCES,
+  ...DEFAULT_ACCESSIBILITY_PREFERENCES,
+  ...DEFAULT_PRIVACY_PREFERENCES,
+}
+
 export const REFRESH_INTERVAL_OPTIONS = [
   { value: 5000, label: '5 seconds' },
   { value: 10000, label: '10 seconds' },

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useSwr } from '../hooks/useSwr'
+import { useQuery } from '@tanstack/react-query'
 import { WebSocketClient, type ConnectionStatus } from '../api/websocket'
 import { fetchAllPrices, fetchPrice } from '../api/rest'
 import { rateLimitManager, type RateLimitStatus } from '../api/rateLimit'
@@ -43,11 +43,19 @@ const PriceContext = createContext<PriceContextValue | null>(null)
  * as a fallback when the WebSocket is disconnected.
  */
 export function PriceProvider({ children }: { children: ReactNode }) {
-  const { data: prices = [], loading: pricesLoading, error: pricesError, isValidating: pricesValidating, refetch: refetchPrices } = useSwr<PriceData[]>(
-    'prices',
-    () => fetchAllPrices(),
-    { refreshInterval: config.refreshInterval, staleTime: 5000, retryCount: 3 },
-  )
+  const {
+    data: prices = [],
+    isLoading: pricesLoading,
+    error: pricesError,
+    isFetching: pricesValidating,
+    refetch: refetchPrices,
+  } = useQuery<PriceData[], Error>({
+    queryKey: ['prices'],
+    queryFn: () => fetchAllPrices(),
+    refetchInterval: config.refreshInterval,
+    staleTime: 5_000,
+    retry: 3,
+  })
 
   const [livePrices, setLivePrices] = useState<Map<string, LivePriceEntry>>(new Map())
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>('disconnected')
@@ -211,6 +219,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
   const subscribe = (pairs: string[]): void => wsRef.current?.subscribe(pairs)
   const unsubscribe = (pairs: string[]): void => wsRef.current?.unsubscribe(pairs)
+  const handleRefetchPrices = (): void => { void refetchPrices() }
 
   const value: PriceContextValue = {
     prices,
@@ -221,7 +230,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     wsStatus,
     rateLimitStatus,
     rateLimitRetryAfterMs,
-    refetchPrices,
+    refetchPrices: handleRefetchPrices,
     subscribe,
     unsubscribe,
   }
