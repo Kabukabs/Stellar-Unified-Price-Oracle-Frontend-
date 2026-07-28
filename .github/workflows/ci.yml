@@ -23,6 +23,11 @@ jobs:
 
       - run: npm ci
 
+      # Fail CI on any critical or high severity vulnerabilities.
+      # Moderate and low findings are reported but do not block the build.
+      - name: Audit dependencies (fail on critical/high)
+        run: npm audit --audit-level=high
+
       - run: npm run typecheck
 
       - run: npm run lint
