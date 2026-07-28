@@ -4,6 +4,7 @@ node_modules
 # ── Build outputs ─────────────────────────────────────────────────────────────
 dist
 build
+out
 
 # ── Test coverage, reports & artifacts ────────────────────────────────────────
 coverage
@@ -18,12 +19,17 @@ storybook-static
 .env
 .env.local
 .env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
 # ── TypeScript incremental build ──────────────────────────────────────────────
 *.tsbuildinfo
 
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
+.AppleDouble
+.LSOverride
 
 # ── E2E test artifacts ────────────────────────────────────────────────────────
 e2e/results
