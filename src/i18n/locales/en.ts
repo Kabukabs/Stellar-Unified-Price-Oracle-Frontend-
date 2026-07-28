@@ -174,6 +174,14 @@ const en = {
       alertTypePersistent: 'Persistent',
       alertTypeOneTimeDesc: 'Fires once and auto-disables. Re-enable to reuse.',
       alertTypePersistentDesc: 'Fires every time the condition is met. Tracks fire count.',
+      // Cooldown (#310)
+      cooldown: 'Cooldown between alerts',
+      cooldownOff: 'Off (fire immediately)',
+      cooldown1min: '1 minute',
+      cooldown5min: '5 minutes',
+      cooldown15min: '15 minutes',
+      cooldown1hr: '1 hour',
+      cooldownDesc: 'Minimum time between re-fires, to avoid notification spam when the price oscillates around your threshold.',
     },
     actions: {
       delete: 'Delete Alert',
@@ -252,6 +260,23 @@ const en = {
       dir_up: '↑ Up',
       dir_down: '↓ Down',
       dir_either: '↕ Either',
+    },
+    // History log tabs (#309)
+    tabs: {
+      alerts: 'Alerts',
+      history: 'History',
+    },
+    history: {
+      empty: 'No alerts have fired yet',
+      searchPlaceholder: 'Search by asset pair…',
+      noResults: 'No history entries match your search',
+      clear: 'Clear history',
+      clearConfirm: 'Clear all alert history? This cannot be undone.',
+      exportCsv: 'Export CSV',
+      exportJson: 'Export JSON',
+      count_one: '{{count}} fired alert',
+      count_other: '{{count}} fired alerts',
+      priceAt: 'Price: ${{price}}',
     },
   },
 

@@ -2,6 +2,7 @@ import { useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice } from '../utils/format'
+import { AlertHistoryLog } from './AlertHistoryLog'
 import type { AlertSnoozeDuration } from '../types'
 
 const SNOOZE_DURATIONS: { value: AlertSnoozeDuration; labelKey: string }[] = [
@@ -16,6 +17,7 @@ export function AlertPanel(): ReactElement | null {
   const { alerts, removeAlert, updateAlert, markAsRead, isPanelOpen, togglePanel, snoozeAlert, unsnoozeAlert, reEnableAlert } = useAlerts()
   const { t } = useTranslation()
   const [snoozeOpenId, setSnoozeOpenId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'alerts' | 'history'>('alerts')
 
   if (!isPanelOpen) return null
 
@@ -92,8 +94,40 @@ export function AlertPanel(): ReactElement | null {
           </button>
         </div>
 
+        {/* Alerts / History tabs (#309) */}
+        <div className="flex gap-1 p-2 border-b border-gray-800" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'alerts'}
+            onClick={() => setActiveTab('alerts')}
+            className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'alerts'
+                ? 'bg-cyan-500/20 text-cyan-400'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+            }`}
+          >
+            {t('alertPanel.tabs.alerts')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'history'}
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === 'history'
+                ? 'bg-cyan-500/20 text-cyan-400'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+            }`}
+          >
+            {t('alertPanel.tabs.history')}
+          </button>
+        </div>
+
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {alerts.length === 0 ? (
+          {activeTab === 'history' ? (
+            <AlertHistoryLog />
+          ) : alerts.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <svg className="w-12 h-12 mx-auto mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
