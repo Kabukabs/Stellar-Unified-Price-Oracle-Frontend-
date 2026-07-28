@@ -50,7 +50,7 @@ function createSliceReducer<K extends keyof Preferences>(ownedKeys: readonly K[]
 export const DATA_PREFERENCE_KEYS = ['refreshInterval', 'chartTimeRange', 'staleThresholdMinutes'] as const
 export const LAYOUT_PREFERENCE_KEYS = ['dashboardView', 'cardOrder'] as const
 export const ACCESSIBILITY_PREFERENCE_KEYS = ['reducedMotion', 'highContrast', 'largeText'] as const
-export const PRIVACY_PREFERENCE_KEYS = ['analyticsOptOut'] as const
+export const PRIVACY_PREFERENCE_KEYS = ['analyticsOptOut', 'chartTimezone'] as const
 
 /** Handles refresh cadence, chart window, and staleness threshold. */
 export const dataPreferencesReducer = createSliceReducer(DATA_PREFERENCE_KEYS)

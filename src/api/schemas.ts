@@ -61,6 +61,9 @@ export const AlertSchema = z.object({
   // Snooze fields (#313)
   snoozedUntil: z.number().nullable().default(null),
 
+  // Cooldown (#310) — minutes between re-fires of a persistent alert
+  cooldownMinutes: z.number().min(0).default(5),
+
   // State fields
   active: z.boolean(),
   createdAt: z.number(),
@@ -68,6 +71,25 @@ export const AlertSchema = z.object({
 })
 
 export const AlertsArraySchema = z.array(AlertSchema)
+
+// ── Alert history schema (localStorage deserialization, #309) ────────────────
+
+export const AlertHistoryEntrySchema = z.object({
+  id: z.string(),
+  alertId: z.string(),
+  assetPair: z.string(),
+  triggeredAt: z.number(),
+  price: z.number(),
+  triggerOnce: z.boolean(),
+  percentageMode: z.boolean().default(false),
+  upperThreshold: z.number().nullable().default(null),
+  lowerThreshold: z.number().nullable().default(null),
+  percentageThreshold: z.number().nullable().default(null),
+  percentageWindow: z.enum(['5min', '15min', '1hr', '24hr']).nullable().default(null),
+  percentageDirection: z.enum(['up', 'down', 'either']).nullable().default(null),
+})
+
+export const AlertHistoryArraySchema = z.array(AlertHistoryEntrySchema)
 
 // ── WebSocket message schemas ────────────────────────────────────────────────
 
@@ -94,4 +116,5 @@ export type PriceDataFromSchema = z.infer<typeof PriceDataSchema>
 export type PriceHistoryResponseFromSchema = z.infer<typeof PriceHistoryResponseSchema>
 export type BatchHistoryResponseFromSchema = z.infer<typeof BatchHistoryResponseSchema>
 export type AlertFromSchema = z.infer<typeof AlertSchema>
+export type AlertHistoryEntryFromSchema = z.infer<typeof AlertHistoryEntrySchema>
 export type WsMessageFromSchema = z.infer<typeof WsMessageSchema>

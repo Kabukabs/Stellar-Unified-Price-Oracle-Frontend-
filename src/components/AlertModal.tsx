@@ -71,6 +71,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     percentageWindow: '1hr',
     percentageDirection: 'either',
     percentageRelativeTo: 'open',
+    cooldownMinutes: '5',
   })
   const [errors, setErrors] = useState<ValidationErrors>({})
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -91,6 +92,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           percentageWindow: alert.percentageWindow ?? '1hr',
           percentageDirection: alert.percentageDirection ?? 'either',
           percentageRelativeTo: alert.percentageRelativeTo ?? 'open',
+          cooldownMinutes: String(alert.cooldownMinutes ?? 5),
         })
       } else {
         setForm({
@@ -103,6 +105,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           percentageWindow: '1hr',
           percentageDirection: 'either',
           percentageRelativeTo: 'open',
+          cooldownMinutes: '5',
         })
       }
       setErrors({})
@@ -474,6 +477,28 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
                 ? t('alertModal.fields.alertTypeOneTimeDesc')
                 : t('alertModal.fields.alertTypePersistentDesc')}
             </p>
+
+            {/* Cooldown between re-fires (#310) */}
+            {!form.triggerOnce && (
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <label htmlFor="alert-cooldown" className="block text-xs font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.cooldown')}
+                </label>
+                <select
+                  id="alert-cooldown"
+                  value={form.cooldownMinutes}
+                  onChange={(e) => setAndValidate('cooldownMinutes', e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                >
+                  <option value="0">{t('alertModal.fields.cooldownOff')}</option>
+                  <option value="1">{t('alertModal.fields.cooldown1min')}</option>
+                  <option value="5">{t('alertModal.fields.cooldown5min')}</option>
+                  <option value="15">{t('alertModal.fields.cooldown15min')}</option>
+                  <option value="60">{t('alertModal.fields.cooldown1hr')}</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">{t('alertModal.fields.cooldownDesc')}</p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3">

@@ -1,7 +1,34 @@
-import type { PriceData, PriceHistoryEntry } from '../types'
+import type { AlertHistoryEntry, PriceData, PriceHistoryEntry } from '../types'
 
 function isoTs(ts: number): string {
   return new Date(ts).toISOString()
+}
+
+/** Human-readable summary of the condition that fired an {@link AlertHistoryEntry} (#309). */
+function alertHistoryCondition(entry: AlertHistoryEntry): string {
+  if (entry.percentageMode) {
+    const dir = entry.percentageDirection ?? 'either'
+    return `${dir} ${entry.percentageThreshold ?? 0}% in ${entry.percentageWindow ?? '1hr'}`
+  }
+  if (entry.upperThreshold !== null && entry.lowerThreshold !== null) {
+    return `between ${entry.lowerThreshold} and ${entry.upperThreshold}`
+  }
+  if (entry.upperThreshold !== null) return `above ${entry.upperThreshold}`
+  if (entry.lowerThreshold !== null) return `below ${entry.lowerThreshold}`
+  return ''
+}
+
+/** Converts fired-alert history entries to CSV-ready rows (#309). */
+export function alertHistoryToCsvRows(entries: AlertHistoryEntry[]): { rows: Array<Record<string, unknown>>; headers: string[] } {
+  const headers = ['assetPair', 'triggeredAt', 'price', 'condition', 'alertType']
+  const rows = entries.map((e) => ({
+    assetPair: e.assetPair,
+    triggeredAt: isoTs(e.triggeredAt),
+    price: e.price,
+    condition: alertHistoryCondition(e),
+    alertType: e.triggerOnce ? 'one-time' : 'persistent',
+  }))
+  return { rows, headers }
 }
 
 /** Serialises an array of plain objects to a CSV string. Values containing commas, quotes, or newlines are quoted and escaped. */

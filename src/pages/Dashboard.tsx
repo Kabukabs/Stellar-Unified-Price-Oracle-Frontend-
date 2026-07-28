@@ -1,12 +1,16 @@
-import { useCallback, useMemo, useState, useTransition, useOptimistic } from 'react'
+import { useCallback, useMemo, useRef, useState, useTransition, useOptimistic } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
 import { useAlerts } from '../hooks/useAlerts'
 import { useExport } from '../hooks/useExport'
+import { usePreferences } from '../preferences/PreferencesContext'
+import { useSwipeGesture } from '../hooks/useSwipeGesture'
+import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PriceCard } from '../components/PriceCard'
 import { PriceCardSkeleton } from '../components/PriceCardSkeleton'
 import { PriceTableView } from '../components/PriceTableView'
+import { DraggablePriceGrid } from '../components/DraggablePriceGrid'
 import { AlertModal } from '../components/AlertModal'
 import { AlertBadge } from '../components/AlertBadge'
 import { ConnectionBadge } from '../components/ConnectionBadge'
@@ -41,11 +45,13 @@ export function Dashboard() {
     wsStatus,
     rateLimitStatus,
     rateLimitRetryAfterMs,
+    refetchPrices,
   } = usePriceContext()
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount, reEnableAlert } = useAlerts()
   const { exportCSV } = useExport()
+  const { preferences, updatePreference } = usePreferences()
   const [searchParams] = useSearchParams()
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -54,6 +60,20 @@ export function Dashboard() {
   const [notifModalOpen, setNotifModalOpen] = useState(false)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // Pull-to-refresh: allow the user to drag the page down to force a refetch
+  const mainRef = useRef<HTMLDivElement>(null)
+  const { state: pullState, handlers: pullHandlers } = usePullToRefresh(mainRef, {
+    onRefresh: refetchPrices,
+    disabled: pricesLoading || preferences.reducedMotion,
+  })
+
+  // Swipe left/right on the dashboard to switch between card/table views
+  const swipeHandlers = useSwipeGesture({
+    onSwipeLeft: () => startTransition(() => setDashboardView('table')),
+    onSwipeRight: () => startTransition(() => setDashboardView('card')),
+    disabled: preferences.reducedMotion,
+  })
 
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -156,6 +176,7 @@ export function Dashboard() {
         percentageWindow: data.percentageMode ? data.percentageWindow : null,
         percentageDirection: data.percentageMode ? data.percentageDirection : null,
         percentageRelativeTo: data.percentageMode ? data.percentageRelativeTo : null,
+        cooldownMinutes: data.cooldownMinutes ? Number.parseInt(data.cooldownMinutes, 10) : 5,
       })
       setModalOpen(false)
     },
@@ -178,7 +199,33 @@ export function Dashboard() {
   }, [])
 
   return (
-    <div>
+    <div
+      ref={mainRef}
+      {...pullHandlers}
+      {...swipeHandlers}
+    >
+      {/* Pull-to-refresh indicator */}
+      {(pullState.pullDistance > 0 || pullState.refreshing) && (
+        <div
+          className="flex items-center justify-center gap-2 text-xs text-cyan-400 mb-2 transition-all"
+          style={{ height: `${Math.max(pullState.pullDistance, pullState.refreshing ? 32 : 0)}px` }}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {pullState.refreshing ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {t('dashboard.pullToRefresh.refreshing')}
+            </>
+          ) : pullState.readyToRefresh ? (
+            t('dashboard.pullToRefresh.release')
+          ) : (
+            t('dashboard.pullToRefresh.pull')
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -367,21 +414,17 @@ export function Dashboard() {
         </ErrorBoundary>
       ) : (
         <ErrorBoundary boundaryId="price-card-grid" featureLabel="Price Cards">
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" aria-label="Price feeds">
-            {filtered.map((p) => (
-              <PriceCard
-                key={p.assetPair}
-                price={p}
-                isLive={livePrices.has(p.assetPair)}
-                isStale={pricesValidating}
-                hasAlert={hasAlertsForPair(p.assetPair)}
-                onClick={() => handleCardClick(p.assetPair)}
-                onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
-                selectMode={selectMode}
-                isSelected={selected.has(p.assetPair)}
-              />
-            ))}
-          </section>
+          <DraggablePriceGrid
+            items={filtered}
+            livePairs={new Set(livePrices.keys())}
+            isStale={pricesValidating}
+            hasAlertFn={hasAlertsForPair}
+            onCardClick={handleCardClick}
+            onAlertClick={handleAlertClick}
+            selectMode={selectMode}
+            selected={selected}
+            onReorder={(orderedPairs) => updatePreference('cardOrder', orderedPairs)}
+          />
         </ErrorBoundary>
       )}
 

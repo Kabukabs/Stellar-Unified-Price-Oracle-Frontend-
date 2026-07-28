@@ -1,5 +1,6 @@
 const es = {
   nav: {
+    home: 'Inicio',
     dashboard: 'Panel de control',
     apiDocs: 'Documentación API',
     toggleMenu: 'Alternar menú',
@@ -51,6 +52,12 @@ const es = {
     },
     loadingAriaLabel: 'Cargando tarjetas de precios',
     feedsAriaLabel: 'Feeds de precios',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Desliza hacia abajo para actualizar',
+      release: 'Suelta para actualizar',
+      refreshing: 'Actualizando…',
+    },
   },
 
   filter: {
@@ -165,6 +172,13 @@ const es = {
       alertTypePersistent: 'Persistente',
       alertTypeOneTimeDesc: 'Se activa una vez y se desactiva. Vuélvela a habilitar para reutilizarla.',
       alertTypePersistentDesc: 'Se activa cada vez que se cumple la condición. Registra el contador.',
+      cooldown: 'Espera entre alertas',
+      cooldownOff: 'Desactivada (activar de inmediato)',
+      cooldown1min: '1 minuto',
+      cooldown5min: '5 minutos',
+      cooldown15min: '15 minutos',
+      cooldown1hr: '1 hora',
+      cooldownDesc: 'Tiempo mínimo entre reactivaciones, para evitar spam de notificaciones cuando el precio oscila alrededor del umbral.',
     },
     actions: {
       delete: 'Eliminar alerta',
@@ -238,6 +252,22 @@ const es = {
       dir_up: '↑ Subida',
       dir_down: '↓ Bajada',
       dir_either: '↕ Cualquiera',
+    },
+    tabs: {
+      alerts: 'Alertas',
+      history: 'Historial',
+    },
+    history: {
+      empty: 'Aún no se ha disparado ninguna alerta',
+      searchPlaceholder: 'Buscar por par de activos…',
+      noResults: 'Ningún registro coincide con tu búsqueda',
+      clear: 'Borrar historial',
+      clearConfirm: '¿Borrar todo el historial de alertas? Esta acción no se puede deshacer.',
+      exportCsv: 'Exportar CSV',
+      exportJson: 'Exportar JSON',
+      count_one: '{{count}} alerta disparada',
+      count_other: '{{count}} alertas disparadas',
+      priceAt: 'Precio: ${{price}}',
     },
   },
 
@@ -386,6 +416,48 @@ const es = {
       'Reflector es un oráculo nativo de Stellar que publica precios de activos directamente en la red Stellar.',
     defaultTooltip: '{{source}} contribuyó un feed de precios a este valor agregado.',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Sección de presentación del mercado',
+      liveStatus: 'En vivo · Todos los oráculos activos',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Precios de activos en tiempo real y agregados de Chainlink, Redstone, Band y Reflector — transmitidos a tu aplicación vía REST y WebSocket.',
+      cta: 'Abrir Panel',
+      ctaAriaLabel: 'Abrir el panel del oráculo de precios',
+      apiDocs: 'Docs API',
+    },
+    stats: {
+      totalPairs: 'Pares seguidos',
+      totalPairsDetail: 'pares de activos monitoreados',
+      activeSources: 'Fuentes oracle',
+      activeSourcesDetail: 'proveedores de datos activos',
+      avgConfidence: 'Confianza media',
+      avgConfidenceDetail: 'entre todos los pares',
+      highConfidence: 'Alta confianza',
+      highConfidenceDetail: 'pares por encima del 90%',
+    },
+    topPairs: {
+      title: 'Principales pares por confianza',
+      pairAriaLabel: 'Ver detalles de precio para {{pair}}',
+      sources: 'fuentes',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Impulsado por',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Arrastra para reordenar',
+    ariaLabel: 'Arrastra para reordenar las tarjetas de precios',
+    dropTarget: 'Soltar aquí',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default es

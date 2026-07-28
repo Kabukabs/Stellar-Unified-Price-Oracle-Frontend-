@@ -1,6 +1,7 @@
 const en = {
   // ── Layout ──────────────────────────────────────────────────────────────
   nav: {
+    home: 'Home',
     dashboard: 'Dashboard',
     apiDocs: 'API Docs',
     toggleMenu: 'Toggle menu',
@@ -53,6 +54,12 @@ const en = {
     },
     loadingAriaLabel: 'Loading price cards',
     feedsAriaLabel: 'Price feeds',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Pull down to refresh',
+      release: 'Release to refresh',
+      refreshing: 'Refreshing…',
+    },
   },
 
   // ── FilterPanel ──────────────────────────────────────────────────────────
@@ -174,6 +181,14 @@ const en = {
       alertTypePersistent: 'Persistent',
       alertTypeOneTimeDesc: 'Fires once and auto-disables. Re-enable to reuse.',
       alertTypePersistentDesc: 'Fires every time the condition is met. Tracks fire count.',
+      // Cooldown (#310)
+      cooldown: 'Cooldown between alerts',
+      cooldownOff: 'Off (fire immediately)',
+      cooldown1min: '1 minute',
+      cooldown5min: '5 minutes',
+      cooldown15min: '15 minutes',
+      cooldown1hr: '1 hour',
+      cooldownDesc: 'Minimum time between re-fires, to avoid notification spam when the price oscillates around your threshold.',
     },
     actions: {
       delete: 'Delete Alert',
@@ -252,6 +267,23 @@ const en = {
       dir_up: '↑ Up',
       dir_down: '↓ Down',
       dir_either: '↕ Either',
+    },
+    // History log tabs (#309)
+    tabs: {
+      alerts: 'Alerts',
+      history: 'History',
+    },
+    history: {
+      empty: 'No alerts have fired yet',
+      searchPlaceholder: 'Search by asset pair…',
+      noResults: 'No history entries match your search',
+      clear: 'Clear history',
+      clearConfirm: 'Clear all alert history? This cannot be undone.',
+      exportCsv: 'Export CSV',
+      exportJson: 'Export JSON',
+      count_one: '{{count}} fired alert',
+      count_other: '{{count}} fired alerts',
+      priceAt: 'Price: ${{price}}',
     },
   },
 
@@ -412,6 +444,48 @@ const en = {
       'Reflector is a Stellar-native oracle that publishes asset prices directly on the Stellar network.',
     defaultTooltip: '{{source}} contributed a price feed to this aggregated value.',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Market overview hero section',
+      liveStatus: 'Live · All oracles active',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Aggregated, real-time asset prices from Chainlink, Redstone, Band, and Reflector — streamed directly to your app via REST & WebSocket.',
+      cta: 'Open Dashboard',
+      ctaAriaLabel: 'Open the price oracle dashboard',
+      apiDocs: 'API Docs',
+    },
+    stats: {
+      totalPairs: 'Tracked Pairs',
+      totalPairsDetail: 'asset pairs monitored',
+      activeSources: 'Oracle Sources',
+      activeSourcesDetail: 'active data providers',
+      avgConfidence: 'Avg Confidence',
+      avgConfidenceDetail: 'across all pairs',
+      highConfidence: 'High Confidence',
+      highConfidenceDetail: 'pairs above 90%',
+    },
+    topPairs: {
+      title: 'Top Pairs by Confidence',
+      pairAriaLabel: 'View price details for {{pair}}',
+      sources: 'sources',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Powered by',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Drag to reorder',
+    ariaLabel: 'Drag to reorder price cards',
+    dropTarget: 'Drop here',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default en
