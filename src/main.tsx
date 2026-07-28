@@ -4,8 +4,11 @@ import App from './App'
 import './index.css'
 import { getMissingRequiredEnvVars } from './config/validateEnv'
 import { installConsoleAggregator } from './utils/consoleAggregator'
+import { checkStorageSizeWarning } from './utils/storage'
 
 installConsoleAggregator()
+// Warn in dev if localStorage usage is approaching the quota limit
+checkStorageSizeWarning()
 
 async function prepare(): Promise<void> {
   if (import.meta.env.VITE_USE_MOCK === 'true') {
