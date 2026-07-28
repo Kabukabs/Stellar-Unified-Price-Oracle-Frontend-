@@ -33,6 +33,24 @@ jobs:
 
       - run: npm run test:run
 
+      # Upload hidden source maps to Sentry for production error tracking,
+      # then strip them from the deployment artifact so they are never
+      # served to end-users or uploaded to the CDN.
+      - name: Upload source maps to Sentry
+        if: github.ref == 'refs/heads/main' && env.SENTRY_AUTH_TOKEN != ''
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          npx @sentry/cli@latest sourcemaps upload \
+            --org "$SENTRY_ORG" \
+            --project "$SENTRY_PROJECT" \
+            dist/assets
+
+      - name: Strip source maps from deploy artifact
+        run: find dist/assets -name '*.map' -delete
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
