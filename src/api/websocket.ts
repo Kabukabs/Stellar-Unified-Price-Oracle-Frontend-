@@ -267,7 +267,7 @@ export class WebSocketClient {
         }
 
         const msg: WsMessage = parsed.data
-        this.messageHandlers.forEach((h) => h(msg))
+        messageHandlersRef.forEach((h) => h(msg))
       } catch {
         // ignore malformed messages
       }

@@ -130,6 +130,8 @@ function loadAlerts(): Alert[] {
   } catch {
     return []
   }
+  // Zod fills in defaults for new fields on legacy data
+  return result.data as Alert[]
 }
 
 function saveAlerts(alerts: Alert[]): void {

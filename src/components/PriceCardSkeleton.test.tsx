@@ -10,7 +10,7 @@ describe('PriceCardSkeleton', () => {
 
   it('renders without crashing', () => {
     const { container } = render(<PriceCardSkeleton />)
-    expect(container.querySelector('.animate-pulse')).toBeInTheDocument()
+    expect(container.querySelector('.skeleton-shimmer')).toBeInTheDocument()
   })
 
   it('is hidden from accessibility tree', () => {
