@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { AppContent } from './App'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
@@ -60,12 +61,18 @@ const priceContextValue = {
 // so findBy* assertions need a slightly generous timeout.
 const FIND = { timeout: 5000 }
 
+function makeQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } })
+}
+
 function renderRoute(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <ErrorReporterProvider>
-        <AppContent />
-      </ErrorReporterProvider>
+      <QueryClientProvider client={makeQueryClient()}>
+        <ErrorReporterProvider>
+          <AppContent />
+        </ErrorReporterProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   )
 }

@@ -6,7 +6,7 @@ dist
 build
 out
 
-# ── Test coverage & reports ───────────────────────────────────────────────────
+# ── Test coverage, reports & artifacts ────────────────────────────────────────
 coverage
 reports
 sbom.json
@@ -36,53 +36,50 @@ e2e/results
 e2e/test-results
 test-results/
 playwright-report
+playwright/.cache
 
-# ── Visual regression / snapshot files ───────────────────────────────────────
+# ── Vitest cache ──────────────────────────────────────────────────────────────
+.vitest-cache/
+.vite/
+
+# ── Test snapshot files (auto-generated, must not be committed) ───────────────
 **/__snapshots__/
+src/**/__snapshots__/
+**/*.snap
 test/visual/baselines/
 test/visual/diffs/
 test/visual/reports/
 e2e/visual/__snapshots__/
 
-# Test snapshots
+# Test snapshots (Vitest / Jest)
 src/**/__snapshots__/
 **/*.snap
+src/**/__snapshots__/
 
-# IDE / editor
+# ── IDE / editor ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
-*.orig
-.project
-.classpath
-.settings/
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 Thumbs.db
-ehthumbs.db
 Desktop.ini
 
-# AI agent directories
+# ── AI agent directories ──────────────────────────────────────────────────────
 .kiro/
 .cursor/
-.windsurf/
+.aider*
 
-# Logs
-logs/
+# ── Bundle analysis (generated, not source) ───────────────────────────────────
+reports/bundle-stats.html
+
+# ── Misc generated files ──────────────────────────────────────────────────────
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-
-# Runtime / cache
-.cache/
-.parcel-cache/
-.vite/
-*.pid
-*.seed
-
-# Bundle analysis (generated, not source)
-reports/bundle-stats.html
+.pnpm-debug.log*
 

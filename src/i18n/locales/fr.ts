@@ -1,5 +1,6 @@
 const fr = {
   nav: {
+    home: 'Accueil',
     dashboard: 'Tableau de bord',
     apiDocs: 'Documentation API',
     toggleMenu: 'Basculer le menu',
@@ -51,6 +52,12 @@ const fr = {
     },
     loadingAriaLabel: 'Chargement des cartes de prix',
     feedsAriaLabel: 'Flux de prix',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Tirer vers le bas pour actualiser',
+      release: 'Relâcher pour actualiser',
+      refreshing: 'Actualisation…',
+    },
   },
 
   filter: {
@@ -310,6 +317,48 @@ const fr = {
     copy: 'Copier',
     copied: 'Copié !',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Section héro de présentation du marché',
+      liveStatus: 'En direct · Tous les oracles actifs',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Prix d\'actifs en temps réel agrégés depuis Chainlink, Redstone, Band et Reflector — diffusés vers votre application via REST & WebSocket.',
+      cta: 'Ouvrir le tableau de bord',
+      ctaAriaLabel: 'Ouvrir le tableau de bord de l\'oracle de prix',
+      apiDocs: 'Docs API',
+    },
+    stats: {
+      totalPairs: 'Paires suivies',
+      totalPairsDetail: 'paires d\'actifs surveillées',
+      activeSources: 'Sources oracle',
+      activeSourcesDetail: 'fournisseurs de données actifs',
+      avgConfidence: 'Confiance moy.',
+      avgConfidenceDetail: 'sur toutes les paires',
+      highConfidence: 'Haute confiance',
+      highConfidenceDetail: 'paires au-dessus de 90%',
+    },
+    topPairs: {
+      title: 'Meilleures paires par confiance',
+      pairAriaLabel: 'Voir les détails de prix pour {{pair}}',
+      sources: 'sources',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Propulsé par',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Glisser pour réorganiser',
+    ariaLabel: 'Glisser pour réorganiser les cartes de prix',
+    dropTarget: 'Déposer ici',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default fr
