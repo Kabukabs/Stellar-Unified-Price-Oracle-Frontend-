@@ -10,6 +10,7 @@ import {
 } from './schemas'
 import { validate } from './validate'
 import { getApiVersionInfo, getAcceptVersionHeader } from './version'
+import { circuitBreaker, circuitKeyForPath, CircuitOpenError } from './circuitBreaker'
 
 /** Categorical classification of an {@link ApiError}, derived from the HTTP status. */
 export type ApiErrorCode =
@@ -114,6 +115,13 @@ function setRateLimitInfo(response: Response): void {
 
 async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal): Promise<T> {
   const url = `${config.apiUrl}${path}`
+  const circuitKey = circuitKeyForPath(path)
+
+  // When an endpoint group is failing repeatedly, stop sending requests to it
+  // until the cooldown elapses (see circuitBreaker.ts).
+  if (!circuitBreaker.canRequest(circuitKey)) {
+    throw new CircuitOpenError(circuitKey)
+  }
 
   // Include the Accept-Version header on every request so the server can
   // route to the appropriate handler version or return a version error.
@@ -150,11 +158,13 @@ async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal
       throw new ApiError(`${res.status} ${res.statusText}: ${text}`, res.status, statusToErrorCode(res.status))
     }
 
+    circuitBreaker.recordSuccess(circuitKey)
     return (await res.json()) as T
   } catch (err) {
     // Cancelled requests (unmount, pair change, etc.) are not failures — don't toast them.
     if (err instanceof DOMException && err.name === 'AbortError') throw err
 
+    circuitBreaker.recordFailure(circuitKey)
     notifyApiError(apiErrorMessage(err))
     throw err
   }

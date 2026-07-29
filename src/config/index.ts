@@ -22,4 +22,9 @@ export const config = {
     maxDelayMs: 30_000,
     jitter: true,
   },
+  circuitBreaker: {
+    failureThreshold: 5,
+    windowMs: 30_000,
+    cooldownMs: 30_000,
+  },
 } as const
