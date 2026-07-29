@@ -11,6 +11,15 @@ vi.mock('../config', () => ({
       maxDelayMs: 30000,
       jitter: true,
     },
+    circuitBreaker: {
+      failureThreshold: 5,
+      windowMs: 30_000,
+      cooldownMs: 30_000,
+    },
+    priceBatch: {
+      debounceMs: 50,
+      maxBatchSize: 20,
+    },
   },
 }))
 
@@ -27,6 +36,7 @@ const restModule = await import('./rest')
 const {
   fetchAllPrices,
   fetchPrice,
+  fetchPricesBatched,
   fetchPriceHistory,
   fetchBatchHistory,
   fetchHealth,
@@ -34,6 +44,7 @@ const {
   resetApiErrorToastState,
 } = restModule
 const { showApiErrorToast } = await import('../context/ToastContext')
+const { circuitBreaker } = await import('./circuitBreaker')
 
 const mockFetch = vi.fn()
 
@@ -43,6 +54,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', mockFetch)
   vi.useFakeTimers()
   resetApiErrorToastState()
+  circuitBreaker.reset()
 })
 
 afterEach(() => {
@@ -288,6 +300,67 @@ describe('fetchPriceHistory coalescing', () => {
     // First call was batch, second was individual
     expect(mockFetch).toHaveBeenCalledTimes(2)
     expect(mockFetch.mock.calls[1][0]).toBe('/api/prices/BTC%2FUSD/history?limit=100&offset=0')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchPricesBatched — coalescing (#327)
+// ---------------------------------------------------------------------------
+describe('fetchPricesBatched coalescing', () => {
+  const btcPrice = { assetPair: 'BTC/USD', price: 50000, timestamp: 0, confidence: 0.9, sources: ['chainlink'] }
+  const ethPrice = { assetPair: 'ETH/USD', price: 3000, timestamp: 0, confidence: 0.9, sources: ['chainlink'] }
+
+  it('combines concurrent per-pair requests into a single batch call', async () => {
+    mockFetch.mockResolvedValue(okResponse([btcPrice, ethPrice]))
+
+    const p1 = fetchPricesBatched('BTC/USD')
+    const p2 = fetchPricesBatched('ETH/USD')
+
+    vi.advanceTimersByTime(50)
+    await Promise.resolve()
+
+    const [r1, r2] = await Promise.all([p1, p2])
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/prices?pairs=BTC%2FUSD,ETH%2FUSD')
+    expect(r1).toEqual(btcPrice)
+    expect(r2).toEqual(ethPrice)
+  })
+
+  it('resolves only the affected pair when the batch response is missing one', async () => {
+    // Batch omits ETH/USD; the individual fallback for it succeeds.
+    mockFetch
+      .mockResolvedValueOnce(okResponse([btcPrice]))
+      .mockResolvedValueOnce(okResponse(ethPrice))
+
+    const p1 = fetchPricesBatched('BTC/USD')
+    const p2 = fetchPricesBatched('ETH/USD')
+
+    vi.advanceTimersByTime(50)
+    await Promise.resolve()
+
+    const [r1, r2] = await Promise.all([p1, p2])
+
+    expect(r1).toEqual(btcPrice)
+    expect(r2).toEqual(ethPrice)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockFetch.mock.calls[1][0]).toBe('/api/prices/ETH%2FUSD')
+  })
+
+  it('falls back to individual requests for every pair when the whole batch fails', async () => {
+    mockFetch
+      .mockResolvedValueOnce(errorResponse(404, 'Not Found'))
+      .mockResolvedValueOnce(okResponse(btcPrice))
+
+    const p1 = fetchPricesBatched('BTC/USD')
+
+    vi.advanceTimersByTime(50)
+    await Promise.resolve()
+
+    const result = await p1
+    expect(result).toEqual(btcPrice)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(mockFetch.mock.calls[1][0]).toBe('/api/prices/BTC%2FUSD')
   })
 })
 
