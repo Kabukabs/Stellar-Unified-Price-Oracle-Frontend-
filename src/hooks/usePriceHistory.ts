@@ -42,6 +42,7 @@ export function usePriceHistory(
   const loadingMoreRef = useRef(false)
   const hasMoreRef = useRef(true)
   const hasFetchedRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Track page visibility
   const isVisibleRef = useRef(
@@ -52,14 +53,20 @@ export function usePriceHistory(
   const refetch = useCallback(async () => {
     if (!pair) return
 
+    // Cancel any in-flight request for this pair (duplicate call, e.g. from a
+    // refresh interval firing before the previous fetch settled).
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       setLoading(true)
       setError(null)
       offsetRef.current = 0
 
-      const res = await fetchPriceHistory(pair, pageSize, 0)
+      const res = await fetchPriceHistory(pair, pageSize, 0, undefined, undefined, controller.signal)
 
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
 
       setHistory(res.history)
       const hasMore = res.history.length === pageSize
@@ -68,12 +75,13 @@ export function usePriceHistory(
       offsetRef.current = pageSize
       hasFetchedRef.current = true
     } catch (err) {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
+      if (err instanceof DOMException && err.name === 'AbortError') return
       const error = err instanceof Error ? err : new Error(String(err))
       setError(error)
       onError?.(error)
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !controller.signal.aborted) {
         setLoading(false)
       }
     }
@@ -86,14 +94,18 @@ export function usePriceHistory(
       return
     }
 
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       loadingMoreRef.current = true
       setLoadingMore(true)
       setError(null)
 
-      const res = await fetchPriceHistory(pair, pageSize, offsetRef.current)
+      const res = await fetchPriceHistory(pair, pageSize, offsetRef.current, undefined, undefined, controller.signal)
 
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
 
       if (res.history.length === 0) {
         hasMoreRef.current = false
@@ -106,12 +118,13 @@ export function usePriceHistory(
         offsetRef.current += res.history.length
       }
     } catch (err) {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
+      if (err instanceof DOMException && err.name === 'AbortError') return
       const error = err instanceof Error ? err : new Error(String(err))
       setError(error)
       onError?.(error)
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !controller.signal.aborted) {
         loadingMoreRef.current = false
         setLoadingMore(false)
       }
@@ -167,6 +180,7 @@ export function usePriceHistory(
   useEffect(() => {
     return () => {
       isMountedRef.current = false
+      abortRef.current?.abort()
     }
   }, [])
 
