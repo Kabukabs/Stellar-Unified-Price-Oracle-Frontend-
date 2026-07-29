@@ -125,3 +125,159 @@ export async function clearAllData(): Promise<void> {
   }
   await Promise.all(IDB_STORES.map((store) => idbCache.clear(store)))
 }
+
+// ---------------------------------------------------------------------------
+// Storage size monitoring
+// ---------------------------------------------------------------------------
+
+/**
+ * Warn threshold: log a console warning when `localStorage` usage for this app
+ * exceeds this byte count (default 4 MB — half the typical 10 MB browser quota).
+ */
+const LS_WARN_THRESHOLD_BYTES = 4 * 1024 * 1024
+
+/**
+ * Measures the total size in bytes of all keys owned by this app in
+ * `localStorage`. Non-ASCII characters are measured at 2 bytes each (UTF-16
+ * encoding used by most browsers).
+ *
+ * Returns `0` when storage is unavailable.
+ *
+ * @example
+ * ```ts
+ * const { bytes, formatted } = getLocalStorageSize()
+ * console.log(`localStorage used: ${formatted}`)
+ * ```
+ */
+export function getLocalStorageSize(): { bytes: number; formatted: string } {
+  try {
+    let bytes = 0
+    for (const key of Object.values(STORAGE_KEYS)) {
+      const raw = localStorage.getItem(key)
+      if (raw !== null) {
+        // Key + value, each character is 2 bytes in UTF-16
+        bytes += (key.length + raw.length) * 2
+      }
+    }
+    return { bytes, formatted: formatBytes(bytes) }
+  } catch {
+    return { bytes: 0, formatted: '0 B' }
+  }
+}
+
+/**
+ * Returns a per-key breakdown of localStorage usage for the app's own keys.
+ *
+ * @example
+ * ```ts
+ * const breakdown = getLocalStorageBreakdown()
+ * // [{ key: 'price-alerts', bytes: 1024, formatted: '1.0 KB' }, ...]
+ * ```
+ */
+export function getLocalStorageBreakdown(): Array<{ key: string; bytes: number; formatted: string }> {
+  try {
+    return Object.values(STORAGE_KEYS).map((key) => {
+      const raw = localStorage.getItem(key)
+      const bytes = raw !== null ? (key.length + raw.length) * 2 : 0
+      return { key, bytes, formatted: formatBytes(bytes) }
+    })
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Checks localStorage usage against {@link LS_WARN_THRESHOLD_BYTES} and logs a
+ * console warning when the threshold is exceeded. Intended to be called on app
+ * startup and after significant writes.
+ *
+ * This is a **monitoring aid only** — the app continues to function regardless.
+ */
+export function checkStorageSizeWarning(): void {
+  const { bytes, formatted } = getLocalStorageSize()
+  if (bytes > LS_WARN_THRESHOLD_BYTES) {
+    console.warn(
+      `[storage] localStorage usage for this app is ${formatted}, which exceeds ` +
+        `the ${formatBytes(LS_WARN_THRESHOLD_BYTES)} warning threshold. ` +
+        `Consider calling clearAllData() to free space.`,
+    )
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+}
+
+// ---------------------------------------------------------------------------
+// Storage inventory (security audit record)
+// ---------------------------------------------------------------------------
+
+/**
+ * Read-only inventory of everything the app persists and why.
+ * This is the authoritative record for storage security reviews.
+ *
+ * ## localStorage keys
+ * | Key                    | Contents                                                           |
+ * |------------------------|--------------------------------------------------------------------|
+ * | price-alerts           | Alert objects: assetPair + thresholds. No PII, no secrets.        |
+ * | alert-history          | Log of triggered alerts: pair, price, timestamp. No PII.          |
+ * | notification-channels  | Channel routing config. Webhook URL stored; **signing secret is   |
+ * |                        | NOT persisted** (memory-only in NotificationChannelsModal).        |
+ * | analyticsOptOut        | '1' (opted out) or '0'. No PII.                                   |
+ * | stellar-oracle-theme   | 'dark' or 'light'. No PII.                                        |
+ *
+ * ## IndexedDB stores (stellar-oracle DB)
+ * | Store       | TTL      | Contents                                               |
+ * |-------------|----------|--------------------------------------------------------|
+ * | prices      | 5 min    | Aggregated price cache. LRU-evicted at 50 MB.          |
+ * | history     | 5 min    | Price history cache. Same eviction policy.             |
+ * | preferences | ∞        | User display settings. Cleared by clearAllData().      |
+ *
+ * Nothing sensitive is stored in either mechanism.
+ * See `AGENTS.md` for the full data-handling policy.
+ */
+export const STORAGE_INVENTORY = Object.freeze({
+  localStorage: [
+    {
+      key: STORAGE_KEYS.alerts,
+      description: 'Alert thresholds per asset pair. No PII, no secrets.',
+    },
+    {
+      key: STORAGE_KEYS.alertHistory,
+      description: 'Log of triggered alerts (pair + price + timestamp). No PII.',
+    },
+    {
+      key: STORAGE_KEYS.notificationChannels,
+      description:
+        'Channel routing config. Webhook URL stored; signing secret is NOT persisted.',
+    },
+    {
+      key: STORAGE_KEYS.analyticsOptOut,
+      description: "Opt-out flag ('1' = opted out). No PII.",
+    },
+    {
+      key: STORAGE_KEYS.theme,
+      description: "UI theme choice ('dark'/'light'). No PII.",
+    },
+  ],
+  indexedDB: [
+    {
+      store: 'prices' as const,
+      ttlMs: 5 * 60 * 1000,
+      description: 'Aggregated price cache. Expires after 5 min. LRU-evicted at 50 MB.',
+    },
+    {
+      store: 'history' as const,
+      ttlMs: 5 * 60 * 1000,
+      description: 'Price history cache. Same policy as prices.',
+    },
+    {
+      store: 'preferences' as const,
+      ttlMs: Infinity,
+      description: "User preferences. No expiry; cleared by clearAllData().",
+    },
+  ],
+})

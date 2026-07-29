@@ -1,3 +1,68 @@
+/**
+ * @file PriceTableView
+ *
+ * Tabular alternative to the card grid. Displays all price pairs in a sortable,
+ * accessible `<table>` with columns for pair, price, confidence, sources, and
+ * last-updated time. Supports multi-select mode.
+ *
+ * @example Basic usage
+ * ```tsx
+ * <PriceTableView
+ *   items={prices}
+ *   livePairs={livePairs}
+ *   onRowClick={handleRowClick}
+ *   onAlertClick={handleAlertClick}
+ *   hasAlertFn={(pair) => alertMap.has(pair)}
+ * />
+ * ```
+ *
+ * @example With multi-select
+ * ```tsx
+ * <PriceTableView
+ *   items={prices}
+ *   livePairs={livePairs}
+ *   onRowClick={handleRowClick}
+ *   onAlertClick={handleAlertClick}
+ *   hasAlertFn={hasAlert}
+ *   selectMode
+ *   selected={selectedPairs}
+ *   onToggleSelect={toggleSelect}
+ * />
+ * ```
+ *
+ * ## Props table
+ * | prop             | type                                          | required | description                                      |
+ * |------------------|-----------------------------------------------|----------|--------------------------------------------------|
+ * | `items`          | `PriceData[]`                                 | yes      | Price data rows to render                        |
+ * | `livePairs`      | `Set<string>`                                 | yes      | Pairs receiving live WebSocket updates           |
+ * | `isStale`        | `boolean`                                     | no       | When true, rows render at reduced opacity        |
+ * | `onRowClick`     | `(pair: string) => void`                      | yes      | Called when a row is activated                   |
+ * | `onAlertClick`   | `(e: React.MouseEvent, pair: string) => void` | yes      | Called when alert button is pressed              |
+ * | `hasAlertFn`     | `(pair: string) => boolean`                   | yes      | Returns true if pair has an active alert         |
+ * | `selectMode`     | `boolean`                                     | no       | Enables checkbox column for multi-select         |
+ * | `selected`       | `Set<string>`                                 | no       | Set of currently selected pairs                  |
+ * | `onToggleSelect` | `(pair: string) => void`                      | no       | Called when a row checkbox is toggled            |
+ *
+ * ## Sorting
+ * Clicking a column header sorts ascending; clicking again toggles to descending.
+ * Sort state is local to the component (not persisted). Default sort is `assetPair`
+ * ascending.
+ *
+ * ## Edge cases
+ * - **Empty `items`** — renders an empty `<tbody>`; callers should show a skeleton
+ *   or empty state above this component.
+ * - **`isStale = true`** — all rows render at 60 % opacity; individual row liveness
+ *   dots are still shown.
+ * - **Live dot** — a pulsing green dot appears next to the pair name when
+ *   `livePairs.has(pair)`.
+ *
+ * ## Accessibility
+ * - `<table>` has `aria-label` from i18n key `table.ariaLabel`.
+ * - Column headers have `aria-sort` (`ascending`, `descending`, or `none`).
+ * - Each row has `role="button"` and `tabIndex={0}` for keyboard activation.
+ * - `aria-selected` is set on rows only when `selectMode` is active.
+ * - Live and alert status dots carry `role="status"` with `aria-label`.
+ */
 import { memo, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PriceData } from '../types'

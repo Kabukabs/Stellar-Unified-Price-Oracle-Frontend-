@@ -80,6 +80,9 @@ Desktop.ini
 .cursor/
 .aider*
 
+# ── Docker local overrides (may contain credentials) ─────────────────────────
+docker-compose.override.yml
+
 # ── Bundle analysis (generated, not source) ───────────────────────────────────
 reports/bundle-stats.html
 
