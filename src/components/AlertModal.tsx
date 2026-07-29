@@ -12,11 +12,15 @@ interface AlertModalProps {
   alert?: Alert | null
   currentPrice?: number
   defaultAssetPair?: string
+  /** When true the save button is disabled due to rate limiting. */
+  rateLimited?: boolean
+  /** Seconds until the rate limit resets (shown on the button during cooldown). */
+  cooldownSec?: number
 }
 
 type ValidationErrors = Partial<Record<keyof AlertFormData, string>>
 
-export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, alert, currentPrice, defaultAssetPair }: AlertModalProps): ReactElement | null {
+export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, alert, currentPrice, defaultAssetPair, rateLimited = false, cooldownSec = 0 }: AlertModalProps): ReactElement | null {
   const { t } = useTranslation()
 
   function validate(form: AlertFormData): ValidationErrors {
@@ -531,9 +535,15 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
               </button>
               <button
                 type="submit"
-                className="px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 rounded-xl hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                disabled={rateLimited}
+                className="px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 rounded-xl hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={rateLimited ? `Too many alerts — try again in ${cooldownSec}s` : undefined}
               >
-                {alert ? t('alertModal.actions.save') : t('alertModal.actions.create')}
+                {rateLimited
+                  ? `${cooldownSec}s`
+                  : alert
+                    ? t('alertModal.actions.save')
+                    : t('alertModal.actions.create')}
               </button>
             </div>
           </div>

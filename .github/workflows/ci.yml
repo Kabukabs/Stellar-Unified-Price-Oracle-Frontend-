@@ -23,6 +23,11 @@ jobs:
 
       - run: npm ci
 
+      # Fail CI on any critical or high severity vulnerabilities.
+      # Moderate and low findings are reported but do not block the build.
+      - name: Audit dependencies (fail on critical/high)
+        run: npm audit --audit-level=high
+
       - run: npm run typecheck
 
       - run: npm run lint
@@ -32,6 +37,24 @@ jobs:
           VITE_USE_MOCK: 'true'
 
       - run: npm run test:run
+
+      # Upload hidden source maps to Sentry for production error tracking,
+      # then strip them from the deployment artifact so they are never
+      # served to end-users or uploaded to the CDN.
+      - name: Upload source maps to Sentry
+        if: github.ref == 'refs/heads/main' && env.SENTRY_AUTH_TOKEN != ''
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          npx @sentry/cli@latest sourcemaps upload \
+            --org "$SENTRY_ORG" \
+            --project "$SENTRY_PROJECT" \
+            dist/assets
+
+      - name: Strip source maps from deploy artifact
+        run: find dist/assets -name '*.map' -delete
 
       - uses: actions/upload-artifact@v4
         if: always()
