@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PriceProvider, usePriceContext } from './PriceContext'
-import { fetchPrice } from '../api/rest'
+import { fetchPricesBatched } from '../api/rest'
 import type { ReactNode } from 'react'
 
 const mockConnect = vi.fn()
@@ -37,7 +37,7 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 
 vi.mock('../api/rest', () => ({
   fetchAllPrices: vi.fn(),
-  fetchPrice: vi.fn(),
+  fetchPricesBatched: vi.fn(),
 }))
 
 vi.mock('../api/websocket', () => ({
@@ -86,7 +86,7 @@ function TestConsumer() {
 beforeEach(() => {
   vi.clearAllMocks()
   messageHandler = null
-  vi.mocked(fetchPrice).mockResolvedValue({
+  vi.mocked(fetchPricesBatched).mockResolvedValue({
     assetPair: 'BTC/USD',
     price: 50010,
     timestamp: 1700000001000,
@@ -143,7 +143,7 @@ describe('PriceProvider', () => {
   })
 
   it('rolls back when REST revalidation conflicts with the optimistic update', async () => {
-    vi.mocked(fetchPrice).mockResolvedValueOnce({
+    vi.mocked(fetchPricesBatched).mockResolvedValueOnce({
       assetPair: 'BTC/USD',
       price: 49990,
       timestamp: 1700000002000,
