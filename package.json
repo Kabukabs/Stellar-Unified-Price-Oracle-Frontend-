@@ -24,6 +24,8 @@
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:webkit": "playwright test --project=webkit",
+    "test:e2e:visual": "playwright test --project=visual-regression",
+    "test:e2e:visual:update": "node scripts/update-visual-baselines.js",
     "generate:openapi": "npx openapi-typescript ${BACKEND_OPENAPI_URL:-http://localhost:3000/openapi.json} --output src/api/openapi-types.ts"
   },
   "size-limit": [

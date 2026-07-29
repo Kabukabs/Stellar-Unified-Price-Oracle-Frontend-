@@ -41,27 +41,22 @@ vite.config.*.timestamp-*
 # ── E2E test artifacts ────────────────────────────────────────────────────────
 e2e/results
 e2e/test-results
-test-results/
-playwright-report
 playwright/.cache
 
 # ── Vitest cache ──────────────────────────────────────────────────────────────
 .vitest-cache/
 .vite/
 
-# ── Test snapshot files (auto-generated, must not be committed) ───────────────
-**/__snapshots__/
+# ── Test snapshot files ────────────────────────────────────────────────────────
+# Vitest/Jest inline snapshots — auto-generated, not committed
 src/**/__snapshots__/
 **/*.snap
-test/visual/baselines/
-test/visual/diffs/
-test/visual/reports/
-e2e/visual/__snapshots__/
 
-# Test snapshots (Vitest / Jest)
-src/**/__snapshots__/
-**/*.snap
-src/**/__snapshots__/
+# Playwright visual-regression baselines (e2e/snapshots/) ARE committed to git
+# so CI can detect regressions. Only exclude the diff/actual artifacts:
+test-results/
+playwright-report/
+# Do NOT add e2e/snapshots/ here — those are the approved baselines
 
 # ── IDE / editor ──────────────────────────────────────────────────────────────
 .vscode/

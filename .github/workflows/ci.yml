@@ -63,3 +63,59 @@ jobs:
       - run: npx playwright install --with-deps chromium firefox webkit
 
       - run: npm run test:e2e
+
+  # ── Visual regression ───────────────────────────────────────────────────────
+  # Compares screenshots against baselines stored in e2e/snapshots/.
+  # The job fails if any screenshot differs beyond the configured threshold.
+  #
+  # To update baselines locally:
+  #   npm run test:e2e:visual:update
+  #   git add e2e/snapshots/ && git commit -m "chore: update visual baselines"
+  visual-regression:
+    needs: [frontend]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    # Treat as advisory on PRs — screenshot diffs require manual review and a
+    # deliberate baseline update commit, not an automatic failure gate.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: dist/
+
+      # Only install Chromium — visual baselines are browser-specific and we
+      # intentionally generate/compare against Chromium only for consistency.
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run visual regression tests
+        run: npm run test:e2e:visual
+        env:
+          CI: 'true'
+
+      # Upload the HTML report so reviewers can inspect pixel diffs in the
+      # GitHub Actions UI even when the job succeeds.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-regression-report
+          path: reports/playwright/
+          retention-days: 14
+
+      # Upload any diff screenshots Playwright generated for failed comparisons.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: visual-regression-diffs
+          path: test-results/
+          retention-days: 7
