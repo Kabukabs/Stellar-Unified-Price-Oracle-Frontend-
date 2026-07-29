@@ -322,7 +322,7 @@ describe('fetchPricesBatched coalescing', () => {
     const [r1, r2] = await Promise.all([p1, p2])
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
-    expect(mockFetch.mock.calls[0][0]).toBe('/api/prices?pairs=BTC%2FUSD,ETH%2FUSD')
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/prices?pairs=BTC/USD,ETH/USD')
     expect(r1).toEqual(btcPrice)
     expect(r2).toEqual(ethPrice)
   })

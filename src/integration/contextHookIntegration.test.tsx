@@ -131,12 +131,29 @@ describe('PriceContext + useAlerts + WebSocket integration', () => {
 })
 
 // ---------------------------------------------------------------------------
-// PreferencesContext + useLocalStorage persistence (#329)
+// PreferencesContext + IndexedDB persistence (#329)
 // ---------------------------------------------------------------------------
-// PreferencesContext.test.tsx exercises the real useLocalStorage-backed
-// provider within a single mount, but never verifies the value actually
-// survives a remount (i.e. that it round-trips through localStorage rather
-// than just living in React state).
+// PreferencesContext.test.tsx mocks idbCache.get to always resolve `null`, so
+// it never exercises the actual persist-then-reload round trip (preferences
+// are persisted to IndexedDB via `idbCache`, not `useLocalStorage` — despite
+// the hook's name, `useLocalStorage` is unused by this provider). This test
+// backs the mock with a real in-memory store so a value written by one
+// mount is genuinely read back by the next.
+const idbStore = new Map<string, unknown>()
+
+vi.mock('../hooks/useIndexedDB', () => ({
+  idbCache: {
+    get: vi.fn((_store: string, key: string) => Promise.resolve(idbStore.get(key) ?? null)),
+    set: vi.fn((_store: string, key: string, value: unknown) => {
+      idbStore.set(key, value)
+      return Promise.resolve()
+    }),
+    delete: vi.fn(),
+    clear: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
+    fetchWithCache: vi.fn(),
+  },
+}))
 
 function PreferencesWrapper({ children }: { children: ReactNode }) {
   return (
@@ -146,19 +163,22 @@ function PreferencesWrapper({ children }: { children: ReactNode }) {
   )
 }
 
-describe('PreferencesContext + useLocalStorage integration', () => {
-  beforeEach(() => localStorage.clear())
+describe('PreferencesContext + IndexedDB integration', () => {
+  beforeEach(() => idbStore.clear())
   afterEach(cleanup)
 
-  it('persists a preference change to localStorage and reloads it on remount', () => {
+  it('persists a preference change and reloads it on remount', async () => {
     const { result, unmount } = renderHook(() => usePreferences(), { wrapper: PreferencesWrapper })
 
     act(() => result.current.updatePreference('refreshInterval', 30000))
     expect(result.current.preferences.refreshInterval).toBe(30000)
 
+    // Wait for the persist-on-change effect to write to the (fake) IndexedDB store.
+    await waitFor(() => expect(idbStore.get('user-preferences')).toBeTruthy())
+
     unmount()
 
     const { result: remounted } = renderHook(() => usePreferences(), { wrapper: PreferencesWrapper })
-    expect(remounted.current.preferences.refreshInterval).toBe(30000)
+    await waitFor(() => expect(remounted.current.preferences.refreshInterval).toBe(30000))
   })
 })

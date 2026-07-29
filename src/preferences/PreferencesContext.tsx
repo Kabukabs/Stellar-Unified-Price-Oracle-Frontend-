@@ -23,16 +23,7 @@ const PreferencesContext = createContext<PreferencesContextValue | null>(null)
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const prevPathRef = useRef(location.pathname)
-  const [initialPrefs, setInitialPrefs] = useState<Preferences>(DEFAULT_PREFERENCES)
   const [idbLoaded, setIdbLoaded] = useState(false)
-
-  // Load persisted preferences from IndexedDB on mount
-  useEffect(() => {
-    idbCache.get<Preferences>('preferences', PREFS_IDB_KEY, Infinity).then((saved) => {
-      if (saved) setInitialPrefs({ ...DEFAULT_PREFERENCES, ...saved })
-      setIdbLoaded(true)
-    })
-  }, [])
 
   const {
     state: preferences,
@@ -42,7 +33,20 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     canUndo,
     canRedo,
     clear,
-  } = useUndoRedo<Preferences>(initialPrefs, MAX_UNDO_DEPTH)
+    reset,
+  } = useUndoRedo<Preferences>(DEFAULT_PREFERENCES, MAX_UNDO_DEPTH)
+
+  // Load persisted preferences from IndexedDB on mount. `reset` (rather than
+  // the initial state passed to useUndoRedo) is required here since that
+  // initial value is only ever read on the very first render — by the time
+  // this async load resolves, useUndoRedo's own state already exists and
+  // won't re-sync to a later change in the value it was constructed with.
+  useEffect(() => {
+    idbCache.get<Preferences>('preferences', PREFS_IDB_KEY, Infinity).then((saved) => {
+      if (saved) reset({ ...DEFAULT_PREFERENCES, ...saved })
+      setIdbLoaded(true)
+    })
+  }, [reset])
 
   // Persist to IndexedDB whenever preferences change
   useEffect(() => {
