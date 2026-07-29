@@ -19,6 +19,8 @@ import { PriceProvider } from './context/PriceContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics, trackPageview } from './hooks/useAnalytics'
+import { usePerformanceMonitor } from './hooks/usePerformanceMonitor'
+import { PerformanceOverlay } from './components/PerformanceOverlay'
 import type { ErrorInfo } from 'react'
 
 // Route-level code splitting: each page becomes its own chunk.
@@ -114,6 +116,7 @@ export function AppContent(): ReactElement {
 
 export default function App(): ReactElement {
   useWebVitals()
+  usePerformanceMonitor()
   initAnalytics()
 
   return (
@@ -123,6 +126,7 @@ export default function App(): ReactElement {
           <ToastProvider>
             <PriceProvider>
               <AppContent />
+              {import.meta.env.DEV && <PerformanceOverlay />}
             </PriceProvider>
           </ToastProvider>
         </PreferencesProvider>
