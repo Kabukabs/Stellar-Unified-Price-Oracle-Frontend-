@@ -53,19 +53,23 @@ vi.mock('../api/rest', () => ({
 }))
 
 vi.mock('../api/websocket', () => ({
-  WebSocketClient: vi.fn(() => ({
-    status: 'connected',
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    onMessage: vi.fn((handler) => {
-      messageHandler = handler
-      return vi.fn()
-    }),
-    onStatusChange: vi.fn(() => vi.fn()),
-    subscribe: vi.fn(),
-    unsubscribe: vi.fn(),
-    send: vi.fn(),
-  })),
+  // A real `function`, not an arrow function, so vitest's mock can be invoked
+  // with `new` (PriceProvider does `new WebSocketClient()`).
+  WebSocketClient: vi.fn(function WebSocketClient() {
+    return {
+      status: 'connected',
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      onMessage: vi.fn((handler: typeof messageHandler) => {
+        messageHandler = handler
+        return vi.fn()
+      }),
+      onStatusChange: vi.fn(() => vi.fn()),
+      subscribe: vi.fn(),
+      unsubscribe: vi.fn(),
+      send: vi.fn(),
+    }
+  }),
 }))
 
 function makeQueryClient() {

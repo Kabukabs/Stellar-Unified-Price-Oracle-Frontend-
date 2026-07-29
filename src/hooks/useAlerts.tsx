@@ -5,6 +5,9 @@ import { AlertsArraySchema } from '../api/schemas'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 import { useRateLimit } from './useRateLimit'
 
+/** Cap on the fired-alert history log (#309), oldest entries dropped first. */
+const HISTORY_LIMIT = 500
+
 // ---------------------------------------------------------------------------
 // #315 – Notification channel types (mirrors NotificationChannelsModal)
 // ---------------------------------------------------------------------------
