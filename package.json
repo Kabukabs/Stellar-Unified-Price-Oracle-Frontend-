@@ -101,6 +101,9 @@
     ],
     "*.{css,json,md}": [
       "prettier --write"
+    ],
+    "**/*.{ts,tsx}": [
+      "bash -c 'tsc -b --noEmit'"
     ]
   },
   "msw": {
