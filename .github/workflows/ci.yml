@@ -119,3 +119,34 @@ jobs:
           name: visual-regression-diffs
           path: test-results/
           retention-days: 7
+
+  # ── API version compatibility check ────────────────────────────────────────
+  # Verifies the frontend's declared version range is compatible with the
+  # running backend. Skips gracefully when no backend is available (e.g. on
+  # frontend-only PRs). Set BACKEND_API_URL to point at a live/staging backend.
+  #
+  # To run locally:
+  #   VITE_API_URL=http://localhost:3000 npm run check:api-version
+  api-version-check:
+    needs: [frontend]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    # Non-blocking: backend may not be running in every CI environment.
+    # The script already exits 0 when the server is unreachable.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check API version compatibility
+        run: node scripts/check-api-version.js
+        env:
+          # Override with a real backend URL in repository secrets when available.
+          VITE_API_URL: ${{ vars.BACKEND_API_URL || 'http://localhost:3000' }}

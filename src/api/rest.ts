@@ -9,6 +9,7 @@ import {
   HealthSchema,
 } from './schemas'
 import { validate } from './validate'
+import { getApiVersionInfo, getAcceptVersionHeader } from './version'
 
 /** Categorical classification of an {@link ApiError}, derived from the HTTP status. */
 export type ApiErrorCode =
@@ -114,17 +115,38 @@ function setRateLimitInfo(response: Response): void {
 async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal): Promise<T> {
   const url = `${config.apiUrl}${path}`
 
+  // Include the Accept-Version header on every request so the server can
+  // route to the appropriate handler version or return a version error.
+  const versionInfo = getApiVersionInfo()
+  const acceptVersion = getAcceptVersionHeader(versionInfo?.serverVersion)
+
   try {
     const res = await fetchWithRetry(url, {
       ...init,
       signal,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Version': acceptVersion,
+        ...init?.headers,
+      },
     })
 
     setRateLimitInfo(res)
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
+
+      // 406 Not Acceptable / 409 Conflict — server cannot satisfy the requested version
+      if (res.status === 406 || res.status === 409) {
+        const serverVersion = res.headers.get('X-API-Version') ?? 'unknown'
+        throw new ApiError(
+          `API version mismatch: server is at v${serverVersion}, client requested v${acceptVersion}. ` +
+          `Please update the frontend or backend to a compatible version.`,
+          res.status,
+          'UNKNOWN_ERROR',
+        )
+      }
+
       throw new ApiError(`${res.status} ${res.statusText}: ${text}`, res.status, statusToErrorCode(res.status))
     }
 
