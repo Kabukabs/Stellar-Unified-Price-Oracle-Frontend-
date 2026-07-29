@@ -3,6 +3,7 @@ import type { Alert, AlertHistoryEntry, AlertsContextType, AlertSnoozeDuration }
 import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
+import { useRateLimit } from './useRateLimit'
 
 // ---------------------------------------------------------------------------
 // #315 – Notification channel types (mirrors NotificationChannelsModal)
@@ -182,6 +183,9 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
 
   const { livePrices } = usePriceContext()
 
+  // Rate limiter for alert creation (max 5 per minute)
+  const alertRateLimit = useRateLimit('alertCreate')
+
   // Auto-unsnooze expired snoozes every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -338,6 +342,10 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
 
   const addAlert = useCallback(
     (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => {
+      // Rate-limit alert creation: max 5 per minute.
+      if (!alertRateLimit.consume()) {
+        return null
+      }
       const newAlert: Alert = {
         ...alert,
         id: crypto.randomUUID(),
@@ -351,7 +359,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
       setAlerts((prev) => [...prev, newAlert])
       return newAlert
     },
-    [],
+    [alertRateLimit],
   )
 
   const updateAlert = useCallback((id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => {
@@ -427,6 +435,8 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     reEnableAlert,
     alertHistory: history,
     clearAlertHistory,
+    alertCreateAllowed: alertRateLimit.allowed,
+    alertCreateCooldownSec: alertRateLimit.cooldownSec,
   }
 
   return <AlertsContext.Provider value={value}>{children}</AlertsContext.Provider>

@@ -1,3 +1,40 @@
+/**
+ * @file AlertPanel
+ *
+ * A slide-in panel that lists all configured price alerts, grouped by status
+ * (triggered, snoozed, active, inactive). Integrates with `useAlerts` for state
+ * management and `AlertHistoryLog` for the history tab.
+ *
+ * Renders `null` when the panel is closed (`isPanelOpen` is `false` in
+ * `useAlerts`), so it can be unconditionally placed in the component tree.
+ *
+ * @example Placed at the app shell level
+ * ```tsx
+ * // In Layout.tsx — AlertPanel manages its own open/close state via useAlerts
+ * <AlertPanel />
+ * ```
+ *
+ * ## Features
+ * - **Tabs** — "Alerts" tab lists live thresholds; "History" tab shows the
+ *   `AlertHistoryLog` of past triggers.
+ * - **Snooze** — each triggered alert has a snooze menu with durations: 15 min,
+ *   1 hr, 4 hr, 24 hr, tomorrow.
+ * - **Toggle** — enable/disable individual alerts without deleting them.
+ * - **Re-enable** — restore fired-once alerts.
+ * - **Condition display** — human-readable threshold or percentage condition
+ *   (e.g. "price > $70,000" or "drops ≥ 5 % in 1 hr").
+ *
+ * ## Edge cases
+ * - **Empty state** — when no alerts exist, an "Add your first alert" prompt is shown.
+ * - **Snoozed with elapsed time** — if the app is left open past a snooze window,
+ *   the alert is reclassified on the next render.
+ * - **`isPanelOpen = false`** — component returns `null`; no DOM is rendered.
+ *
+ * ## Accessibility
+ * - Each alert row's action buttons have descriptive `aria-label` attributes.
+ * - The snooze dropdown uses standard `<button>` elements inside a `<div>`.
+ * - Tab switching buttons carry `role="tab"` and `aria-selected` attributes.
+ */
 import { useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'

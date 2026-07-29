@@ -1,3 +1,53 @@
+/**
+ * @file ConnectionBadge
+ *
+ * Displays the current WebSocket connection status as a pill badge with an
+ * animated colour indicator.
+ *
+ * @example Minimal — connected
+ * ```tsx
+ * <ConnectionBadge status="connected" />
+ * ```
+ *
+ * @example With retry diagnostics
+ * ```tsx
+ * <ConnectionBadge
+ *   status="reconnecting"
+ *   diagnostics={ws.diagnostics}
+ * />
+ * ```
+ *
+ * @example Rate-limited state with countdown
+ * ```tsx
+ * <ConnectionBadge
+ *   status="connected"
+ *   rateLimitStatus="limited"
+ *   retryAfterMs={4500}
+ * />
+ * ```
+ *
+ * ## Status states
+ * | status        | colour | meaning                                          |
+ * |---------------|--------|--------------------------------------------------|
+ * | `connected`   | green  | WebSocket open, prices streaming in real time    |
+ * | `connecting`  | yellow | Initial handshake in progress                    |
+ * | `reconnecting`| yellow | Connection lost, auto-retry in progress          |
+ * | `waiting`     | orange | Exponential back-off window before next attempt  |
+ * | `dead`        | red    | Max retries exhausted, manual reload required    |
+ * | `disconnected`| red    | Offline, REST polling only                       |
+ *
+ * ## Edge cases
+ * - **Rate limited** — overrides the status colour with orange and shows a countdown
+ *   timer (e.g. "Rate limited (5 s)") when `retryAfterMs` is provided.
+ * - **Diagnostics** — when `diagnostics.retryCount > 0` and status is `reconnecting`
+ *   or `waiting`, the label includes `(attempt N/20)`.
+ * - **Unknown status** — falls back to the `disconnected` entry in `STATUS_MAP`.
+ *
+ * ## Accessibility
+ * - Root `<span>` carries `role="status"` and a descriptive `aria-label`.
+ * - The coloured dot has `aria-hidden="true"` — meaning is conveyed by the text label.
+ * - A `Tooltip` provides the full explanation for users who want more detail.
+ */
 import { memo, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RateLimitStatus } from '../api/rateLimit'

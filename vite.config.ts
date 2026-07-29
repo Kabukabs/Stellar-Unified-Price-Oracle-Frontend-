@@ -134,6 +134,11 @@ export default defineConfig(({ mode }) => {
     ],
     base: '/Stellar-Unified-Price-Oracle-Frontend-/',
     build: {
+      // Generate hidden source maps (not inlined into JS — kept as separate .map files).
+      // These are NOT uploaded to the CDN/static host; a post-build CI step strips them
+      // from the deployment artifact and uploads them to the error-tracking service
+      // (Sentry) instead.  See docs/source-maps.md for the full strategy.
+      sourcemap: mode === 'production' ? 'hidden' : true,
       rollupOptions: {
         output: {
           manualChunks: {

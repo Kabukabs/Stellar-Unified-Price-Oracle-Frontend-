@@ -1,3 +1,50 @@
+/**
+ * @file PriceCard
+ *
+ * Displays a single aggregated price feed for an asset pair.
+ *
+ * @example Basic usage
+ * ```tsx
+ * <PriceCard price={priceData} onClick={handleCardClick} />
+ * ```
+ *
+ * @example With alert button active
+ * ```tsx
+ * <PriceCard
+ *   price={priceData}
+ *   hasAlert
+ *   onAlertClick={handleAlertClick}
+ *   onClick={handleCardClick}
+ * />
+ * ```
+ *
+ * @example In multi-select mode
+ * ```tsx
+ * <PriceCard
+ *   price={priceData}
+ *   selectMode
+ *   isSelected={selectedPairs.has(priceData.assetPair)}
+ *   onClick={handleToggleSelect}
+ * />
+ * ```
+ *
+ * ## Edge cases
+ * - **Stale data** — when `isStale` is `true`, the card renders at 60 % opacity to
+ *   signal the feed is behind the freshness threshold (configurable via preferences).
+ * - **No sources** — `price.sources` may be empty while the aggregator is initialising;
+ *   in that case the source badge row is blank.
+ * - **Unknown source** — sources not in `SOURCE_COLORS` fall back to a neutral grey pill.
+ * - **Memoization trap** — do not pass `onClick={() => doSomething(pair)}` (new closure
+ *   per render). Pass the handler directly and let the card call it with `assetPair`.
+ *   See the memoization convention in `AGENTS.md`.
+ *
+ * ## Accessibility
+ * - Root element has `role="button"` and `tabIndex={0}` for keyboard activation.
+ * - `aria-label` describes the pair (e.g. "BTC/USD price card").
+ * - `aria-selected` is set only when `selectMode` is active.
+ * - The alert SVG icon carries `aria-hidden="true"` so screen readers skip it.
+ * - Source badge tooltips are keyboard-focusable via the `Tooltip` wrapper.
+ */
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PriceData, PriceSyncState } from '../types'
