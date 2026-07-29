@@ -3,6 +3,7 @@ import type { WsMessage, WsSubscribeMessage, WsUnsubscribeMessage } from '../typ
 import { wsAnalytics } from '../utils/wsAnalytics'
 import { rateLimitManager } from './rateLimit'
 import { WsMessageSchema } from './schemas'
+import { recordWsMessageTiming } from '../utils/performanceMonitor'
 
 type MessageHandler = (msg: WsMessage) => void
 type StatusHandler = (status: ConnectionStatus) => void
@@ -236,6 +237,9 @@ export class WebSocketClient {
     // `messageHandlersRef`, so newly registered or updated handlers are always used.
     const messageHandlersRef = this.messageHandlersRef
     this.ws.onmessage = async (e) => {
+      // Capture the start time for processing-time measurement
+      const messageStart = performance.now()
+
       // Any inbound message resets the heartbeat timeout
       this.resetHeartbeatTimeout()
 
@@ -268,6 +272,9 @@ export class WebSocketClient {
 
         const msg: WsMessage = parsed.data
         messageHandlersRef.forEach((h) => h(msg))
+
+        // Record end-to-end processing time for this message
+        recordWsMessageTiming(messageStart, typeof raw['type'] === 'string' ? raw['type'] : undefined)
       } catch {
         // ignore malformed messages
       }
