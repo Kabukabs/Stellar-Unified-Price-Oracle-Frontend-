@@ -60,6 +60,8 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "19.8.1",
+    "@commitlint/config-conventional": "19.8.1",
     "@eslint/js": "^10.0.0",
     "@playwright/test": "1.52.0",
     "@size-limit/file": "^12.1.0",
