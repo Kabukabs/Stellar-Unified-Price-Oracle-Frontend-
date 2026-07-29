@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { WebSocketClient, type ConnectionStatus } from '../api/websocket'
-import { fetchAllPrices, fetchPrice } from '../api/rest'
+import { fetchAllPrices, fetchPricesBatched } from '../api/rest'
 import { rateLimitManager, type RateLimitStatus } from '../api/rateLimit'
 import { config } from '../config'
 import type { LivePriceEntry, PriceData } from '../types'
@@ -108,7 +108,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
     const revalidatePair = async (pair: string, requestId: number) => {
       try {
-        const restPrice = await fetchPrice(pair)
+        const restPrice = await fetchPricesBatched(pair)
 
         if (requestIds.get(pair) !== requestId) return
 

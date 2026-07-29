@@ -284,6 +284,116 @@ export async function fetchPrice(pair: string): Promise<PriceData> {
   return validate(PriceDataSchema, raw)
 }
 
+// ---------------------------------------------------------------------------
+// Request batching for fetchPricesBatched
+// ---------------------------------------------------------------------------
+// Per-pair callers (e.g. WebSocket price-update confirmation, which fires once
+// per pair per message) are debounced into a single fetchAllPrices call so a
+// burst of updates across many pairs costs one request instead of one per pair.
+interface PriceWaiter {
+  resolve: (value: PriceData) => void
+  reject: (reason: unknown) => void
+  signal?: AbortSignal
+}
+
+const pendingPrices = new Map<string, PriceWaiter[]>()
+let priceCoalesceTimer: ReturnType<typeof setTimeout> | null = null
+
+function resolveAll(waiters: PriceWaiter[], value: PriceData): void {
+  for (const w of waiters) w.resolve(value)
+}
+
+function rejectAll(waiters: PriceWaiter[], reason: unknown): void {
+  for (const w of waiters) w.reject(reason)
+}
+
+/** Falls back to an individual request for one pair — used when a pair is missing from a batch response or the whole batch failed, so one bad pair doesn't affect the rest. */
+function settleViaDirectFetch(pair: string, waiters: PriceWaiter[]): void {
+  fetchPrice(pair).then(
+    (r) => resolveAll(waiters, r),
+    (e) => rejectAll(waiters, e),
+  )
+}
+
+function flushCoalescedPrices(): void {
+  priceCoalesceTimer = null
+  if (pendingPrices.size === 0) return
+
+  const snapshot = new Map(pendingPrices)
+  pendingPrices.clear()
+
+  for (const [pair, waiters] of snapshot) {
+    const active = waiters.filter((w) => !w.signal?.aborted)
+    if (active.length === 0) {
+      for (const w of waiters) w.reject(new DOMException('Aborted', 'AbortError'))
+      snapshot.delete(pair)
+    } else {
+      snapshot.set(pair, active)
+    }
+  }
+
+  if (snapshot.size === 0) return
+
+  const pairs = [...snapshot.keys()]
+  const { maxBatchSize } = config.priceBatch
+  const batches: string[][] = []
+  for (let i = 0; i < pairs.length; i += maxBatchSize) {
+    batches.push(pairs.slice(i, i + maxBatchSize))
+  }
+
+  for (const batchPairs of batches) {
+    fetchAllPrices(batchPairs)
+      .then((results) => {
+        const byPair = new Map(results.map((r) => [r.assetPair, r]))
+        for (const pair of batchPairs) {
+          const waiters = snapshot.get(pair) ?? []
+          const result = byPair.get(pair)
+          if (result) {
+            resolveAll(waiters, result)
+          } else {
+            settleViaDirectFetch(pair, waiters)
+          }
+        }
+      })
+      .catch(() => {
+        for (const pair of batchPairs) {
+          settleViaDirectFetch(pair, snapshot.get(pair) ?? [])
+        }
+      })
+  }
+}
+
+/**
+ * Fetches the latest price for a single pair, debouncing concurrent per-pair calls
+ * within a configurable window (`config.priceBatch.debounceMs`) into one batched
+ * `fetchAllPrices` request (capped at `config.priceBatch.maxBatchSize` pairs per
+ * request). A pair missing from the batch response — or a batch that fails
+ * entirely — falls back to an individual fetch so one pair's failure doesn't
+ * affect the others.
+ */
+export function fetchPricesBatched(pair: string, signal?: AbortSignal): Promise<PriceData> {
+  return new Promise<PriceData>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+
+    const existing = pendingPrices.get(pair)
+    if (existing) {
+      existing.push({ resolve, reject, signal })
+    } else {
+      pendingPrices.set(pair, [{ resolve, reject, signal }])
+    }
+    if (!priceCoalesceTimer) {
+      priceCoalesceTimer = setTimeout(flushCoalescedPrices, config.priceBatch.debounceMs)
+    }
+
+    signal?.addEventListener('abort', () => {
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+  })
+}
+
 /**
  * Fetches the price history for an asset pair.
  *

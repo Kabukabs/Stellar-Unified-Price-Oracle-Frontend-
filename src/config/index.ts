@@ -27,4 +27,10 @@ export const config = {
     windowMs: 30_000,
     cooldownMs: 30_000,
   },
+  priceBatch: {
+    /** Window in ms during which individual per-pair price requests are coalesced into one batch call. */
+    debounceMs: 50,
+    /** Maximum number of pairs sent in a single batched price request. */
+    maxBatchSize: 20,
+  },
 } as const
