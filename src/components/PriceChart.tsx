@@ -15,7 +15,8 @@ import {
 import type { TooltipProps } from 'recharts'
 import type { PriceHistoryEntry } from '../types'
 import { formatChartTimeWithTz, formatPriceShort, formatTimestamp, getTimezoneAbbr } from '../utils/format'
-import { loadChartExport } from '../utils/deferredExports'
+import { exportChartAsPng, exportChartAsSvg, rasterizeChartToDataUrl } from '../utils/chartExport'
+import { exportPriceHistoryPdf } from '../utils/pdfExport'
 
 // ---------------------------------------------------------------------------
 // #305 – Chart annotation types
@@ -427,7 +428,7 @@ function ChartContent({
       : null
 
   const handleExport = useCallback(
-    async (format: 'png' | 'svg') => {
+    async (format: 'png' | 'svg' | 'pdf') => {
       const container = chartWrapperRef.current
       if (!container) return
       setExportMenuOpen(false)
@@ -439,6 +440,9 @@ function ChartContent({
         const filename = `${safePair}_${timeRange}.${format}`
         if (format === 'svg') {
           exportChartAsSvg(container, filename, bgColor)
+        } else if (format === 'pdf') {
+          const chart = await rasterizeChartToDataUrl(container, bgColor)
+          exportPriceHistoryPdf({ pair, history: data, chart, filename })
         } else {
           await exportChartAsPng(container, filename, bgColor)
         }
@@ -446,7 +450,7 @@ function ChartContent({
         setExporting(false)
       }
     },
-    [dark, pair, timeRange],
+    [dark, pair, timeRange, data],
   )
 
   // Check if user scrolled near the start to trigger load more
@@ -583,6 +587,14 @@ function ChartContent({
                   className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 transition-colors"
                 >
                   Export as SVG
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleExport('pdf')}
+                  className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 transition-colors"
+                >
+                  Export as PDF
                 </button>
               </div>
             )}

@@ -8,6 +8,8 @@ export interface DataPreferences {
   refreshInterval: RefreshInterval
   chartTimeRange: ChartTimeRange
   staleThresholdMinutes: number
+  /** Priority order of oracle sources to prefer as the "active" source for a feed. */
+  sourcePriority: string[]
 }
 
 /** How the dashboard arranges what it shows. */
