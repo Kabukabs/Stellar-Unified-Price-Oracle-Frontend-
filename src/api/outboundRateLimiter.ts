@@ -10,6 +10,7 @@
  * {@link OutboundRateLimiter.wait} before every attempt (including retries), so
  * a retry storm is shaped by the same budget as first-time traffic.
  */
+import { rateLimitManager } from './rateLimit'
 
 /** Endpoint groups. Each gets an independent budget. */
 export type EndpointGroup = 'prices' | 'history' | 'health' | 'default'
@@ -64,6 +65,18 @@ interface Bucket {
   timer: ReturnType<typeof setTimeout> | null
 }
 
+export interface OutboundRateLimiterOptions {
+  limits?: Partial<Record<EndpointGroup, EndpointRateLimit>>
+  enabled?: boolean
+  /**
+   * Invoked when a server-directed backoff begins. Used to bridge the limiter
+   * to non-`fetch` transports (the WebSocket client) which cannot be gated by
+   * token buckets. Injected rather than imported directly so unit tests can
+   * observe it without mutating app-wide singletons.
+   */
+  onBlock?: (ms: number) => void
+}
+
 const GROUPS: EndpointGroup[] = ['prices', 'history', 'health', 'default']
 
 /**
@@ -91,6 +104,7 @@ function defaultEnabled(): boolean {
 
 export class OutboundRateLimiter {
   private readonly limits: Record<EndpointGroup, EndpointRateLimit>
+  private readonly onBlock?: (ms: number) => void
   private buckets = new Map<EndpointGroup, Bucket>()
   private listeners = new Set<Listener>()
   private enabled: boolean
@@ -98,9 +112,10 @@ export class OutboundRateLimiter {
   private unblockTimer: ReturnType<typeof setTimeout> | null = null
   private snapshot: OutboundQueueState
 
-  constructor(options: { limits?: Partial<Record<EndpointGroup, EndpointRateLimit>>; enabled?: boolean } = {}) {
+  constructor(options: OutboundRateLimiterOptions = {}) {
     this.limits = { ...OUTBOUND_RATE_LIMITS, ...options.limits }
     this.enabled = options.enabled ?? defaultEnabled()
+    this.onBlock = options.onBlock
     this.snapshot = this.buildSnapshot()
   }
 
@@ -149,8 +164,13 @@ export class OutboundRateLimiter {
    * Applies a server-directed backoff to every group, e.g. after a `429` with a
    * `Retry-After` header. Queued work is held for the full window — the server
    * value is honoured as sent, not capped by the client's retry ceiling.
+   *
+   * Gated on `enabled` so the existing suites' 429 cases cannot mutate
+   * app-wide singletons via {@link OutboundRateLimiterOptions.onBlock}.
    */
   blockFor(ms: number): void {
+    if (!this.enabled) return
+
     const until = Date.now() + Math.max(0, ms)
     if (until <= this.blockedUntil) return
     this.blockedUntil = until
@@ -167,6 +187,7 @@ export class OutboundRateLimiter {
     }, Math.max(0, ms))
 
     this.publish()
+    this.onBlock?.(Math.max(0, ms))
   }
 
   /** Current queue depth and block window. Referentially stable between changes. */
@@ -282,5 +303,22 @@ export class OutboundRateLimiter {
   }
 }
 
-/** App-wide limiter shared by every outbound request. */
-export const outboundRateLimiter = new OutboundRateLimiter()
+/**
+ * App-wide limiter shared by every outbound request.
+ *
+ * A server-directed backoff is mirrored into `rateLimitManager`, which is what
+ * `WebSocketClient.scheduleReconnect()` consults. Token buckets can only gate
+ * `fetch`; the WebSocket handshake is a different transport, so this bridge is
+ * what stops a reconnection storm from hammering a server that just returned
+ * `429` — the scenario named in the issue.
+ *
+ * `clearRateLimit()` runs first because `setRateLimited()` reassigns its
+ * auto-reset timer without cancelling the previous one; without this, an
+ * earlier short window's orphaned timer would clear a later, longer one early.
+ */
+export const outboundRateLimiter = new OutboundRateLimiter({
+  onBlock: (ms) => {
+    rateLimitManager.clearRateLimit()
+    rateLimitManager.setRateLimited(Math.max(1, Math.ceil(ms / 1000)))
+  },
+})
