@@ -1,11 +1,12 @@
 import { useMemo, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice, formatTimestamp } from '../utils/format'
-import { alertHistoryToCsvRows, downloadFile, exportFilename, toCsv } from '../utils/export'
+import { loadExportUtils } from '../utils/deferredExports'
 import type { AlertHistoryEntry } from '../types'
 
-function conditionText(entry: AlertHistoryEntry, t: (key: string, opts?: Record<string, unknown>) => string): string {
+function conditionText(entry: AlertHistoryEntry, t: TFunction): string {
   if (entry.percentageMode) {
     const dir = entry.percentageDirection ?? 'either'
     return t('alertPanel.conditions.percentage', {
@@ -33,12 +34,15 @@ export function AlertHistoryLog(): ReactElement {
     return alertHistory.filter((e) => e.assetPair.toLowerCase().includes(q))
   }, [alertHistory, search])
 
-  const handleExportCsv = (): void => {
+  const handleExportCsv = async (): Promise<void> => {
+    const { alertHistoryToCsvRows, downloadFile, exportFilename, toCsv } =
+      await loadExportUtils()
     const { rows, headers } = alertHistoryToCsvRows(filtered)
     downloadFile(toCsv(rows, headers), exportFilename('alert-history', 'csv'), 'text/csv')
   }
 
-  const handleExportJson = (): void => {
+  const handleExportJson = async (): Promise<void> => {
+    const { downloadFile, exportFilename } = await loadExportUtils()
     downloadFile(JSON.stringify(filtered, null, 2), exportFilename('alert-history', 'json'), 'application/json')
   }
 
@@ -57,7 +61,7 @@ export function AlertHistoryLog(): ReactElement {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={handleExportCsv}
+                onClick={() => void handleExportCsv()}
                 disabled={filtered.length === 0}
                 className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -65,7 +69,7 @@ export function AlertHistoryLog(): ReactElement {
               </button>
               <button
                 type="button"
-                onClick={handleExportJson}
+                onClick={() => void handleExportJson()}
                 disabled={filtered.length === 0}
                 className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
