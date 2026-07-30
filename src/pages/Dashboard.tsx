@@ -4,7 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
 import { useAlerts } from '../hooks/useAlerts'
 import { useExport } from '../hooks/useExport'
+import { useColumnSelection } from '../hooks/useColumnSelection'
 import { usePreferences } from '../preferences/PreferencesContext'
+import { ColumnSelectorModal } from '../components/ColumnSelectorModal'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PriceCard } from '../components/PriceCard'
@@ -51,9 +53,11 @@ export function Dashboard() {
   const { t } = useTranslation()
   const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount, reEnableAlert, alertCreateAllowed, alertCreateCooldownSec } = useAlerts()
   const { exportCSV, exportAllowed, exportCooldownSec } = useExport()
+  const { columns: exportColumns, setColumns: setExportColumns, applyPreset: applyColumnPreset } = useColumnSelection('csv')
   const { preferences, updatePreference } = usePreferences()
   const [searchParams] = useSearchParams()
 
+  const [columnModalOpen, setColumnModalOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalPair, setModalPair] = useState('')
   const [dashboardView, setDashboardView] = useState<'card' | 'table'>('card')
@@ -371,11 +375,23 @@ export function Dashboard() {
           <div className="flex-1" />
           <button
             type="button"
+            onClick={() => setColumnModalOpen(true)}
+            title={t('export.columns.title', { defaultValue: 'Select export columns' }) as string}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors border border-gray-700"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {t('export.columns.button', { defaultValue: 'Columns' })}
+          </button>
+          <button
+            type="button"
             disabled={selected.size === 0 || !exportAllowed}
             title={!exportAllowed ? `Too many exports — try again in ${exportCooldownSec}s` : undefined}
             onClick={() => {
               const items = filtered.filter((p) => selected.has(p.assetPair))
-              exportCSV(items)
+              exportCSV(items, exportColumns)
             }}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-gray-700"
           >
@@ -387,6 +403,16 @@ export function Dashboard() {
               : t('dashboard.selection.exportCsv')}
           </button>
         </div>
+      )}
+
+      {columnModalOpen && (
+        <ColumnSelectorModal
+          format="csv"
+          columns={exportColumns}
+          onChange={setExportColumns}
+          onApplyPreset={applyColumnPreset}
+          onClose={() => setColumnModalOpen(false)}
+        />
       )}
 
       {pricesError && (
