@@ -373,6 +373,20 @@ const en = {
     ariaLabel: 'Export data',
     exportAs: 'Export as {{format}}',
     langSelector: 'Code snippet language',
+    columns: {
+      button: 'Columns',
+      title: 'Select export columns',
+      preset: {
+        minimal: 'Minimal',
+        standard: 'Standard',
+        full: 'Full',
+      },
+      search: 'Filter columns…',
+      available: 'Available',
+      noMatches: 'No matching columns',
+      selectedOrder: 'Selected (drag to reorder)',
+      preview: 'Preview',
+    },
   },
 
   // ── SettingsPanel ─────────────────────────────────────────────────────────
