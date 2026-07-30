@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { AlertPanel } from './AlertPanel'
+import { QueuedRequestsBadge } from './QueuedRequestsBadge'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -106,6 +107,9 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {/* Client-side outbound back-pressure (#330). Renders nothing unless
+                requests are queued or the server asked us to pause. */}
+            <QueuedRequestsBadge />
             <button
               onClick={togglePanel}
               className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
