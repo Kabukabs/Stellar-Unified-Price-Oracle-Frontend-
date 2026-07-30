@@ -4,7 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
 import { useAlerts } from '../hooks/useAlerts'
 import { useExport } from '../hooks/useExport'
+import { useExportQueue } from '../hooks/useExportQueue'
+import { useColumnSelection } from '../hooks/useColumnSelection'
+import { useScheduledExports } from '../hooks/useScheduledExports'
 import { usePreferences } from '../preferences/PreferencesContext'
+import { ColumnSelectorModal } from '../components/ColumnSelectorModal'
+import { ExportProgressPanel } from '../components/ExportProgressPanel'
+import { ScheduledExportsPanel } from '../components/ScheduledExportsPanel'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { useStaleDataWarning } from '../hooks/useStaleDataWarning'
@@ -52,11 +58,14 @@ export function Dashboard() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount, reEnableAlert, alertCreateAllowed, alertCreateCooldownSec } = useAlerts()
-  const { exportCSV, exportAllowed, exportCooldownSec } = useExport()
+  const { exportAllowed, exportCooldownSec } = useExport()
+  const { tasks: exportTasks, enqueue: enqueueExport, cancel: cancelExport, dismiss: dismissExport } = useExportQueue()
+  const { columns: exportColumns, setColumns: setExportColumns, applyPreset: applyColumnPreset } = useColumnSelection('csv')
   const { preferences, updatePreference } = usePreferences()
   const [searchParams] = useSearchParams()
   const isDataStale = useStaleDataWarning(prices, preferences.staleThresholdMinutes)
 
+  const [columnModalOpen, setColumnModalOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalPair, setModalPair] = useState('')
   const [dashboardView, setDashboardView] = useState<'card' | 'table'>('card')
@@ -101,6 +110,8 @@ export function Dashboard() {
   const legacySource = searchParams.get('source') || 'all'
 
   const merged = mergePrices(prices, livePrices)
+  const scheduledExports = useScheduledExports(merged)
+  const [scheduledExportsOpen, setScheduledExportsOpen] = useState(false)
 
   const filtered = useMemo(() => {
     let result = merged
@@ -341,26 +352,15 @@ export function Dashboard() {
           </button>
           <button
             type="button"
-            onClick={refetchPrices}
-            disabled={pricesValidating}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            aria-label="Refresh prices"
-            title="Refresh prices"
+            onClick={() => setScheduledExportsOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+            aria-label={t('scheduledExports.title', { defaultValue: 'Scheduled exports' }) as string}
+            title={t('scheduledExports.title', { defaultValue: 'Scheduled exports' }) as string}
           >
-            <svg
-              className={`w-4 h-4 ${pricesValidating ? 'animate-spin' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
+            {t('scheduledExports.button', { defaultValue: 'Schedule' })}
           </button>
           <ConnectionBadge status={wsStatus} rateLimitStatus={rateLimitStatus} retryAfterMs={rateLimitRetryAfterMs} />
         </div>
@@ -397,11 +397,23 @@ export function Dashboard() {
           <div className="flex-1" />
           <button
             type="button"
+            onClick={() => setColumnModalOpen(true)}
+            title={t('export.columns.title', { defaultValue: 'Select export columns' }) as string}
+            className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors border border-gray-700"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {t('export.columns.button', { defaultValue: 'Columns' })}
+          </button>
+          <button
+            type="button"
             disabled={selected.size === 0 || !exportAllowed}
             title={!exportAllowed ? `Too many exports — try again in ${exportCooldownSec}s` : undefined}
             onClick={() => {
               const items = filtered.filter((p) => selected.has(p.assetPair))
-              exportCSV(items)
+              enqueueExport('csv', items, exportColumns)
             }}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-gray-700"
           >
@@ -415,7 +427,15 @@ export function Dashboard() {
         </div>
       )}
 
-      {isDataStale && <StaleDataWarningBanner thresholdMinutes={preferences.staleThresholdMinutes} />}
+      {columnModalOpen && (
+        <ColumnSelectorModal
+          format="csv"
+          columns={exportColumns}
+          onChange={setExportColumns}
+          onApplyPreset={applyColumnPreset}
+          onClose={() => setColumnModalOpen(false)}
+        />
+      )}
 
       {pricesError && (
         <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
@@ -510,6 +530,15 @@ export function Dashboard() {
       />
 
       <NotificationChannelsModal isOpen={notifModalOpen} onClose={() => setNotifModalOpen(false)} />
+
+      <ExportProgressPanel tasks={exportTasks} onCancel={cancelExport} onDismiss={dismissExport} />
+
+      <ScheduledExportsPanel
+        isOpen={scheduledExportsOpen}
+        onClose={() => setScheduledExportsOpen(false)}
+        availablePairs={prices.map((p) => p.assetPair)}
+        {...scheduledExports}
+      />
     </div>
   )
 }
