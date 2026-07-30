@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { WebSocketClient, type ConnectionStatus } from '../api/websocket'
 import { fetchAllPrices, fetchPricesBatched } from '../api/rest'
 import { rateLimitManager, type RateLimitStatus } from '../api/rateLimit'
+import { useOutboundQueue } from '../hooks/useOutboundQueue'
 import { config } from '../config'
 import type { LivePriceEntry, PriceData } from '../types'
 
@@ -24,6 +25,18 @@ export interface PriceContextValue {
   rateLimitStatus: RateLimitStatus
   /** Remaining retry window for rate limiting in milliseconds. */
   rateLimitRetryAfterMs: number
+  /**
+   * Total outbound requests held by the client-side rate limiter (#330).
+   * Distinct from `pricesValidating`: a queued request has not been sent yet.
+   */
+  outboundQueued: number
+  /**
+   * `true` when a price request is waiting on the client-side limiter, so a
+   * consumer can render "waiting to send" rather than an ordinary spinner.
+   */
+  pricesQueued: boolean
+  /** `true` when the client is queueing requests or paused by a server `Retry-After`. */
+  requestsThrottled: boolean
   /** Trigger an immediate refetch of all prices outside the normal polling cycle. */
   refetchPrices: () => void
   /** Subscribe to live WebSocket updates for the given asset pairs. */
@@ -56,6 +69,10 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     staleTime: 5_000,
     retry: 3,
   })
+
+  // Client-side back-pressure (#330). Surfaced through context so any consumer
+  // can distinguish "request in flight" from "request queued, not yet sent".
+  const outbound = useOutboundQueue()
 
   const [livePrices, setLivePrices] = useState<Map<string, LivePriceEntry>>(new Map())
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>('disconnected')
@@ -230,6 +247,9 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     wsStatus,
     rateLimitStatus,
     rateLimitRetryAfterMs,
+    outboundQueued: outbound.queued,
+    pricesQueued: outbound.queuedByGroup.prices > 0,
+    requestsThrottled: outbound.degraded,
     refetchPrices: handleRefetchPrices,
     subscribe,
     unsubscribe,

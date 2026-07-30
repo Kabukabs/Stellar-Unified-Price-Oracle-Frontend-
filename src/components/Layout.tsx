@@ -121,6 +121,9 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
+            {/* Client-side outbound back-pressure (#330). Renders nothing unless
+                requests are queued or the server asked us to pause. */}
+            <QueuedRequestsBadge />
             <button
               onClick={() => setSettingsOpen(true)}
               onMouseEnter={preloadSettingsPanel}
