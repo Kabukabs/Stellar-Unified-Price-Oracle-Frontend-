@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
 import { useAlerts } from '../hooks/useAlerts'
 import { useExport } from '../hooks/useExport'
+import { useExportQueue } from '../hooks/useExportQueue'
 import { useColumnSelection } from '../hooks/useColumnSelection'
 import { usePreferences } from '../preferences/PreferencesContext'
 import { ColumnSelectorModal } from '../components/ColumnSelectorModal'
+import { ExportProgressPanel } from '../components/ExportProgressPanel'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PriceCard } from '../components/PriceCard'
@@ -52,7 +54,8 @@ export function Dashboard() {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount, reEnableAlert, alertCreateAllowed, alertCreateCooldownSec } = useAlerts()
-  const { exportCSV, exportAllowed, exportCooldownSec } = useExport()
+  const { exportAllowed, exportCooldownSec } = useExport()
+  const { tasks: exportTasks, enqueue: enqueueExport, cancel: cancelExport, dismiss: dismissExport } = useExportQueue()
   const { columns: exportColumns, setColumns: setExportColumns, applyPreset: applyColumnPreset } = useColumnSelection('csv')
   const { preferences, updatePreference } = usePreferences()
   const [searchParams] = useSearchParams()
@@ -391,7 +394,7 @@ export function Dashboard() {
             title={!exportAllowed ? `Too many exports — try again in ${exportCooldownSec}s` : undefined}
             onClick={() => {
               const items = filtered.filter((p) => selected.has(p.assetPair))
-              exportCSV(items, exportColumns)
+              enqueueExport('csv', items, exportColumns)
             }}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors border border-gray-700"
           >
@@ -508,6 +511,8 @@ export function Dashboard() {
       />
 
       <NotificationChannelsModal isOpen={notifModalOpen} onClose={() => setNotifModalOpen(false)} />
+
+      <ExportProgressPanel tasks={exportTasks} onCancel={cancelExport} onDismiss={dismissExport} />
     </div>
   )
 }
