@@ -48,7 +48,9 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PriceData, PriceSyncState } from '../types'
-import { formatPrice, timeAgo } from '../utils/format'
+import { formatPrice } from '../utils/format'
+import { usePreferences } from '../preferences/PreferencesContext'
+import { FreshnessBadge } from './FreshnessBadge'
 import { Tooltip } from './Tooltip'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -95,6 +97,7 @@ interface PriceCardProps {
 
 export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasAlert, onAlertClick, selectMode, isSelected }: PriceCardProps) {
   const { t } = useTranslation()
+  const { preferences } = usePreferences()
   const confidencePct = (price.confidence * 100).toFixed(1)
   const { assetPair } = price
 
@@ -152,7 +155,7 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
       </div>
 
       <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 mb-3">
-        <span>{t('priceCard.updated', { time: timeAgo(price.timestamp) })}</span>
+        <FreshnessBadge timestamp={price.timestamp} refreshIntervalMs={preferences.refreshInterval} />
         <Tooltip content={t('priceCard.confidenceTooltip')}>
           <span className="text-cyan-600 dark:text-cyan-400">
             {t('priceCard.confidence', { value: confidencePct })}

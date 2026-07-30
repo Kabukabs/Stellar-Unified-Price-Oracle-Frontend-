@@ -7,7 +7,9 @@ import { useExport } from '../hooks/useExport'
 import { usePreferences } from '../preferences/PreferencesContext'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { useStaleDataWarning } from '../hooks/useStaleDataWarning'
 import { PriceCard } from '../components/PriceCard'
+import { StaleDataWarningBanner } from '../components/StaleDataWarningBanner'
 import { PriceCardSkeleton } from '../components/PriceCardSkeleton'
 import { PriceTableView } from '../components/PriceTableView'
 import { DraggablePriceGrid } from '../components/DraggablePriceGrid'
@@ -53,6 +55,7 @@ export function Dashboard() {
   const { exportCSV, exportAllowed, exportCooldownSec } = useExport()
   const { preferences, updatePreference } = usePreferences()
   const [searchParams] = useSearchParams()
+  const isDataStale = useStaleDataWarning(prices, preferences.staleThresholdMinutes)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalPair, setModalPair] = useState('')
@@ -336,6 +339,29 @@ export function Dashboard() {
             </svg>
             {t('dashboard.alerts.title')}
           </button>
+          <button
+            type="button"
+            onClick={refetchPrices}
+            disabled={pricesValidating}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Refresh prices"
+            title="Refresh prices"
+          >
+            <svg
+              className={`w-4 h-4 ${pricesValidating ? 'animate-spin' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
           <ConnectionBadge status={wsStatus} rateLimitStatus={rateLimitStatus} retryAfterMs={rateLimitRetryAfterMs} />
         </div>
       </div>
@@ -388,6 +414,8 @@ export function Dashboard() {
           </button>
         </div>
       )}
+
+      {isDataStale && <StaleDataWarningBanner thresholdMinutes={preferences.staleThresholdMinutes} />}
 
       {pricesError && (
         <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
