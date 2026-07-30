@@ -6,9 +6,11 @@ import { useAlerts } from '../hooks/useAlerts'
 import { useExport } from '../hooks/useExport'
 import { useExportQueue } from '../hooks/useExportQueue'
 import { useColumnSelection } from '../hooks/useColumnSelection'
+import { useScheduledExports } from '../hooks/useScheduledExports'
 import { usePreferences } from '../preferences/PreferencesContext'
 import { ColumnSelectorModal } from '../components/ColumnSelectorModal'
 import { ExportProgressPanel } from '../components/ExportProgressPanel'
+import { ScheduledExportsPanel } from '../components/ScheduledExportsPanel'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
 import { PriceCard } from '../components/PriceCard'
@@ -105,6 +107,8 @@ export function Dashboard() {
   const legacySource = searchParams.get('source') || 'all'
 
   const merged = mergePrices(prices, livePrices)
+  const scheduledExports = useScheduledExports(merged)
+  const [scheduledExportsOpen, setScheduledExportsOpen] = useState(false)
 
   const filtered = useMemo(() => {
     let result = merged
@@ -343,6 +347,18 @@ export function Dashboard() {
             </svg>
             {t('dashboard.alerts.title')}
           </button>
+          <button
+            type="button"
+            onClick={() => setScheduledExportsOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition-colors"
+            aria-label={t('scheduledExports.title', { defaultValue: 'Scheduled exports' }) as string}
+            title={t('scheduledExports.title', { defaultValue: 'Scheduled exports' }) as string}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {t('scheduledExports.button', { defaultValue: 'Schedule' })}
+          </button>
           <ConnectionBadge status={wsStatus} rateLimitStatus={rateLimitStatus} retryAfterMs={rateLimitRetryAfterMs} />
         </div>
       </div>
@@ -513,6 +529,13 @@ export function Dashboard() {
       <NotificationChannelsModal isOpen={notifModalOpen} onClose={() => setNotifModalOpen(false)} />
 
       <ExportProgressPanel tasks={exportTasks} onCancel={cancelExport} onDismiss={dismissExport} />
+
+      <ScheduledExportsPanel
+        isOpen={scheduledExportsOpen}
+        onClose={() => setScheduledExportsOpen(false)}
+        availablePairs={prices.map((p) => p.assetPair)}
+        {...scheduledExports}
+      />
     </div>
   )
 }
