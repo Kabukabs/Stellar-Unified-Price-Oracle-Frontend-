@@ -11,6 +11,7 @@ export const DEFAULT_DATA_PREFERENCES: DataPreferences = {
   refreshInterval: 10000,
   chartTimeRange: '24h',
   staleThresholdMinutes: 5,
+  sourcePriority: ['chainlink', 'redstone', 'band', 'reflector'],
 }
 
 export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {

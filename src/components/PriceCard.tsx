@@ -50,6 +50,7 @@ import { useTranslation } from 'react-i18next'
 import type { PriceData, PriceSyncState } from '../types'
 import { formatPrice } from '../utils/format'
 import { usePreferences } from '../preferences/PreferencesContext'
+import { useActiveSource } from '../hooks/useActiveSource'
 import { FreshnessBadge } from './FreshnessBadge'
 import { Tooltip } from './Tooltip'
 
@@ -100,6 +101,7 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
   const { preferences } = usePreferences()
   const confidencePct = (price.confidence * 100).toFixed(1)
   const { assetPair } = price
+  const activeSource = useActiveSource(assetPair, price.sources, preferences.sourcePriority)
 
   const handleClick = useCallback(() => onClick?.(assetPair), [onClick, assetPair])
 
@@ -168,14 +170,17 @@ export const PriceCard = memo(function PriceCard({ price, onClick, isStale, hasA
           <Tooltip
             key={src}
             content={
-              t(`sources.${src as 'chainlink' | 'redstone' | 'band' | 'reflector'}`, {
-                defaultValue: t('sources.defaultTooltip', { source: src }),
-              })
+              src === activeSource
+                ? `Active source (highest priority available)`
+                : t(`sources.${src as 'chainlink' | 'redstone' | 'band' | 'reflector'}`, {
+                    defaultValue: t('sources.defaultTooltip', { source: src }),
+                  })
             }
           >
             <span
-              className={`px-2 py-0.5 rounded text-xs font-medium border ${SOURCE_COLORS[src] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'}`}
+              className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${SOURCE_COLORS[src] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'} ${src === activeSource ? 'ring-1 ring-cyan-400' : ''}`}
             >
+              {src === activeSource && <span aria-hidden="true">● </span>}
               {src}
             </span>
           </Tooltip>
