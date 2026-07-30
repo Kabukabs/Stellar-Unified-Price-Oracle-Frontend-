@@ -1,121 +1,286 @@
-import { rateLimitManager } from './rateLimit'
+/**
+ * Client-side outbound rate limiting (issue #330).
+ *
+ * A token bucket per endpoint group shapes outbound traffic so the app cannot
+ * out-run the server during WebSocket reconnection storms or rapid navigation.
+ * Requests that exceed the bucket are **queued in FIFO order** rather than
+ * dropped, and released as tokens refill.
+ *
+ * The limiter is deliberately transport-agnostic: `fetchWithRetry` awaits
+ * {@link OutboundRateLimiter.wait} before every attempt (including retries), so
+ * a retry storm is shaped by the same budget as first-time traffic.
+ */
 
+/** Endpoint groups. Each gets an independent budget. */
 export type EndpointGroup = 'prices' | 'history' | 'health' | 'default'
 
-export const OUTBOUND_RATE_LIMITS: Record<EndpointGroup, { capacity: number; refillMs: number }> = {
-  prices: { capacity: 12, refillMs: 1_000 },
-  history: { capacity: 4, refillMs: 1_000 },
-  health: { capacity: 2, refillMs: 1_000 },
-  default: { capacity: 6, refillMs: 1_000 },
+export interface EndpointRateLimit {
+  /** Maximum burst size — tokens available when fully replenished. */
+  capacity: number
+  /** Sustained refill rate, in tokens per second. */
+  refillPerSecond: number
 }
+
+// ---------------------------------------------------------------------------
+// Configurable limits — tune outbound traffic shaping app-wide from here.
+// ---------------------------------------------------------------------------
+
+export const OUTBOUND_RATE_LIMITS: Record<EndpointGroup, EndpointRateLimit> = {
+  /** Price polling + per-pair confirmations: the highest-volume group. */
+  prices: { capacity: 12, refillPerSecond: 8 },
+  /** History/batch-history: heavier server-side, so a tighter budget. */
+  history: { capacity: 6, refillPerSecond: 3 },
+  /** Health checks: background only, should never crowd out real traffic. */
+  health: { capacity: 2, refillPerSecond: 1 },
+  /** Anything unmatched. */
+  default: { capacity: 8, refillPerSecond: 4 },
+}
+
+/** Snapshot of queue depth and server-directed backoff, for UI back-pressure. */
+export interface OutboundQueueState {
+  /** Total requests waiting across every group. */
+  queued: number
+  /** Queue depth per endpoint group. */
+  queuedByGroup: Record<EndpointGroup, number>
+  /** `true` while a server `Retry-After` window is in effect. */
+  blocked: boolean
+  /** Epoch ms when the server-directed block expires (0 when not blocked). */
+  blockedUntil: number
+}
+
+type Listener = () => void
 
 interface QueueEntry {
   resolve: () => void
   reject: (reason: DOMException) => void
   signal?: AbortSignal
+  onAbort?: () => void
 }
 
 interface Bucket {
   tokens: number
   updatedAt: number
-  blockedUntil: number
   queue: QueueEntry[]
   timer: ReturnType<typeof setTimeout> | null
 }
 
-function groupForUrl(input: RequestInfo | URL): EndpointGroup {
-  const value = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
+const GROUPS: EndpointGroup[] = ['prices', 'history', 'health', 'default']
+
+/**
+ * Maps a request target to its endpoint group. Checked most-specific first:
+ * `/api/prices/history/batch` must resolve to `history`, not `prices`.
+ */
+export function resolveEndpointGroup(input: RequestInfo | URL): EndpointGroup {
+  const value =
+    typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
   if (value.includes('/history')) return 'history'
   if (value.includes('/health')) return 'health'
   if (value.includes('/prices')) return 'prices'
   return 'default'
 }
 
-export class OutboundRateLimiter {
-  private buckets = new Map<EndpointGroup, Bucket>()
+/**
+ * Throttling is opt-in under `MODE === 'test'`. The existing `retry` and `rest`
+ * suites drive dozens of requests through a frozen clock; a shared bucket would
+ * queue them forever. Tests that exercise the limiter enable it explicitly via
+ * {@link OutboundRateLimiter.configure}.
+ */
+function defaultEnabled(): boolean {
+  return import.meta.env.MODE !== 'test'
+}
 
+export class OutboundRateLimiter {
+  private readonly limits: Record<EndpointGroup, EndpointRateLimit>
+  private buckets = new Map<EndpointGroup, Bucket>()
+  private listeners = new Set<Listener>()
+  private enabled: boolean
+  private blockedUntil = 0
+  private unblockTimer: ReturnType<typeof setTimeout> | null = null
+  private snapshot: OutboundQueueState
+
+  constructor(options: { limits?: Partial<Record<EndpointGroup, EndpointRateLimit>>; enabled?: boolean } = {}) {
+    this.limits = { ...OUTBOUND_RATE_LIMITS, ...options.limits }
+    this.enabled = options.enabled ?? defaultEnabled()
+    this.snapshot = this.buildSnapshot()
+  }
+
+  /** Enable or disable shaping at runtime. Used by tests and by the app bootstrap. */
+  configure(options: { enabled?: boolean }): void {
+    if (options.enabled !== undefined) this.enabled = options.enabled
+  }
+
+  /**
+   * Resolves when the caller may issue its request. Rejects with `AbortError`
+   * if `signal` aborts first, and removes the entry so it never consumes a
+   * token that a live request could have used.
+   */
   wait(input: RequestInfo | URL, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'))
+    if (!this.enabled) return Promise.resolve()
 
-    const group = groupForUrl(input)
+    const group = resolveEndpointGroup(input)
     const bucket = this.getBucket(group)
     this.refill(bucket, group)
 
-    if (bucket.tokens >= 1 && bucket.queue.length === 0 && Date.now() >= bucket.blockedUntil) {
+    const clear = Date.now() >= this.blockedUntil
+    if (clear && bucket.queue.length === 0 && bucket.tokens >= 1) {
       bucket.tokens -= 1
       return Promise.resolve()
     }
 
     return new Promise<void>((resolve, reject) => {
       const entry: QueueEntry = { resolve, reject, signal }
-      const onAbort = () => {
-        const index = bucket.queue.indexOf(entry)
-        if (index >= 0) bucket.queue.splice(index, 1)
-        this.publishQueueState()
-        reject(new DOMException('Aborted', 'AbortError'))
+      if (signal) {
+        entry.onAbort = () => {
+          const index = bucket.queue.indexOf(entry)
+          if (index >= 0) bucket.queue.splice(index, 1)
+          this.publish()
+          reject(new DOMException('Aborted', 'AbortError'))
+        }
+        signal.addEventListener('abort', entry.onAbort, { once: true })
       }
-      signal?.addEventListener('abort', onAbort, { once: true })
       bucket.queue.push(entry)
-      this.publishQueueState()
+      this.publish()
       this.scheduleDrain(bucket, group)
     })
   }
 
-  blockFor(retryAfterMs: number): void {
-    const until = Date.now() + Math.max(0, retryAfterMs)
-    for (const [group, bucket] of this.buckets) {
-      bucket.blockedUntil = Math.max(bucket.blockedUntil, until)
-      this.scheduleDrain(bucket, group)
+  /**
+   * Applies a server-directed backoff to every group, e.g. after a `429` with a
+   * `Retry-After` header. Queued work is held for the full window — the server
+   * value is honoured as sent, not capped by the client's retry ceiling.
+   */
+  blockFor(ms: number): void {
+    const until = Date.now() + Math.max(0, ms)
+    if (until <= this.blockedUntil) return
+    this.blockedUntil = until
+
+    for (const group of GROUPS) {
+      const bucket = this.buckets.get(group)
+      if (bucket) this.scheduleDrain(bucket, group)
     }
-    rateLimitManager.setRateLimited(Math.max(1, Math.ceil(retryAfterMs / 1_000)))
+
+    if (this.unblockTimer) clearTimeout(this.unblockTimer)
+    this.unblockTimer = setTimeout(() => {
+      this.unblockTimer = null
+      this.publish()
+    }, Math.max(0, ms))
+
+    this.publish()
+  }
+
+  /** Current queue depth and block window. Referentially stable between changes. */
+  getSnapshot(): OutboundQueueState {
+    return this.snapshot
+  }
+
+  /** Subscribes to queue-state changes. Returns an unsubscribe function. */
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  /** Drops all buckets, timers and queued waiters. For test isolation. */
+  reset(): void {
+    for (const bucket of this.buckets.values()) {
+      if (bucket.timer) clearTimeout(bucket.timer)
+      for (const entry of bucket.queue) {
+        if (entry.signal && entry.onAbort) entry.signal.removeEventListener('abort', entry.onAbort)
+        entry.reject(new DOMException('Aborted', 'AbortError'))
+      }
+    }
+    this.buckets.clear()
+    if (this.unblockTimer) clearTimeout(this.unblockTimer)
+    this.unblockTimer = null
+    this.blockedUntil = 0
+    this.publish()
   }
 
   private getBucket(group: EndpointGroup): Bucket {
     const existing = this.buckets.get(group)
     if (existing) return existing
-    const config = OUTBOUND_RATE_LIMITS[group]
-    const bucket: Bucket = { tokens: config.capacity, updatedAt: Date.now(), blockedUntil: 0, queue: [], timer: null }
+    const bucket: Bucket = {
+      tokens: this.limits[group].capacity,
+      updatedAt: Date.now(),
+      queue: [],
+      timer: null,
+    }
     this.buckets.set(group, bucket)
     return bucket
   }
 
+  /** Continuous (fractional) refill, so a burst recovers smoothly rather than in steps. */
   private refill(bucket: Bucket, group: EndpointGroup): void {
-    const config = OUTBOUND_RATE_LIMITS[group]
-    const elapsed = Date.now() - bucket.updatedAt
-    const tokens = Math.floor(elapsed / config.refillMs)
-    if (tokens > 0) {
-      bucket.tokens = Math.min(config.capacity, bucket.tokens + tokens)
-      bucket.updatedAt += tokens * config.refillMs
-    }
+    const now = Date.now()
+    const elapsed = now - bucket.updatedAt
+    if (elapsed <= 0) return
+    const { capacity, refillPerSecond } = this.limits[group]
+    bucket.tokens = Math.min(capacity, bucket.tokens + (elapsed / 1000) * refillPerSecond)
+    bucket.updatedAt = now
   }
 
   private scheduleDrain(bucket: Bucket, group: EndpointGroup): void {
-    if (bucket.timer || bucket.queue.length === 0) return
+    if (bucket.queue.length === 0) return
+    if (bucket.timer) clearTimeout(bucket.timer)
+
     this.refill(bucket, group)
-    const config = OUTBOUND_RATE_LIMITS[group]
-    const waitForToken = bucket.tokens >= 1 ? 0 : Math.max(1, config.refillMs - (Date.now() - bucket.updatedAt))
-    const wait = Math.max(waitForToken, bucket.blockedUntil - Date.now(), 0)
+    const { refillPerSecond } = this.limits[group]
+    const untilToken =
+      bucket.tokens >= 1 ? 0 : Math.ceil(((1 - bucket.tokens) / refillPerSecond) * 1000)
+    const untilUnblocked = Math.max(0, this.blockedUntil - Date.now())
+    const wait = Math.max(untilToken, untilUnblocked)
+
     bucket.timer = setTimeout(() => this.drain(bucket, group), wait)
   }
 
   private drain(bucket: Bucket, group: EndpointGroup): void {
     bucket.timer = null
     this.refill(bucket, group)
-    if (Date.now() >= bucket.blockedUntil) {
+
+    if (Date.now() >= this.blockedUntil) {
       while (bucket.tokens >= 1 && bucket.queue.length > 0) {
+        const entry = bucket.queue.shift()
+        if (!entry) break
         bucket.tokens -= 1
-        bucket.queue.shift()?.resolve()
+        if (entry.signal && entry.onAbort) entry.signal.removeEventListener('abort', entry.onAbort)
+        entry.resolve()
       }
     }
-    this.publishQueueState()
-    this.scheduleDrain(bucket, group)
+
+    this.publish()
+    if (bucket.queue.length > 0) this.scheduleDrain(bucket, group)
   }
 
-  private publishQueueState(): void {
-    const queued = [...this.buckets.values()].reduce((total, bucket) => total + bucket.queue.length, 0)
-    if (queued === 0) return
-    rateLimitManager.setRateLimited(1)
+  private buildSnapshot(): OutboundQueueState {
+    const queuedByGroup = {} as Record<EndpointGroup, number>
+    let queued = 0
+    for (const group of GROUPS) {
+      const depth = this.buckets.get(group)?.queue.length ?? 0
+      queuedByGroup[group] = depth
+      queued += depth
+    }
+    const blocked = Date.now() < this.blockedUntil
+    return { queued, queuedByGroup, blocked, blockedUntil: blocked ? this.blockedUntil : 0 }
+  }
+
+  /**
+   * Recomputes the snapshot and notifies subscribers only when something the UI
+   * can see actually changed — `useSyncExternalStore` requires a stable
+   * reference between real changes or it will loop.
+   */
+  private publish(): void {
+    const next = this.buildSnapshot()
+    const prev = this.snapshot
+    const changed =
+      next.queued !== prev.queued ||
+      next.blocked !== prev.blocked ||
+      next.blockedUntil !== prev.blockedUntil ||
+      GROUPS.some((g) => next.queuedByGroup[g] !== prev.queuedByGroup[g])
+    if (!changed) return
+    this.snapshot = next
+    this.listeners.forEach((l) => l())
   }
 }
 
+/** App-wide limiter shared by every outbound request. */
 export const outboundRateLimiter = new OutboundRateLimiter()
