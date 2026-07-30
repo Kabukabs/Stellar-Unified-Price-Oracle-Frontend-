@@ -13,7 +13,9 @@ import { ExportProgressPanel } from '../components/ExportProgressPanel'
 import { ScheduledExportsPanel } from '../components/ScheduledExportsPanel'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
+import { useStaleDataWarning } from '../hooks/useStaleDataWarning'
 import { PriceCard } from '../components/PriceCard'
+import { StaleDataWarningBanner } from '../components/StaleDataWarningBanner'
 import { PriceCardSkeleton } from '../components/PriceCardSkeleton'
 import { PriceTableView } from '../components/PriceTableView'
 import { DraggablePriceGrid } from '../components/DraggablePriceGrid'
@@ -61,6 +63,7 @@ export function Dashboard() {
   const { columns: exportColumns, setColumns: setExportColumns, applyPreset: applyColumnPreset } = useColumnSelection('csv')
   const { preferences, updatePreference } = usePreferences()
   const [searchParams] = useSearchParams()
+  const isDataStale = useStaleDataWarning(prices, preferences.staleThresholdMinutes)
 
   const [columnModalOpen, setColumnModalOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
