@@ -71,6 +71,15 @@ export function useExport(): UseExportReturn {
       // Consume a single token for the aggregated exportData call so callers
       // using exportData directly are also rate-limited.
       if (!consume()) return
+      const {
+        downloadBinaryFile,
+        downloadFile,
+        exportFilename,
+        priceDataToCsvRows,
+        priceDataToXlsx,
+        toCsv,
+      } = await loadExportUtils()
+
       if (format === 'json') {
         const json = JSON.stringify(priceDataToJsonRows(items, columns), null, 2)
         downloadFile(json, exportFilename('oracle-prices', 'json'), 'application/json')
@@ -88,6 +97,19 @@ export function useExport(): UseExportReturn {
       }
     },
     [consume],
+  )
+
+  const exportCSV = useCallback(
+    (items: PriceData[]) => exportData('csv', items),
+    [exportData],
+  )
+  const exportJSON = useCallback(
+    (items: PriceData[]) => exportData('json', items),
+    [exportData],
+  )
+  const exportXLSX = useCallback(
+    (items: PriceData[]) => exportData('xlsx', items),
+    [exportData],
   )
 
   return { exportCSV, exportJSON, exportXLSX, exportData, exportAllowed, exportCooldownSec }

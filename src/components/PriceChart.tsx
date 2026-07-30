@@ -49,12 +49,11 @@ interface ChartPoint {
 
 interface CustomTooltipProps extends TooltipProps<number, string> {
   tzAbbr: string
-  pair: string
   allData: ChartPoint[]
   normalised?: boolean
 }
 
-function CustomTooltip({ active, payload, label, tzAbbr, pair, allData, normalised }: CustomTooltipProps) {
+function CustomTooltip({ active, payload, label, tzAbbr, allData, normalised }: CustomTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
 
   // The first payload entry carries the primary series data
@@ -435,6 +434,7 @@ function ChartContent({
       setExportMenuOpen(false)
       setExporting(true)
       try {
+        const { exportChartAsPng, exportChartAsSvg } = await loadChartExport()
         const bgColor = dark ? '#111827' : '#ffffff'
         const safePair = pair.replace(/\//g, '-')
         const filename = `${safePair}_${timeRange}.${format}`
@@ -694,7 +694,6 @@ function ChartContent({
                 content={
                   <CustomTooltip
                     tzAbbr={tzAbbr}
-                    pair={pair}
                     allData={visibleData as ChartPoint[]}
                     normalised={normalised}
                   />
@@ -777,7 +776,6 @@ function ChartContent({
                 content={
                   <CustomTooltip
                     tzAbbr={tzAbbr}
-                    pair={pair}
                     allData={visibleData as ChartPoint[]}
                     normalised={false}
                   />

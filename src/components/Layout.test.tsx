@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { AlertsProvider } from '../hooks/useAlerts'
@@ -30,6 +30,14 @@ vi.mock('../context/PriceContext', () => ({
     subscribe: vi.fn(),
     unsubscribe: vi.fn(),
   })),
+}))
+
+vi.mock('./SettingsPanel', () => ({
+  SettingsPanel: ({ onClose }: { onClose: () => void }) => (
+    <div data-testid="settings-panel">
+      <button onClick={onClose}>Close settings</button>
+    </div>
+  ),
 }))
 
 describe('Layout', () => {
@@ -82,6 +90,15 @@ describe('Layout', () => {
       </MemoryRouter>,
     )
     expect(screen.getByText((content) => content.includes('Developer Portal'))).toBeInTheDocument()
+  })
+
+  it('loads the settings panel only after the settings action', async () => {
+    renderLayout()
+
+    expect(screen.queryByTestId('settings-panel')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+
+    expect(await screen.findByTestId('settings-panel')).toBeInTheDocument()
   })
 
   it('renders Dashboard nav link', () => {

@@ -1,4 +1,12 @@
-import { useCallback, useMemo, useRef, useState, useTransition, useOptimistic } from 'react'
+import {
+  Suspense,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  useOptimistic,
+} from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePriceContext } from '../context/PriceContext'
@@ -17,7 +25,6 @@ import { useStaleDataWarning } from '../hooks/useStaleDataWarning'
 import { PriceCard } from '../components/PriceCard'
 import { StaleDataWarningBanner } from '../components/StaleDataWarningBanner'
 import { PriceCardSkeleton } from '../components/PriceCardSkeleton'
-import { PriceTableView } from '../components/PriceTableView'
 import { DraggablePriceGrid } from '../components/DraggablePriceGrid'
 import { AlertModal } from '../components/AlertModal'
 import { AlertBadge } from '../components/AlertBadge'
@@ -26,6 +33,7 @@ import { NotificationChannelsModal } from '../components/NotificationChannelsMod
 import { FilterPanel, readFilterState, countActiveFilters } from '../components/FilterPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { PairSearchBar } from '../components/PairSearchBar'
+import { LazyPriceTable, preloadPriceTable } from '../utils/chunks'
 import type { AlertFormData, LivePriceEntry, PriceData } from '../types'
 
 const SKELETON_COUNT = 8
@@ -71,7 +79,7 @@ export function Dashboard() {
   const [dashboardView, setDashboardView] = useState<'card' | 'table'>('card')
   const [notifModalOpen, setNotifModalOpen] = useState(false)
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
   // Pull-to-refresh: allow the user to drag the page down to force a refetch
   const mainRef = useRef<HTMLDivElement>(null)
@@ -82,7 +90,10 @@ export function Dashboard() {
 
   // Swipe left/right on the dashboard to switch between card/table views
   const swipeHandlers = useSwipeGesture({
-    onSwipeLeft: () => startTransition(() => setDashboardView('table')),
+    onSwipeLeft: () => {
+      void preloadPriceTable()
+      startTransition(() => setDashboardView('table'))
+    },
     onSwipeRight: () => startTransition(() => setDashboardView('card')),
     disabled: preferences.reducedMotion,
   })
@@ -324,7 +335,12 @@ export function Dashboard() {
               </button>
               <button
                 type="button"
-                onClick={() => startTransition(() => setDashboardView('table'))}
+                onClick={() => {
+                  void preloadPriceTable()
+                  startTransition(() => setDashboardView('table'))
+                }}
+                onMouseEnter={preloadPriceTable}
+                onFocus={preloadPriceTable}
                 className={`px-3 py-1.5 text-sm transition-colors ${dashboardView === 'table' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-gray-200'}`}
                 aria-pressed={dashboardView === 'table'}
                 aria-label={t('dashboard.viewToggle.table')}
@@ -451,17 +467,27 @@ export function Dashboard() {
         </section>
       ) : dashboardView === 'table' ? (
         <ErrorBoundary boundaryId="price-table-view" featureLabel="Price Table">
-          <PriceTableView
-            items={filtered}
-            livePairs={new Set(livePrices.keys())}
-            isStale={pricesValidating}
-            onRowClick={handleCardClick}
-            onAlertClick={handleAlertClick}
-            hasAlertFn={hasAlertsForPair}
-            selectMode={selectMode}
-            selected={selected}
-            onToggleSelect={onToggleSelect}
-          />
+          <Suspense
+            fallback={
+              <div
+                className="h-64 rounded-xl border border-gray-800 bg-gray-900/60 animate-pulse"
+                role="status"
+                aria-label="Loading price table"
+              />
+            }
+          >
+            <LazyPriceTable
+              items={filtered}
+              livePairs={new Set(livePrices.keys())}
+              isStale={pricesValidating}
+              onRowClick={handleCardClick}
+              onAlertClick={handleAlertClick}
+              hasAlertFn={hasAlertsForPair}
+              selectMode={selectMode}
+              selected={selected}
+              onToggleSelect={onToggleSelect}
+            />
+          </Suspense>
         </ErrorBoundary>
       ) : (
         <ErrorBoundary boundaryId="price-card-grid" featureLabel="Price Cards">

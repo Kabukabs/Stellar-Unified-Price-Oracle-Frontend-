@@ -1,8 +1,16 @@
-import { type ReactNode, type ReactElement } from 'react'
+import { Suspense, useState, type ReactNode, type ReactElement } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
-import { AlertPanel } from './AlertPanel'
+import {
+  LazyAlertPanel,
+  LazySettingsPanel,
+  preloadAlertPanel,
+  preloadApiDocs,
+  preloadDashboard,
+  preloadLanding,
+  preloadSettingsPanel,
+} from '../utils/chunks'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -18,12 +26,14 @@ function BottomTab({
   icon,
   exact = false,
   badge,
+  preload,
 }: {
   to: string
   label: string
   icon: React.ReactNode
   exact?: boolean
   badge?: number
+  preload?: () => unknown
 }) {
   const location = useLocation()
   const isActive = exact ? location.pathname === to : location.pathname.startsWith(to)
@@ -32,6 +42,8 @@ function BottomTab({
     <NavLink
       to={to}
       end={exact}
+      onMouseEnter={preload}
+      onFocus={preload}
       className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 relative transition-colors ${
         isActive
           ? 'text-cyan-500'
@@ -54,13 +66,14 @@ function BottomTab({
 }
 
 export function Layout({ children }: { children: ReactNode }): ReactElement {
-  const { activeCount, togglePanel } = useAlerts()
+  const { activeCount, togglePanel, isPanelOpen } = useAlerts()
   const { t } = useTranslation()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const NAV_ITEMS = [
-    { path: '/', label: t('nav.home') },
-    { path: '/dashboard', label: t('nav.dashboard') },
-    { path: '/api-docs', label: t('nav.apiDocs') },
+    { path: '/', label: t('nav.home'), preload: preloadLanding },
+    { path: '/dashboard', label: t('nav.dashboard'), preload: preloadDashboard },
+    { path: '/api-docs', label: t('nav.apiDocs'), preload: preloadApiDocs },
   ]
 
   return (
@@ -96,6 +109,8 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
                   key={item.path}
                   to={item.path}
                   end
+                  onMouseEnter={item.preload}
+                  onFocus={item.preload}
                   className={navClass}
                 >
                   {item.label}
@@ -107,7 +122,21 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
           {/* Right actions */}
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setSettingsOpen(true)}
+              onMouseEnter={preloadSettingsPanel}
+              onFocus={preloadSettingsPanel}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label={t('settings.title')}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            <button
               onClick={togglePanel}
+              onMouseEnter={preloadAlertPanel}
+              onFocus={preloadAlertPanel}
               className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label={t('nav.toggleAlerts')}
             >
@@ -147,6 +176,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
         <BottomTab
           to="/"
           exact
+          preload={preloadLanding}
           label={t('nav.dashboard')}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -157,6 +187,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
 
         <BottomTab
           to="/api-docs"
+          preload={preloadApiDocs}
           label={t('nav.apiDocs')}
           icon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -169,6 +200,8 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
         <button
           type="button"
           onClick={togglePanel}
+          onMouseEnter={preloadAlertPanel}
+          onFocus={preloadAlertPanel}
           aria-label={t('nav.toggleAlerts')}
           className="flex flex-col items-center justify-center gap-0.5 flex-1 py-2 relative text-gray-500 dark:text-gray-400 hover:text-cyan-500 dark:hover:text-cyan-400 transition-colors"
         >
@@ -184,7 +217,24 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
         </button>
       </nav>
 
-      <AlertPanel />
+      {settingsOpen && (
+        <Suspense
+          fallback={
+            <div
+              className="fixed inset-0 z-50 bg-black/50"
+              role="status"
+              aria-label={t('settings.title')}
+            />
+          }
+        >
+          <LazySettingsPanel onClose={() => setSettingsOpen(false)} />
+        </Suspense>
+      )}
+      {isPanelOpen && (
+        <Suspense fallback={null}>
+          <LazyAlertPanel />
+        </Suspense>
+      )}
       <div id="price-announcer" role="status" aria-live="polite" aria-atomic="true" className="sr-only" />
     </div>
   )

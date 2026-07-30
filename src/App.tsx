@@ -1,7 +1,5 @@
-import { lazy, type ReactElement } from 'react'
+import { useEffect, type ReactElement } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClient } from './lib/queryClient'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { RouteSuspense } from './components/Skeletons/RouteSuspense'
@@ -12,10 +10,8 @@ import { NotFoundSkeleton } from './components/Skeletons/NotFoundSkeleton'
 import { PriceProvider } from './context/PriceContext'
 import { AlertsProvider } from './hooks/useAlerts'
 import { ToastProvider } from './context/ToastContext'
-import { PriceProvider } from './context/PriceContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
-import { ErrorReporterProvider, useErrorReporter } from './context/ErrorReporterContext'
-import { PriceProvider } from './context/PriceContext'
+import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics, trackPageview } from './hooks/useAnalytics'
@@ -23,38 +19,33 @@ import { usePerformanceMonitor } from './hooks/usePerformanceMonitor'
 import { useInitApiVersion } from './hooks/useApiVersion'
 import { PerformanceOverlay } from './components/PerformanceOverlay'
 import { ApiVersionBanner } from './components/ApiVersionBanner'
-import type { ErrorInfo } from 'react'
-
-// Route-level code splitting: each page becomes its own chunk.
-// All pages use named exports, re-exported as `default` for React.lazy.
-const Dashboard = lazy(() =>
-  import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })),
-)
-const Landing = lazy(() =>
-  import('./pages/Landing').then((m) => ({ default: m.Landing })),
-)
-const PriceDetail = lazy(() =>
-  import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })),
-)
-const ApiDocs = lazy(() =>
-  import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })),
-)
-const NotFound = lazy(() =>
-  import('./pages/NotFound').then((m) => ({ default: m.NotFound })),
-)
+import {
+  LazyApiDocs,
+  LazyDashboard,
+  LazyLanding,
+  LazyNotFound,
+  LazyPriceDetail,
+  preloadDashboard,
+  preloadPriceDetail,
+} from './utils/chunks'
+import { scheduleIdlePreload } from './utils/preloadCache'
 
 const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 export function AppContent(): ReactElement {
   const location = useLocation()
-  const { captureError } = useErrorReporter()
-
   useAccessibility()
   trackPageview(location.pathname)
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const makeOnError = (boundaryId: string) =>
-    (error: Error, info: ErrorInfo) => captureError(error, info, boundaryId)
+  useEffect(() => {
+    if (location.pathname === '/') {
+      return scheduleIdlePreload(() => void preloadDashboard())
+    }
+    if (location.pathname === '/dashboard') {
+      return scheduleIdlePreload(() => void preloadPriceDetail())
+    }
+    return undefined
+  }, [location.pathname])
 
   return (
     <ErrorBoundary key={location.key}>
@@ -66,7 +57,7 @@ export function AppContent(): ReactElement {
               path="/"
               element={
                 <RouteSuspense fallback={<DashboardSkeleton />}>
-                  <Landing />
+                  <LazyLanding />
                 </RouteSuspense>
               }
             />
@@ -74,7 +65,7 @@ export function AppContent(): ReactElement {
               path="/dashboard"
               element={
                 <RouteSuspense fallback={<DashboardSkeleton />}>
-                  <Dashboard />
+                  <LazyDashboard />
                 </RouteSuspense>
               }
             />
@@ -82,7 +73,7 @@ export function AppContent(): ReactElement {
               path="/prices/:pair"
               element={
                 <RouteSuspense fallback={<PriceDetailSkeleton />}>
-                  <PriceDetail />
+                  <LazyPriceDetail />
                 </RouteSuspense>
               }
             />
@@ -90,7 +81,7 @@ export function AppContent(): ReactElement {
               path="/price/:pair"
               element={
                 <RouteSuspense fallback={<PriceDetailSkeleton />}>
-                  <PriceDetail />
+                  <LazyPriceDetail />
                 </RouteSuspense>
               }
             />
@@ -98,7 +89,7 @@ export function AppContent(): ReactElement {
               path="/api-docs"
               element={
                 <RouteSuspense fallback={<ApiDocsSkeleton />}>
-                  <ApiDocs />
+                  <LazyApiDocs />
                 </RouteSuspense>
               }
             />
@@ -106,7 +97,7 @@ export function AppContent(): ReactElement {
               path="*"
               element={
                 <RouteSuspense fallback={<NotFoundSkeleton />}>
-                  <NotFound />
+                  <LazyNotFound />
                 </RouteSuspense>
               }
             />
