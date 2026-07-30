@@ -1,4 +1,5 @@
 import type { AlertHistoryEntry, PriceData, PriceHistoryEntry } from '../types'
+import { EXPORT_COLUMNS, sanitizeColumns } from './exportColumns'
 
 function isoTs(ts: number): string {
   return new Date(ts).toISOString()
@@ -41,17 +42,29 @@ export function toCsv(rows: Array<Record<string, unknown>>, headers: string[]): 
   return lines.join('\n')
 }
 
-/** Converts an array of {@link PriceData} to CSV-ready rows. Timestamps are serialised as ISO-8601 strings; sources joined with ";". */
-export function priceDataToCsvRows(prices: PriceData[]): { rows: Array<Record<string, unknown>>; headers: string[] } {
-  const headers = ['assetPair', 'price', 'timestamp', 'confidence', 'sources']
-  const rows = prices.map((p) => ({
-    assetPair: p.assetPair,
-    price: p.price,
-    timestamp: isoTs(p.timestamp),
-    confidence: p.confidence,
-    sources: p.sources.join(';'),
-  }))
+/** Converts an array of {@link PriceData} to CSV-ready rows. Timestamps are serialised as ISO-8601 strings; sources joined with ";". Optionally restricts/reorders columns (#317). */
+export function priceDataToCsvRows(
+  prices: PriceData[],
+  columns?: string[],
+): { rows: Array<Record<string, unknown>>; headers: string[] } {
+  const headers = sanitizeColumns(columns)
+  const values: Record<string, (p: PriceData) => unknown> = {
+    assetPair: (p) => p.assetPair,
+    price: (p) => p.price,
+    timestamp: (p) => isoTs(p.timestamp),
+    confidence: (p) => p.confidence,
+    sources: (p) => p.sources.join(';'),
+  }
+  const rows = prices.map((p) =>
+    Object.fromEntries(headers.map((h) => [h, values[h](p)])),
+  )
   return { rows, headers }
+}
+
+/** Restricts an array of {@link PriceData} to the given columns, for JSON export (#317). */
+export function priceDataToJsonRows(prices: PriceData[], columns?: string[]): Array<Record<string, unknown>> {
+  const { rows } = priceDataToCsvRows(prices, columns)
+  return rows.map((r, i) => (columns === undefined ? { ...prices[i] } : r))
 }
 
 /** Converts a pair's {@link PriceHistoryEntry} array to CSV-ready rows, injecting the asset pair name into each row. */
@@ -386,16 +399,21 @@ function buildZip(files: Array<{ name: string; content: string }>): Uint8Array {
   return result
 }
 
-/** Converts an array of {@link PriceData} to a single-sheet .xlsx Uint8Array. */
-export function priceDataToXlsx(prices: PriceData[]): Uint8Array {
-  const headers = ['Asset Pair', 'Price', 'Timestamp', 'Confidence', 'Sources']
-  const rows = prices.map((p) => ({
-    'Asset Pair': p.assetPair,
-    'Price': p.price,
-    'Timestamp': isoTs(p.timestamp),
-    'Confidence': p.confidence,
-    'Sources': p.sources.join(';'),
-  }))
+/** Converts an array of {@link PriceData} to a single-sheet .xlsx Uint8Array. Optionally restricts/reorders columns (#317). */
+export function priceDataToXlsx(prices: PriceData[], columns?: string[]): Uint8Array {
+  const keys = sanitizeColumns(columns)
+  const labels = Object.fromEntries(EXPORT_COLUMNS.map((c) => [c.key, c.label]))
+  const headers = keys.map((k) => labels[k])
+  const values: Record<string, (p: PriceData) => unknown> = {
+    assetPair: (p) => p.assetPair,
+    price: (p) => p.price,
+    timestamp: (p) => isoTs(p.timestamp),
+    confidence: (p) => p.confidence,
+    sources: (p) => p.sources.join(';'),
+  }
+  const rows = prices.map((p) =>
+    Object.fromEntries(keys.map((k, i) => [headers[i], values[k](p)])),
+  )
   return buildXlsx([{ name: 'Price Data', headers, rows }])
 }
 

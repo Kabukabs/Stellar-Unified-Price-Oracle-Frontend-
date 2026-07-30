@@ -143,6 +143,53 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # ── Bundle size analysis ────────────────────────────────────────────────────
+  # Builds with the visualizer enabled, enforces the size-limit budgets
+  # configured in package.json, uploads the visualization for historical
+  # inspection, and (on PRs) comments the size diff against the base branch.
+  bundle-analysis:
+    needs: [frontend]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build with bundle visualization
+        run: npm run build:analyze
+        env:
+          VITE_USE_MOCK: 'true'
+
+      - name: Check bundle size against budgets
+        run: npm run size-limit
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bundle-analysis-${{ github.sha }}
+          path: reports/bundle-analysis.html
+          retention-days: 90
+
+      # Comments the gzip/brotli size diff between this PR and its base branch,
+      # using the same size-limit config as the budget check above. Advisory —
+      # a failure here shouldn't block the build.
+      - name: Compare bundle size to base branch
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: andresz1/size-limit-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
   # ── API version compatibility check ────────────────────────────────────────
   # Verifies the frontend's declared version range is compatible with the
   # running backend. Skips gracefully when no backend is available (e.g. on

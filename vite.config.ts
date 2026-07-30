@@ -141,10 +141,43 @@ export default defineConfig(({ mode }) => {
       sourcemap: mode === 'production' ? 'hidden' : true,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-            'vendor-recharts': ['recharts'],
-            'vendor-utils': ['zod'],
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
+          manualChunks(id) {
+            const moduleId = id.replace(/\\/g, '/')
+
+            if (moduleId.includes('/node_modules/')) {
+              if (
+                moduleId.includes('/react/') ||
+                moduleId.includes('/react-dom/') ||
+                moduleId.includes('/react-router') ||
+                moduleId.includes('/scheduler/')
+              ) {
+                return 'vendor-react'
+              }
+              if (moduleId.includes('/@tanstack/react-virtual/')) {
+                return 'vendor-tables'
+              }
+              if (
+                moduleId.includes('/i18next/') ||
+                moduleId.includes('/react-i18next/') ||
+                moduleId.includes('/i18next-browser-languagedetector/')
+              ) {
+                return 'vendor-i18n'
+              }
+              if (moduleId.includes('/@tanstack/react-query/')) {
+                return 'vendor-data'
+              }
+              if (moduleId.includes('/comlink/')) {
+                return 'vendor-workers'
+              }
+              if (moduleId.includes('/zod/')) {
+                return 'vendor-validation'
+              }
+            }
+
+            return undefined
           },
         },
       },

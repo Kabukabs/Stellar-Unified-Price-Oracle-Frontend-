@@ -128,6 +128,51 @@ export const PreferencesPanel = memo(function PreferencesPanel() {
         </select>
       </div>
 
+      {/* Oracle source fallback priority */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-200">Oracle source priority</span>
+        <ul className="flex flex-col gap-1" aria-label="Oracle source fallback order">
+          {preferences.sourcePriority.map((src, index) => (
+            <li
+              key={src}
+              className="flex items-center justify-between gap-2 rounded bg-slate-800 px-3 py-1.5 text-sm text-gray-100"
+            >
+              <span>
+                {index + 1}. {src.charAt(0).toUpperCase() + src.slice(1)}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => {
+                    const next = [...preferences.sourcePriority]
+                    ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
+                    updatePreference('sourcePriority', next)
+                  }}
+                  className="rounded bg-slate-700 px-2 py-0.5 text-xs text-gray-200 disabled:opacity-40"
+                  aria-label={`Move ${src} up in priority`}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  disabled={index === preferences.sourcePriority.length - 1}
+                  onClick={() => {
+                    const next = [...preferences.sourcePriority]
+                    ;[next[index + 1], next[index]] = [next[index], next[index + 1]]
+                    updatePreference('sourcePriority', next)
+                  }}
+                  className="rounded bg-slate-700 px-2 py-0.5 text-xs text-gray-200 disabled:opacity-40"
+                  aria-label={`Move ${src} down in priority`}
+                >
+                  ↓
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       {/* Undo / Redo */}
       <div className="flex gap-2">
         <button

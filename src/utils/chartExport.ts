@@ -32,10 +32,17 @@ export function exportChartAsSvg(container: HTMLElement, filename: string, bgCol
   return true
 }
 
-/** Exports the chart currently rendered inside `container` as a PNG file, rasterised via an offscreen canvas. */
-export async function exportChartAsPng(container: HTMLElement, filename: string, bgColor: string, scale = 2): Promise<boolean> {
+export interface RasterizedChart {
+  /** `data:image/png;base64,...` URL, embeddable directly (e.g. in a PDF). */
+  dataUrl: string
+  width: number
+  height: number
+}
+
+/** Rasterises the chart currently rendered inside `container` to a PNG data URL via an offscreen canvas. Returns null if no chart SVG was found. */
+export async function rasterizeChartToDataUrl(container: HTMLElement, bgColor: string, scale = 2): Promise<RasterizedChart | null> {
   const svg = findChartSvg(container)
-  if (!svg) return false
+  if (!svg) return null
 
   const { svgString, width, height } = cloneSvgWithBackground(svg, bgColor)
   const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
@@ -53,21 +60,24 @@ export async function exportChartAsPng(container: HTMLElement, filename: string,
     canvas.width = width * scale
     canvas.height = height * scale
     const ctx = canvas.getContext('2d')
-    if (!ctx) return false
+    if (!ctx) return null
     ctx.scale(scale, scale)
     ctx.drawImage(img, 0, 0, width, height)
 
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-    if (!blob) return false
-
-    const blobUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = blobUrl
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(blobUrl)
-    return true
+    return { dataUrl: canvas.toDataURL('image/png'), width, height }
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+/** Exports the chart currently rendered inside `container` as a PNG file, rasterised via an offscreen canvas. */
+export async function exportChartAsPng(container: HTMLElement, filename: string, bgColor: string, scale = 2): Promise<boolean> {
+  const rasterized = await rasterizeChartToDataUrl(container, bgColor, scale)
+  if (!rasterized) return false
+
+  const a = document.createElement('a')
+  a.href = rasterized.dataUrl
+  a.download = filename
+  a.click()
+  return true
 }
