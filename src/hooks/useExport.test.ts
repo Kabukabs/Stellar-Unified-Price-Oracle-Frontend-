@@ -1,12 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useExport } from './useExport'
+import { useRateLimitStore } from '../stores/rateLimitStore'
+import { getLimiter } from '../utils/rateLimit'
 import type { PriceData } from '../types'
 
 const mockPrices: PriceData[] = [
   { assetPair: 'BTC/USD', price: 50000, timestamp: 0, confidence: 0.99, sources: ['chainlink'] },
   { assetPair: 'ETH/USD', price: 3000, timestamp: 0, confidence: 0.95, sources: ['redstone', 'band'] },
 ]
+
+function mockBlob(
+  onCreate: (parts: BlobPart[], options: BlobPropertyBag) => void,
+): void {
+  class BlobMock {
+    readonly type: string
+
+    constructor(parts: BlobPart[] = [], options: BlobPropertyBag = {}) {
+      this.type = options.type ?? ''
+      onCreate(parts, options)
+    }
+  }
+
+  vi.stubGlobal('Blob', BlobMock)
+}
 
 describe('useExport', () => {
   let createObjectURLSpy: ReturnType<typeof vi.fn>
@@ -15,11 +32,14 @@ describe('useExport', () => {
   let originalCreateElement: typeof document.createElement
 
   beforeEach(() => {
+    localStorage.clear()
+    getLimiter('export').reset()
+    useRateLimitStore.getState().refresh()
     createObjectURLSpy = vi.fn(() => 'blob:test')
     revokeObjectURLSpy = vi.fn()
     clickSpy = vi.fn()
-    URL.createObjectURL = createObjectURLSpy
-    URL.revokeObjectURL = revokeObjectURLSpy
+    URL.createObjectURL = createObjectURLSpy as typeof URL.createObjectURL
+    URL.revokeObjectURL = revokeObjectURLSpy as typeof URL.revokeObjectURL
 
     originalCreateElement = document.createElement.bind(document)
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
@@ -32,6 +52,7 @@ describe('useExport', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('exportCSV', () => {
@@ -40,38 +61,36 @@ describe('useExport', () => {
       expect(typeof result.current.exportCSV).toBe('function')
     })
 
-    it('triggers a file download when exportCSV is called', () => {
+    it('triggers a file download when exportCSV is called', async () => {
       const { result } = renderHook(() => useExport())
-      result.current.exportCSV(mockPrices)
+      await result.current.exportCSV(mockPrices)
       expect(createObjectURLSpy).toHaveBeenCalled()
       expect(clickSpy).toHaveBeenCalled()
       expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:test')
     })
 
-    it('exports correct CSV content with price data fields', () => {
+    it('exports correct CSV content with price data fields', async () => {
       let capturedContent = ''
-      vi.spyOn(global, 'Blob').mockImplementation((parts) => {
-        capturedContent = (parts as string[])[0]
-        return { type: 'text/csv' } as Blob
+      mockBlob((parts) => {
+        capturedContent = String(parts[0])
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportCSV(mockPrices)
+      await result.current.exportCSV(mockPrices)
 
       expect(capturedContent).toContain('assetPair')
       expect(capturedContent).toContain('BTC/USD')
       expect(capturedContent).toContain('ETH/USD')
     })
 
-    it('exports empty CSV with only headers when given no items', () => {
+    it('exports empty CSV with only headers when given no items', async () => {
       let capturedContent = ''
-      vi.spyOn(global, 'Blob').mockImplementation((parts) => {
-        capturedContent = (parts as string[])[0]
-        return { type: 'text/csv' } as Blob
+      mockBlob((parts) => {
+        capturedContent = String(parts[0])
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportCSV([])
+      await result.current.exportCSV([])
 
       expect(capturedContent).toContain('assetPair')
       const lines = capturedContent.split('\n')
@@ -87,22 +106,21 @@ describe('useExport', () => {
   })
 
   describe('exportJSON', () => {
-    it('triggers a file download when exportJSON is called', () => {
+    it('triggers a file download when exportJSON is called', async () => {
       const { result } = renderHook(() => useExport())
-      result.current.exportJSON(mockPrices)
+      await result.current.exportJSON(mockPrices)
       expect(createObjectURLSpy).toHaveBeenCalled()
       expect(clickSpy).toHaveBeenCalled()
     })
 
-    it('exports valid JSON with all price data fields', () => {
+    it('exports valid JSON with all price data fields', async () => {
       let capturedContent = ''
-      vi.spyOn(global, 'Blob').mockImplementation((parts) => {
-        capturedContent = (parts as string[])[0]
-        return { type: 'application/json' } as Blob
+      mockBlob((parts) => {
+        capturedContent = String(parts[0])
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportJSON(mockPrices)
+      await result.current.exportJSON(mockPrices)
 
       const parsed = JSON.parse(capturedContent)
       expect(parsed).toHaveLength(2)
@@ -111,29 +129,27 @@ describe('useExport', () => {
       expect(parsed[1].assetPair).toBe('ETH/USD')
     })
 
-    it('exports empty array when given no items', () => {
+    it('exports empty array when given no items', async () => {
       let capturedContent = ''
-      vi.spyOn(global, 'Blob').mockImplementation((parts) => {
-        capturedContent = (parts as string[])[0]
-        return { type: 'application/json' } as Blob
+      mockBlob((parts) => {
+        capturedContent = String(parts[0])
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportJSON([])
+      await result.current.exportJSON([])
 
       const parsed = JSON.parse(capturedContent)
       expect(parsed).toEqual([])
     })
 
-    it('formats JSON with indentation', () => {
+    it('formats JSON with indentation', async () => {
       let capturedContent = ''
-      vi.spyOn(global, 'Blob').mockImplementation((parts) => {
-        capturedContent = (parts as string[])[0]
-        return { type: 'application/json' } as Blob
+      mockBlob((parts) => {
+        capturedContent = String(parts[0])
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportJSON(mockPrices)
+      await result.current.exportJSON(mockPrices)
 
       expect(capturedContent).toContain('\n  ')
     })
@@ -147,28 +163,26 @@ describe('useExport', () => {
   })
 
   describe('exportData', () => {
-    it('exports CSV when format is csv', () => {
+    it('exports CSV when format is csv', async () => {
       let capturedType = ''
-      vi.spyOn(global, 'Blob').mockImplementation((_parts, opts) => {
-        capturedType = (opts as { type: string }).type
-        return { type: capturedType } as Blob
+      mockBlob((_parts, options) => {
+        capturedType = options.type ?? ''
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportData('csv', mockPrices)
+      await result.current.exportData('csv', mockPrices)
 
       expect(capturedType).toBe('text/csv')
     })
 
-    it('exports JSON when format is json', () => {
+    it('exports JSON when format is json', async () => {
       let capturedType = ''
-      vi.spyOn(global, 'Blob').mockImplementation((_parts, opts) => {
-        capturedType = (opts as { type: string }).type
-        return { type: capturedType } as Blob
+      mockBlob((_parts, options) => {
+        capturedType = options.type ?? ''
       })
 
       const { result } = renderHook(() => useExport())
-      result.current.exportData('json', mockPrices)
+      await result.current.exportData('json', mockPrices)
 
       expect(capturedType).toBe('application/json')
     })

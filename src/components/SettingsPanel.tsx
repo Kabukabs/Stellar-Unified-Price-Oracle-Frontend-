@@ -1,11 +1,14 @@
+import { useState, useCallback, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePreferences } from '../preferences/PreferencesContext'
 import {
   REFRESH_INTERVAL_OPTIONS,
   CHART_RANGE_OPTIONS,
   STALE_THRESHOLD_OPTIONS,
+  CHART_TIMEZONE_OPTIONS,
 } from '../preferences/constants'
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type SupportedLanguage } from '../i18n'
+import { clearAllData, getLocalStorageSize, writeRaw, STORAGE_KEYS } from '../utils/storage'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -51,10 +54,29 @@ function AccessibilityToggle({
   )
 }
 
-export function SettingsPanel({ onClose }: SettingsPanelProps) {
+export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
   const { preferences, updatePreference, undo, redo, canUndo, canRedo, clearHistory } =
     usePreferences()
   const { t, i18n } = useTranslation()
+  const [clearStatus, setClearStatus] = useState<'idle' | 'confirming' | 'clearing' | 'done'>('idle')
+
+  const storageSize = getLocalStorageSize()
+
+  const handleClearRequest = useCallback(() => {
+    setClearStatus('confirming')
+  }, [])
+
+  const handleClearConfirm = useCallback(async () => {
+    setClearStatus('clearing')
+    await clearAllData()
+    setClearStatus('done')
+    // After clearing, reload so contexts re-initialise with defaults
+    setTimeout(() => window.location.reload(), 1200)
+  }, [])
+
+  const handleClearCancel = useCallback(() => {
+    setClearStatus('idle')
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -154,6 +176,32 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   ))}
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Chart Timezone
+                </label>
+                <select
+                  value={preferences.chartTimezone}
+                  onChange={(e) =>
+                    updatePreference(
+                      'chartTimezone',
+                      e.target.value as typeof preferences.chartTimezone,
+                    )
+                  }
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  aria-label="Chart timezone"
+                >
+                  {CHART_TIMEZONE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Timezone used for X-axis labels on price charts.
+                </p>
+              </div>
             </div>
           </section>
 
@@ -196,9 +244,71 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 checked={!preferences.analyticsOptOut}
                 onChange={(val) => {
                   updatePreference('analyticsOptOut', !val)
-                  try { localStorage.setItem('analyticsOptOut', !val ? '0' : '1') } catch { /* storage unavailable */ }
+                  writeRaw(STORAGE_KEYS.analyticsOptOut, !val ? '0' : '1')
                 }}
               />
+            </div>
+          </section>
+
+          {/* Data & Privacy — clear local data */}
+          <section aria-labelledby="clear-data-heading">
+            <h3 id="clear-data-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+              Local data
+            </h3>
+            <div className="rounded-lg border border-gray-800 bg-gray-800/40 p-4 space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-400">Storage used</span>
+                <span className="font-mono text-gray-300">{storageSize.formatted}</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Includes alert thresholds, notification config, theme preference, and cached
+                price data. No passwords, API keys, or personal information are stored.
+              </p>
+
+              {clearStatus === 'idle' && (
+                <button
+                  type="button"
+                  onClick={handleClearRequest}
+                  className="w-full px-4 py-2 rounded-lg text-sm font-medium text-red-400 border border-red-400/30 hover:bg-red-400/10 transition-colors"
+                  aria-label="Clear all local data stored by this app"
+                >
+                  Clear all local data
+                </button>
+              )}
+
+              {clearStatus === 'confirming' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-amber-400">
+                    This will delete all alerts, notification settings, preferences, and cached
+                    prices. The page will reload. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleClearConfirm}
+                      className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-500 text-white transition-colors"
+                      aria-label="Confirm — clear all local data"
+                    >
+                      Yes, clear everything
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearCancel}
+                      className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {clearStatus === 'clearing' && (
+                <p className="text-xs text-gray-400 animate-pulse">Clearing data…</p>
+              )}
+
+              {clearStatus === 'done' && (
+                <p className="text-xs text-green-400">Data cleared. Reloading…</p>
+              )}
             </div>
           </section>
         </div>

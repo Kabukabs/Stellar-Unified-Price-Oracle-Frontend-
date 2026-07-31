@@ -22,6 +22,7 @@ interface PriceHistoryState {
  * Hook for managing paginated price history with infinite scroll support.
  * Fetches historical price data for a given pair with pagination capabilities.
  * Includes a refresh interval to keep the latest data updated.
+ * Defers fetching until the page is visible using the Page Visibility API.
  */
 export function usePriceHistory(
   pair: string | null,
@@ -40,32 +41,47 @@ export function usePriceHistory(
   const isMountedRef = useRef(true)
   const loadingMoreRef = useRef(false)
   const hasMoreRef = useRef(true)
+  const hasFetchedRef = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Track page visibility
+  const isVisibleRef = useRef(
+    typeof document !== 'undefined' ? !document.hidden : true,
+  )
 
   // Fetch initial data
   const refetch = useCallback(async () => {
     if (!pair) return
+
+    // Cancel any in-flight request for this pair (duplicate call, e.g. from a
+    // refresh interval firing before the previous fetch settled).
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
       setLoading(true)
       setError(null)
       offsetRef.current = 0
 
-      const res = await fetchPriceHistory(pair, pageSize, 0)
+      const res = await fetchPriceHistory(pair, pageSize, 0, undefined, undefined, controller.signal)
 
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
 
       setHistory(res.history)
       const hasMore = res.history.length === pageSize
       setHasMore(hasMore)
       hasMoreRef.current = hasMore
       offsetRef.current = pageSize
+      hasFetchedRef.current = true
     } catch (err) {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
+      if (err instanceof DOMException && err.name === 'AbortError') return
       const error = err instanceof Error ? err : new Error(String(err))
       setError(error)
       onError?.(error)
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !controller.signal.aborted) {
         setLoading(false)
       }
     }
@@ -78,14 +94,18 @@ export function usePriceHistory(
       return
     }
 
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       loadingMoreRef.current = true
       setLoadingMore(true)
       setError(null)
 
-      const res = await fetchPriceHistory(pair, pageSize, offsetRef.current)
+      const res = await fetchPriceHistory(pair, pageSize, offsetRef.current, undefined, undefined, controller.signal)
 
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
 
       if (res.history.length === 0) {
         hasMoreRef.current = false
@@ -98,34 +118,69 @@ export function usePriceHistory(
         offsetRef.current += res.history.length
       }
     } catch (err) {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || controller.signal.aborted) return
+      if (err instanceof DOMException && err.name === 'AbortError') return
       const error = err instanceof Error ? err : new Error(String(err))
       setError(error)
       onError?.(error)
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !controller.signal.aborted) {
         loadingMoreRef.current = false
         setLoadingMore(false)
       }
     }
   }, [pair, pageSize, onError])
 
-  // Initial fetch and refresh interval
+  // Initial fetch and refresh interval with visibility deferral
   useEffect(() => {
-    refetch()
-    intervalRef.current = setInterval(refetch, refreshInterval)
+    if (!pair) return
+
+    // Defer initial fetch until page is visible
+    if (isVisibleRef.current) {
+      refetch()
+    }
+
+    // Set up refresh interval
+    if (refreshInterval > 0) {
+      intervalRef.current = setInterval(() => {
+        if (isVisibleRef.current) {
+          refetch()
+        }
+      }, refreshInterval)
+    }
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
       }
     }
-  }, [refetch, refreshInterval])
+  }, [pair, refetch, refreshInterval])
+
+  // Page Visibility API: pause/resume fetching
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden
+      isVisibleRef.current = visible
+
+      // When becoming visible and haven't fetched yet, fetch now
+      if (visible && !hasFetchedRef.current && pair) {
+        refetch()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [pair, refetch])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false
+      abortRef.current?.abort()
     }
   }, [])
 

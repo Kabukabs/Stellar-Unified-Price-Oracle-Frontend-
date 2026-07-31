@@ -365,4 +365,25 @@ describe('PriceDetail', () => {
     expect(alerts.some((el) => el.textContent?.includes('Network error'))).toBe(true)
     expect(screen.queryByRole('table', { name: 'Price history table' })).not.toBeInTheDocument()
   })
+
+  it('renders chart error fallback when PriceChart throws', async () => {
+    const { useSwr } = await import('../hooks/useSwr')
+    vi.mocked(useSwr).mockReturnValue({
+      data: { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
+      loading: false,
+      error: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    chartThrowRef.current = true
+
+    renderWithPair()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('Chart failed to render. Please try refreshing the page.')).toBeInTheDocument()
+
+    chartThrowRef.current = false
+    spy.mockRestore()
+  })
 })

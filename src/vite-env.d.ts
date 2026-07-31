@@ -1,10 +1,25 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  // ── API ─────────────────────────────────────────────────────
+  /** Base URL for the REST API.  Required. */
   readonly VITE_API_URL: string
+  /** WebSocket endpoint for real-time price updates.  Required. */
   readonly VITE_WS_URL: string
+  /** URL of the backend OpenAPI spec (used by generate:openapi script).  Optional. */
+  readonly VITE_OPENAPI_SPEC_URL: string
+
+  // ── Analytics ───────────────────────────────────────────────
+  /** Endpoint for Web Vitals / custom analytics.  Optional — leave blank to disable. */
   readonly VITE_ANALYTICS_URL: string
+
+  // ── Features ────────────────────────────────────────────────
+  /** Enable MSW mock service worker ("true" | "false").  Optional. */
   readonly VITE_USE_MOCK: string
+
+  // ── Debug ───────────────────────────────────────────────────
+  /** Log verbosity ("debug" | "info" | "warn" | "error").  Optional. */
+  readonly VITE_LOG_LEVEL: string
 }
 
 interface ImportMeta {

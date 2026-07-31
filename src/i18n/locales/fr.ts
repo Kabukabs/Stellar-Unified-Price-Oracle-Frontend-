@@ -1,5 +1,6 @@
 const fr = {
   nav: {
+    home: 'Accueil',
     dashboard: 'Tableau de bord',
     apiDocs: 'Documentation API',
     toggleMenu: 'Basculer le menu',
@@ -51,6 +52,12 @@ const fr = {
     },
     loadingAriaLabel: 'Chargement des cartes de prix',
     feedsAriaLabel: 'Flux de prix',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Tirer vers le bas pour actualiser',
+      release: 'Relâcher pour actualiser',
+      refreshing: 'Actualisation…',
+    },
   },
 
   filter: {
@@ -132,6 +139,8 @@ const fr = {
     ariaLabelNew: 'Créer une alerte de prix',
     ariaLabelEdit: 'Modifier une alerte de prix',
     close: 'Fermer la fenêtre',
+    firedOnceNotice: 'Cette alerte a été déclenchée le {{time}} ({{count}} au total). Réactivez-la pour la réutiliser.',
+    fireCount: 'Déclenchée {{count}} fois',
     fields: {
       assetPair: 'Paire d\'actifs',
       assetPairPlaceholder: 'ex. BTC/USD',
@@ -141,12 +150,35 @@ const fr = {
       lowerPlaceholder: 'Prix minimum',
       triggerOnce: 'Déclencher une fois',
       triggerOnceDescription: 'L\'alerte se désactive après avoir été déclenchée',
+      alertMode: 'Mode d\'alerte',
+      alertModeAbsolute: 'Prix absolu',
+      alertModePercentage: '% Mouvement de prix',
+      percentageThreshold: 'Seuil de variation',
+      percentageWindow: 'Fenêtre temporelle',
+      percentageDirection: 'Direction',
+      percentageRelativeTo: 'Par rapport à',
+      window5min: '5 minutes',
+      window15min: '15 minutes',
+      window1hr: '1 heure',
+      window24hr: '24 heures',
+      directionUp: '↑ Hausse',
+      directionDown: '↓ Baisse',
+      directionEither: '↕ Les deux',
+      relativeToOpen: 'Ouverture de période',
+      relativeToPreviousClose: 'Clôture précédente',
+      relativeToMovingAverage: 'Moyenne mobile',
+      alertType: 'Type d\'alerte',
+      alertTypeOneTime: 'Unique',
+      alertTypePersistent: 'Persistante',
+      alertTypeOneTimeDesc: 'Se déclenche une fois et se désactive. Réactivez pour réutiliser.',
+      alertTypePersistentDesc: 'Se déclenche à chaque fois que la condition est remplie.',
     },
     actions: {
       delete: 'Supprimer l\'alerte',
       cancel: 'Annuler',
       save: 'Enregistrer',
       create: 'Créer l\'alerte',
+      reEnable: 'Réactiver l\'alerte',
     },
     validation: {
       assetPairRequired: 'La paire d\'actifs est requise',
@@ -154,6 +186,65 @@ const fr = {
       mustBePositive: 'Doit être un nombre positif',
       upperGreaterThanLower: 'Doit être supérieur au seuil inférieur',
       lowerLessThanUpper: 'Doit être inférieur au seuil supérieur',
+    },
+  },
+
+  alertPanel: {
+    title: 'Alertes de prix',
+    newBadge: '{{count}} Nouvelle(s)',
+    empty: 'Aucune alerte configurée',
+    close: 'Fermer le panneau d\'alertes',
+    sections: {
+      triggered: 'Déclenchées',
+      active: 'Alertes actives',
+      inactive: 'Inactives',
+      snoozed: 'En pause',
+      firedOnce: 'Déclenchées (Unique)',
+    },
+    triggered: {
+      justNow: 'À l\'instant',
+      priceCrossed: 'Le prix a franchi',
+      markRead: 'Marquer comme lu',
+      delete: 'Supprimer',
+    },
+    active: {
+      pause: 'Mettre en pause',
+      delete: 'Supprimer l\'alerte',
+    },
+    inactive: {
+      resume: 'Reprendre',
+      delete: 'Supprimer l\'alerte',
+    },
+    snooze: {
+      button: 'Mettre en veille',
+      unsnooze: 'Désactiver la veille',
+      '15min': '15 minutes',
+      '1hr': '1 heure',
+      '4hr': '4 heures',
+      '24hr': '24 heures',
+      tomorrow: 'Jusqu\'à demain (8h)',
+      expiresInMins: 'En veille {{mins}} min',
+      expiresInHrs: 'En veille {{hrs}} h',
+    },
+    badge: {
+      oneTime: 'Unique',
+      persistent: 'Persistante',
+      snoozed: 'En veille',
+      fired: 'Déclenchée',
+    },
+    fired: {
+      at: 'Déclenchée le {{time}}',
+      reEnable: 'Réactiver l\'alerte',
+    },
+    conditions: {
+      between: 'Entre ${{lower}} et ${{upper}}',
+      above: '↑ Au-dessus de ${{upper}}',
+      below: '↓ En dessous de ${{lower}}',
+      none: 'Aucun seuil',
+      percentage: '{{direction}} {{pct}}% sur {{window}}',
+      dir_up: '↑ Hausse',
+      dir_down: '↓ Baisse',
+      dir_either: '↕ Les deux',
     },
   },
 
@@ -226,6 +317,48 @@ const fr = {
     copy: 'Copier',
     copied: 'Copié !',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Section héro de présentation du marché',
+      liveStatus: 'En direct · Tous les oracles actifs',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Prix d\'actifs en temps réel agrégés depuis Chainlink, Redstone, Band et Reflector — diffusés vers votre application via REST & WebSocket.',
+      cta: 'Ouvrir le tableau de bord',
+      ctaAriaLabel: 'Ouvrir le tableau de bord de l\'oracle de prix',
+      apiDocs: 'Docs API',
+    },
+    stats: {
+      totalPairs: 'Paires suivies',
+      totalPairsDetail: 'paires d\'actifs surveillées',
+      activeSources: 'Sources oracle',
+      activeSourcesDetail: 'fournisseurs de données actifs',
+      avgConfidence: 'Confiance moy.',
+      avgConfidenceDetail: 'sur toutes les paires',
+      highConfidence: 'Haute confiance',
+      highConfidenceDetail: 'paires au-dessus de 90%',
+    },
+    topPairs: {
+      title: 'Meilleures paires par confiance',
+      pairAriaLabel: 'Voir les détails de prix pour {{pair}}',
+      sources: 'sources',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Propulsé par',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Glisser pour réorganiser',
+    ariaLabel: 'Glisser pour réorganiser les cartes de prix',
+    dropTarget: 'Déposer ici',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default fr

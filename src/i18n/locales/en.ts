@@ -1,6 +1,7 @@
 const en = {
   // ── Layout ──────────────────────────────────────────────────────────────
   nav: {
+    home: 'Home',
     dashboard: 'Dashboard',
     apiDocs: 'API Docs',
     toggleMenu: 'Toggle menu',
@@ -53,6 +54,12 @@ const en = {
     },
     loadingAriaLabel: 'Loading price cards',
     feedsAriaLabel: 'Price feeds',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: 'Pull down to refresh',
+      release: 'Release to refresh',
+      refreshing: 'Refreshing…',
+    },
   },
 
   // ── FilterPanel ──────────────────────────────────────────────────────────
@@ -138,6 +145,8 @@ const en = {
     ariaLabelNew: 'Create price alert',
     ariaLabelEdit: 'Edit price alert',
     close: 'Close modal',
+    firedOnceNotice: 'This alert fired on {{time}} ({{count}} total). Re-enable it to use again.',
+    fireCount: 'Fired {{count}} time(s)',
     fields: {
       assetPair: 'Asset Pair',
       assetPairPlaceholder: 'e.g. BTC/USD',
@@ -147,12 +156,46 @@ const en = {
       lowerPlaceholder: 'Min price',
       triggerOnce: 'Trigger once',
       triggerOnceDescription: 'Alert deactivates after being triggered',
+      // Alert mode (#307)
+      alertMode: 'Alert Mode',
+      alertModeAbsolute: 'Absolute Price',
+      alertModePercentage: 'Price Movement %',
+      // Percentage fields (#307)
+      percentageThreshold: 'Change Threshold',
+      percentageWindow: 'Time Window',
+      percentageDirection: 'Direction',
+      percentageRelativeTo: 'Relative To',
+      window5min: '5 minutes',
+      window15min: '15 minutes',
+      window1hr: '1 hour',
+      window24hr: '24 hours',
+      directionUp: '↑ Up',
+      directionDown: '↓ Down',
+      directionEither: '↕ Either',
+      relativeToOpen: 'Period Open',
+      relativeToPreviousClose: 'Previous Close',
+      relativeToMovingAverage: 'Moving Average',
+      // Alert type (#312)
+      alertType: 'Alert Type',
+      alertTypeOneTime: 'One-Time',
+      alertTypePersistent: 'Persistent',
+      alertTypeOneTimeDesc: 'Fires once and auto-disables. Re-enable to reuse.',
+      alertTypePersistentDesc: 'Fires every time the condition is met. Tracks fire count.',
+      // Cooldown (#310)
+      cooldown: 'Cooldown between alerts',
+      cooldownOff: 'Off (fire immediately)',
+      cooldown1min: '1 minute',
+      cooldown5min: '5 minutes',
+      cooldown15min: '15 minutes',
+      cooldown1hr: '1 hour',
+      cooldownDesc: 'Minimum time between re-fires, to avoid notification spam when the price oscillates around your threshold.',
     },
     actions: {
       delete: 'Delete Alert',
       cancel: 'Cancel',
       save: 'Save Changes',
       create: 'Create Alert',
+      reEnable: 'Re-enable Alert',
     },
     validation: {
       assetPairRequired: 'Asset pair is required',
@@ -168,10 +211,13 @@ const en = {
     title: 'Price Alerts',
     newBadge: '{{count}} New',
     empty: 'No alerts set yet',
+    close: 'Close alert panel',
     sections: {
       triggered: 'Triggered',
       active: 'Active Alerts',
       inactive: 'Inactive',
+      snoozed: 'Snoozed',
+      firedOnce: 'Fired (One-Time)',
     },
     triggered: {
       justNow: 'Just now',
@@ -187,11 +233,57 @@ const en = {
       resume: 'Resume alert',
       delete: 'Delete alert',
     },
+    // Snooze (#313)
+    snooze: {
+      button: 'Snooze',
+      unsnooze: 'Remove snooze',
+      '15min': '15 minutes',
+      '1hr': '1 hour',
+      '4hr': '4 hours',
+      '24hr': '24 hours',
+      tomorrow: 'Until tomorrow (8 AM)',
+      expiresInMins: 'Snoozed for {{mins}}m',
+      expiresInHrs: 'Snoozed for {{hrs}}h',
+    },
+    // Alert type badges (#312)
+    badge: {
+      oneTime: 'One-Time',
+      persistent: 'Persistent',
+      snoozed: 'Snoozed',
+      fired: 'Fired',
+    },
+    // Fired one-time (#312)
+    fired: {
+      at: 'Fired at {{time}}',
+      reEnable: 'Re-enable alert',
+    },
     conditions: {
       between: 'Between ${{lower}} and ${{upper}}',
       above: '↑ Above ${{upper}}',
       below: '↓ Below ${{lower}}',
       none: 'No threshold',
+      // Percentage condition (#307)
+      percentage: '{{direction}} {{pct}}% in {{window}}',
+      dir_up: '↑ Up',
+      dir_down: '↓ Down',
+      dir_either: '↕ Either',
+    },
+    // History log tabs (#309)
+    tabs: {
+      alerts: 'Alerts',
+      history: 'History',
+    },
+    history: {
+      empty: 'No alerts have fired yet',
+      searchPlaceholder: 'Search by asset pair…',
+      noResults: 'No history entries match your search',
+      clear: 'Clear history',
+      clearConfirm: 'Clear all alert history? This cannot be undone.',
+      exportCsv: 'Export CSV',
+      exportJson: 'Export JSON',
+      count_one: '{{count}} fired alert',
+      count_other: '{{count}} fired alerts',
+      priceAt: 'Price: ${{price}}',
     },
   },
 
@@ -281,6 +373,20 @@ const en = {
     ariaLabel: 'Export data',
     exportAs: 'Export as {{format}}',
     langSelector: 'Code snippet language',
+    columns: {
+      button: 'Columns',
+      title: 'Select export columns',
+      preset: {
+        minimal: 'Minimal',
+        standard: 'Standard',
+        full: 'Full',
+      },
+      search: 'Filter columns…',
+      available: 'Available',
+      noMatches: 'No matching columns',
+      selectedOrder: 'Selected (drag to reorder)',
+      preview: 'Preview',
+    },
   },
 
   // ── SettingsPanel ─────────────────────────────────────────────────────────
@@ -352,6 +458,48 @@ const en = {
       'Reflector is a Stellar-native oracle that publishes asset prices directly on the Stellar network.',
     defaultTooltip: '{{source}} contributed a price feed to this aggregated value.',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'Market overview hero section',
+      liveStatus: 'Live · All oracles active',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Aggregated, real-time asset prices from Chainlink, Redstone, Band, and Reflector — streamed directly to your app via REST & WebSocket.',
+      cta: 'Open Dashboard',
+      ctaAriaLabel: 'Open the price oracle dashboard',
+      apiDocs: 'API Docs',
+    },
+    stats: {
+      totalPairs: 'Tracked Pairs',
+      totalPairsDetail: 'asset pairs monitored',
+      activeSources: 'Oracle Sources',
+      activeSourcesDetail: 'active data providers',
+      avgConfidence: 'Avg Confidence',
+      avgConfidenceDetail: 'across all pairs',
+      highConfidence: 'High Confidence',
+      highConfidenceDetail: 'pairs above 90%',
+    },
+    topPairs: {
+      title: 'Top Pairs by Confidence',
+      pairAriaLabel: 'View price details for {{pair}}',
+      sources: 'sources',
+      confidence: 'conf.',
+    },
+    powered: {
+      label: 'Powered by',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'Drag to reorder',
+    ariaLabel: 'Drag to reorder price cards',
+    dropTarget: 'Drop here',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default en

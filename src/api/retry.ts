@@ -1,4 +1,5 @@
 import { config } from '../config'
+import { outboundRateLimiter } from './outboundRateLimiter'
 
 /** Options for `fetchWithRetry` on top of standard `RequestInit`. */
 export interface RetryOptions {
@@ -46,7 +47,7 @@ function isRetryableStatus(status: number): boolean {
  * Parse the Retry-After header (RFC 7231) into a delay in milliseconds.
  * Accepts either a number of seconds or an HTTP-date. Returns null when absent or invalid.
  */
-function parseRetryAfter(header: string | null, now: number = Date.now()): number | null {
+export function parseRetryAfter(header: string | null, now: number = Date.now()): number | null {
   if (!header) return null
   const trimmed = header.trim()
   if (!trimmed) return null
@@ -118,6 +119,18 @@ function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
 }
 
 /**
+ * Propagates a server `Retry-After` to the shared outbound limiter so that *all*
+ * in-flight and queued requests back off — not just the one that was rejected.
+ * The raw server value is used here, deliberately un-capped by `maxDelayMs`:
+ * the client's retry ceiling governs how long *this* call waits, but it must not
+ * shorten how long the client stops talking to a server that asked for quiet.
+ */
+function applyServerBackoff(retryAfter: string | null, fallbackMs: number): void {
+  const serverMs = parseRetryAfter(retryAfter)
+  outboundRateLimiter.blockFor(serverMs ?? fallbackMs)
+}
+
+/**
  * Wraps `fetch` with retry logic for transient failures.
  *
  * Retry triggers:
@@ -129,6 +142,9 @@ function sleep(ms: number, signal?: AbortSignal | null): Promise<void> {
  *
  * Backoff: exponential with optional full jitter. The Retry-After header overrides
  * the computed delay when present. AbortSignal cancels retries cleanly.
+ *
+ * Every attempt — including retries — first awaits an outbound rate-limit token,
+ * so client-side traffic shaping applies uniformly (issue #330).
  */
 export async function fetchWithRetry(
   input: RequestInfo | URL,
@@ -148,14 +164,23 @@ export async function fetchWithRetry(
     }
 
     try {
+      // Wait for outbound capacity before every attempt (issue #330).
+      await outboundRateLimiter.wait(input, init?.signal)
+
       const response = await fetch(input, init)
       if (response.ok || !isRetryableStatus(response.status)) {
         return response
       }
 
+      const retryAfter = response.headers.get('Retry-After')
+
       // Retryable status (5xx or 429). Provisional throw; the retry loop below
       // re-reads the response to access its headers.
       if (attempt + 1 >= maxAttempts) {
+        // Terminal 429: retries are exhausted, but the server has still asked us
+        // to stop. Hold the shared queue so the *next* caller does not walk
+        // straight back into the limit.
+        if (response.status === 429) applyServerBackoff(retryAfter, maxDelayMs)
         throw new HttpRetryError(`HTTP ${response.status} ${response.statusText}`, {
           cause: response,
           attempts: attempt + 1,
@@ -163,7 +188,6 @@ export async function fetchWithRetry(
         })
       }
 
-      const retryAfter = response.headers.get('Retry-After')
       const delay = computeBackoffDelay(attempt, {
         baseDelayMs,
         backoffMultiplier,
@@ -171,6 +195,7 @@ export async function fetchWithRetry(
         jitter,
         retryAfter,
       })
+      if (response.status === 429) applyServerBackoff(retryAfter, delay)
       attempt += 1
       await sleep(delay, init?.signal)
     } catch (err) {

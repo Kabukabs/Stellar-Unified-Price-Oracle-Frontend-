@@ -6,15 +6,48 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'list',
+  reporter: process.env.CI
+    ? [['list'], ['html', { outputFolder: 'reports/playwright', open: 'never' }]]
+    : 'list',
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'on-first-retry',
   },
+  // Visual-regression snapshot configuration
+  // Snapshots are stored next to the spec files under e2e/snapshots/
+  snapshotDir: './e2e/snapshots',
+  // Compare screenshots with a 2 % pixel-ratio tolerance by default.
+  // Per-snapshot overrides in the spec take precedence.
+  expect: {
+    toMatchSnapshot: {
+      maxDiffPixelRatio: 0.02,
+      // Pixel threshold: ignore sub-pixel colour differences (0–1 scale)
+      threshold: 0.1,
+    },
+  },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    // Visual regression runs on Chromium only to produce deterministic baselines.
+    // Full cross-browser E2E coverage is handled by the other projects below.
+    {
+      name: 'visual-regression',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/visual-regression.spec.ts',
+    },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: '**/visual-regression.spec.ts',
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testIgnore: '**/visual-regression.spec.ts',
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      testIgnore: '**/visual-regression.spec.ts',
+    },
   ],
   webServer: {
     command: 'npm run preview',

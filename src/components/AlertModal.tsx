@@ -1,20 +1,87 @@
+/**
+ * @file AlertModal
+ *
+ * Modal dialog for creating, editing, and deleting price alerts. Supports both
+ * fixed-threshold mode (above/below a price) and percentage-change mode.
+ *
+ * Returns `null` when `isOpen` is `false`.
+ *
+ * @example Opening for a new alert
+ * ```tsx
+ * <AlertModal
+ *   isOpen={isOpen}
+ *   onClose={handleClose}
+ *   onSave={handleSave}
+ *   defaultAssetPair="BTC/USD"
+ *   currentPrice={67432.10}
+ * />
+ * ```
+ *
+ * @example Opening to edit an existing alert
+ * ```tsx
+ * <AlertModal
+ *   isOpen={isOpen}
+ *   onClose={handleClose}
+ *   onSave={handleSave}
+ *   onDelete={handleDelete}
+ *   alert={existingAlert}
+ *   currentPrice={67432.10}
+ * />
+ * ```
+ *
+ * ## Props table
+ * | prop               | type                        | required | description                                       |
+ * |--------------------|-----------------------------|----------|---------------------------------------------------|
+ * | `isOpen`           | `boolean`                   | yes      | Controls modal visibility                         |
+ * | `onClose`          | `() => void`                | yes      | Called when the user dismisses the modal           |
+ * | `onSave`           | `(data: AlertFormData) => void` | yes  | Called with validated form data on save           |
+ * | `onDelete`         | `() => void`                | no       | Called when the delete button is pressed           |
+ * | `onReEnable`       | `() => void`                | no       | Called to re-enable a fired-once alert             |
+ * | `alert`            | `Alert \| null`             | no       | Pre-fills the form when editing an existing alert  |
+ * | `currentPrice`     | `number`                    | no       | Shown as context next to the threshold fields      |
+ * | `defaultAssetPair` | `string`                    | no       | Pre-fills the asset pair field for new alerts      |
+ *
+ * ## Validation rules
+ * - Asset pair must not be empty.
+ * - In fixed-threshold mode, at least one of upper or lower threshold must be set.
+ * - Upper threshold must be greater than lower threshold when both are provided.
+ * - In percentage mode, `percentageThreshold` must be a positive number.
+ *
+ * ## Edge cases
+ * - **`isOpen = false`** — returns `null` with no DOM output.
+ * - **Editing a fired-once alert** — shows a "Re-enable" button via `onReEnable`.
+ * - **Switching modes** — switching between fixed and percentage mode resets the
+ *   opposite mode's fields to avoid stale validation errors.
+ *
+ * ## Accessibility
+ * - `useFocusTrap` keeps keyboard focus inside the modal while it is open.
+ * - `Escape` key triggers `onClose`.
+ * - All form inputs have associated `<label>` elements.
+ * - The modal container has `role="dialog"` and `aria-modal="true"`.
+ */
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Alert, AlertFormData } from '../types'
+import type { Alert, AlertFormData, AlertTimeWindow, AlertPercentageDirection, AlertPercentageRelativeTo } from '../types'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface AlertModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: (data: AlertFormData) => void
   onDelete?: () => void
+  onReEnable?: () => void
   alert?: Alert | null
   currentPrice?: number
   defaultAssetPair?: string
+  /** When true the save button is disabled due to rate limiting. */
+  rateLimited?: boolean
+  /** Seconds until the rate limit resets (shown on the button during cooldown). */
+  cooldownSec?: number
 }
 
 type ValidationErrors = Partial<Record<keyof AlertFormData, string>>
 
-export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPrice, defaultAssetPair }: AlertModalProps): ReactElement | null {
+export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, alert, currentPrice, defaultAssetPair, rateLimited = false, cooldownSec = 0 }: AlertModalProps): ReactElement | null {
   const { t } = useTranslation()
 
   function validate(form: AlertFormData): ValidationErrors {
@@ -24,28 +91,35 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
       errors.assetPair = t('alertModal.validation.assetPairRequired')
     }
 
-    const upper = form.upperThreshold ? Number.parseFloat(form.upperThreshold) : null
-    const lower = form.lowerThreshold ? Number.parseFloat(form.lowerThreshold) : null
-
-    if (!upper && !lower) {
-      errors.upperThreshold = t('alertModal.validation.atLeastOneThreshold')
-      errors.lowerThreshold = t('alertModal.validation.atLeastOneThreshold')
-      return errors
-    }
-
-    if (upper !== null) {
-      if (Number.isNaN(upper) || upper <= 0) {
-        errors.upperThreshold = t('alertModal.validation.mustBePositive')
-      } else if (lower !== null && !Number.isNaN(lower) && upper <= lower) {
-        errors.upperThreshold = t('alertModal.validation.upperGreaterThanLower')
+    if (form.percentageMode) {
+      const pct = form.percentageThreshold ? Number.parseFloat(form.percentageThreshold) : null
+      if (pct === null || Number.isNaN(pct) || pct <= 0) {
+        errors.percentageThreshold = t('alertModal.validation.mustBePositive')
       }
-    }
+    } else {
+      const upper = form.upperThreshold ? Number.parseFloat(form.upperThreshold) : null
+      const lower = form.lowerThreshold ? Number.parseFloat(form.lowerThreshold) : null
 
-    if (lower !== null) {
-      if (Number.isNaN(lower) || lower <= 0) {
-        errors.lowerThreshold = t('alertModal.validation.mustBePositive')
-      } else if (upper !== null && !Number.isNaN(upper) && lower >= upper) {
-        errors.lowerThreshold = t('alertModal.validation.lowerLessThanUpper')
+      if (!upper && !lower) {
+        errors.upperThreshold = t('alertModal.validation.atLeastOneThreshold')
+        errors.lowerThreshold = t('alertModal.validation.atLeastOneThreshold')
+        return errors
+      }
+
+      if (upper !== null) {
+        if (Number.isNaN(upper) || upper <= 0) {
+          errors.upperThreshold = t('alertModal.validation.mustBePositive')
+        } else if (lower !== null && !Number.isNaN(lower) && upper <= lower) {
+          errors.upperThreshold = t('alertModal.validation.upperGreaterThanLower')
+        }
+      }
+
+      if (lower !== null) {
+        if (Number.isNaN(lower) || lower <= 0) {
+          errors.lowerThreshold = t('alertModal.validation.mustBePositive')
+        } else if (upper !== null && !Number.isNaN(upper) && lower >= upper) {
+          errors.lowerThreshold = t('alertModal.validation.lowerLessThanUpper')
+        }
       }
     }
 
@@ -57,6 +131,12 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
     upperThreshold: '',
     lowerThreshold: '',
     triggerOnce: false,
+    percentageMode: false,
+    percentageThreshold: '',
+    percentageWindow: '1hr',
+    percentageDirection: 'either',
+    percentageRelativeTo: 'open',
+    cooldownMinutes: '5',
   })
   const [errors, setErrors] = useState<ValidationErrors>({})
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -72,9 +152,26 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
           upperThreshold: alert.upperThreshold !== null ? String(alert.upperThreshold) : '',
           lowerThreshold: alert.lowerThreshold !== null ? String(alert.lowerThreshold) : '',
           triggerOnce: alert.triggerOnce,
+          percentageMode: alert.percentageMode,
+          percentageThreshold: alert.percentageThreshold !== null ? String(alert.percentageThreshold) : '',
+          percentageWindow: alert.percentageWindow ?? '1hr',
+          percentageDirection: alert.percentageDirection ?? 'either',
+          percentageRelativeTo: alert.percentageRelativeTo ?? 'open',
+          cooldownMinutes: String(alert.cooldownMinutes ?? 5),
         })
       } else {
-        setForm({ assetPair: defaultAssetPair ?? '', upperThreshold: '', lowerThreshold: '', triggerOnce: false })
+        setForm({
+          assetPair: defaultAssetPair ?? '',
+          upperThreshold: '',
+          lowerThreshold: '',
+          triggerOnce: false,
+          percentageMode: false,
+          percentageThreshold: '',
+          percentageWindow: '1hr',
+          percentageDirection: 'either',
+          percentageRelativeTo: 'open',
+          cooldownMinutes: '5',
+        })
       }
       setErrors({})
 
@@ -97,10 +194,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
   )
 
   const setAndValidate = useCallback((field: keyof AlertFormData, value: string | boolean) => {
-    setForm((prev) => {
-      const next = { ...prev, [field]: value }
-      return next
-    })
+    setForm((prev) => ({ ...prev, [field]: value }))
   }, [])
 
   const handleSubmit = useCallback(
@@ -130,6 +224,9 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
 
   const fieldError = (field: keyof AlertFormData): string | undefined => errors[field]
 
+  const isFiredOnce = alert && alert.triggerOnce && !alert.active && alert.lastTriggeredAt !== null
+  const isInactivePersistent = alert && !alert.triggerOnce && !alert.active
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
@@ -148,7 +245,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
         aria-label={alert ? t('alertModal.ariaLabelEdit') : t('alertModal.ariaLabelNew')}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
-        className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl focus:outline-none"
+        className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl focus:outline-none max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-white">
@@ -166,7 +263,33 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
           </button>
         </div>
 
+        {/* Fired alert status (#312) */}
+        {isFiredOnce && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-sm text-amber-300 flex items-start gap-2">
+            <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              {t('alertModal.firedOnceNotice', {
+                time: new Date(alert.lastTriggeredAt!).toLocaleString(),
+                count: alert.fireCount,
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Persistent alert fire count (#312) */}
+        {alert && !alert.triggerOnce && alert.fireCount > 0 && (
+          <div className="mb-4 p-3 bg-cyan-500/10 border border-cyan-500/20 rounded-xl text-sm text-cyan-300 flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            {t('alertModal.fireCount', { count: alert.fireCount })}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} noValidate>
+          {/* Asset Pair */}
           <div className="mb-4">
             <label htmlFor="alert-asset-pair" className="block text-sm font-medium text-gray-400 mb-1.5">
               {t('alertModal.fields.assetPair')}
@@ -187,106 +310,260 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
             )}
           </div>
 
-          <div className="mb-4">
-            <label htmlFor="alert-upper" className="block text-sm font-medium text-gray-400 mb-1.5">
-              {t('alertModal.fields.upperThreshold')}
-            </label>
+          {/* Alert Mode Toggle: Absolute vs Percentage (#307) */}
+          <div className="mb-5">
+            <span className="block text-sm font-medium text-gray-400 mb-2">{t('alertModal.fields.alertMode')}</span>
             <div className="flex gap-2">
-              <input
-                id="alert-upper"
-                type="number"
-                step="any"
-                min="0"
-                value={form.upperThreshold}
-                onChange={(e) => setAndValidate('upperThreshold', e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                placeholder={t('alertModal.fields.upperPlaceholder')}
-              />
-              {currentPrice !== undefined && (
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSuggestion('upperThreshold', 5)}
-                    className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
-                  >
-                    +5%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSuggestion('upperThreshold', 10)}
-                    className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
-                  >
-                    +10%
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => setAndValidate('percentageMode', false)}
+                className={`flex-1 py-2 text-sm font-medium rounded-xl border transition-colors ${
+                  !form.percentageMode
+                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {t('alertModal.fields.alertModeAbsolute')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAndValidate('percentageMode', true)}
+                className={`flex-1 py-2 text-sm font-medium rounded-xl border transition-colors ${
+                  form.percentageMode
+                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {t('alertModal.fields.alertModePercentage')}
+              </button>
             </div>
-            {fieldError('upperThreshold') && (
-              <p className="mt-1 text-sm text-red-400" role="alert">
-                {fieldError('upperThreshold')}
-              </p>
-            )}
           </div>
 
-          <div className="mb-4">
-            <label htmlFor="alert-lower" className="block text-sm font-medium text-gray-400 mb-1.5">
-              {t('alertModal.fields.lowerThreshold')}
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="alert-lower"
-                type="number"
-                step="any"
-                min="0"
-                value={form.lowerThreshold}
-                onChange={(e) => setAndValidate('lowerThreshold', e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                placeholder={t('alertModal.fields.lowerPlaceholder')}
-              />
-              {currentPrice !== undefined && (
-                <div className="flex gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setSuggestion('lowerThreshold', -5)}
-                    className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
-                  >
-                    -5%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSuggestion('lowerThreshold', -10)}
-                    className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
-                  >
-                    -10%
-                  </button>
-                </div>
-              )}
-            </div>
-            {fieldError('lowerThreshold') && (
-              <p className="mt-1 text-sm text-red-400" role="alert">
-                {fieldError('lowerThreshold')}
-              </p>
-            )}
-          </div>
-
-          <div className="mb-6">
-            <label htmlFor="alert-trigger-once" className="flex items-center gap-3 cursor-pointer group">
-              <input
-                id="alert-trigger-once"
-                type="checkbox"
-                checked={form.triggerOnce}
-                onChange={(e) => setAndValidate('triggerOnce', e.target.checked)}
-                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500/50 focus:ring-offset-0 cursor-pointer"
-              />
+          {form.percentageMode ? (
+            /* ── Percentage alert fields (#307) ──────────────────────────── */
+            <div className="space-y-4 mb-5">
+              {/* Percentage threshold */}
               <div>
-                <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
-                  {t('alertModal.fields.triggerOnce')}
-                </span>
-                <p className="text-xs text-gray-500">
-                  {t('alertModal.fields.triggerOnceDescription')}
-                </p>
+                <label htmlFor="alert-pct-threshold" className="block text-sm font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.percentageThreshold')}
+                </label>
+                <div className="relative">
+                  <input
+                    id="alert-pct-threshold"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={form.percentageThreshold}
+                    onChange={(e) => setAndValidate('percentageThreshold', e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 pr-10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder="5"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                </div>
+                {fieldError('percentageThreshold') && (
+                  <p className="mt-1 text-sm text-red-400" role="alert">
+                    {fieldError('percentageThreshold')}
+                  </p>
+                )}
               </div>
-            </label>
+
+              {/* Time window */}
+              <div>
+                <label htmlFor="alert-pct-window" className="block text-sm font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.percentageWindow')}
+                </label>
+                <select
+                  id="alert-pct-window"
+                  value={form.percentageWindow}
+                  onChange={(e) => setAndValidate('percentageWindow', e.target.value as AlertTimeWindow)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                >
+                  <option value="5min">{t('alertModal.fields.window5min')}</option>
+                  <option value="15min">{t('alertModal.fields.window15min')}</option>
+                  <option value="1hr">{t('alertModal.fields.window1hr')}</option>
+                  <option value="24hr">{t('alertModal.fields.window24hr')}</option>
+                </select>
+              </div>
+
+              {/* Direction */}
+              <div>
+                <span className="block text-sm font-medium text-gray-400 mb-2">{t('alertModal.fields.percentageDirection')}</span>
+                <div className="flex gap-2">
+                  {(['up', 'down', 'either'] as AlertPercentageDirection[]).map((dir) => (
+                    <button
+                      key={dir}
+                      type="button"
+                      onClick={() => setAndValidate('percentageDirection', dir)}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                        form.percentageDirection === dir
+                          ? 'bg-cyan-600 border-cyan-500 text-white'
+                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                      }`}
+                    >
+                      {t(`alertModal.fields.direction${dir.charAt(0).toUpperCase() + dir.slice(1)}`)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Relative to */}
+              <div>
+                <label htmlFor="alert-pct-relative" className="block text-sm font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.percentageRelativeTo')}
+                </label>
+                <select
+                  id="alert-pct-relative"
+                  value={form.percentageRelativeTo}
+                  onChange={(e) => setAndValidate('percentageRelativeTo', e.target.value as AlertPercentageRelativeTo)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                >
+                  <option value="open">{t('alertModal.fields.relativeToOpen')}</option>
+                  <option value="previousClose">{t('alertModal.fields.relativeToPreviousClose')}</option>
+                  <option value="movingAverage">{t('alertModal.fields.relativeToMovingAverage')}</option>
+                </select>
+              </div>
+            </div>
+          ) : (
+            /* ── Absolute threshold fields ────────────────────────────────── */
+            <>
+              <div className="mb-4">
+                <label htmlFor="alert-upper" className="block text-sm font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.upperThreshold')}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="alert-upper"
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={form.upperThreshold}
+                    onChange={(e) => setAndValidate('upperThreshold', e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder={t('alertModal.fields.upperPlaceholder')}
+                  />
+                  {currentPrice !== undefined && (
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSuggestion('upperThreshold', 5)}
+                        className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
+                      >
+                        +5%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSuggestion('upperThreshold', 10)}
+                        className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
+                      >
+                        +10%
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {fieldError('upperThreshold') && (
+                  <p className="mt-1 text-sm text-red-400" role="alert">
+                    {fieldError('upperThreshold')}
+                  </p>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="alert-lower" className="block text-sm font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.lowerThreshold')}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="alert-lower"
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={form.lowerThreshold}
+                    onChange={(e) => setAndValidate('lowerThreshold', e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    placeholder={t('alertModal.fields.lowerPlaceholder')}
+                  />
+                  {currentPrice !== undefined && (
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSuggestion('lowerThreshold', -5)}
+                        className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
+                      >
+                        -5%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSuggestion('lowerThreshold', -10)}
+                        className="px-2 py-1 text-xs font-medium text-cyan-400 bg-cyan-400/10 border border-cyan-400/20 rounded-lg hover:bg-cyan-400/20 transition-colors"
+                      >
+                        -10%
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {fieldError('lowerThreshold') && (
+                  <p className="mt-1 text-sm text-red-400" role="alert">
+                    {fieldError('lowerThreshold')}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Alert Type: One-time vs Persistent (#312) */}
+          <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+            <span className="block text-sm font-medium text-gray-300 mb-2">{t('alertModal.fields.alertType')}</span>
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setAndValidate('triggerOnce', true)}
+                className={`flex-1 py-2 text-sm rounded-xl border transition-colors ${
+                  form.triggerOnce
+                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {t('alertModal.fields.alertTypeOneTime')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAndValidate('triggerOnce', false)}
+                className={`flex-1 py-2 text-sm rounded-xl border transition-colors ${
+                  !form.triggerOnce
+                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {t('alertModal.fields.alertTypePersistent')}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              {form.triggerOnce
+                ? t('alertModal.fields.alertTypeOneTimeDesc')
+                : t('alertModal.fields.alertTypePersistentDesc')}
+            </p>
+
+            {/* Cooldown between re-fires (#310) */}
+            {!form.triggerOnce && (
+              <div className="mt-3 pt-3 border-t border-gray-700">
+                <label htmlFor="alert-cooldown" className="block text-xs font-medium text-gray-400 mb-1.5">
+                  {t('alertModal.fields.cooldown')}
+                </label>
+                <select
+                  id="alert-cooldown"
+                  value={form.cooldownMinutes}
+                  onChange={(e) => setAndValidate('cooldownMinutes', e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500"
+                >
+                  <option value="0">{t('alertModal.fields.cooldownOff')}</option>
+                  <option value="1">{t('alertModal.fields.cooldown1min')}</option>
+                  <option value="5">{t('alertModal.fields.cooldown5min')}</option>
+                  <option value="15">{t('alertModal.fields.cooldown15min')}</option>
+                  <option value="60">{t('alertModal.fields.cooldown1hr')}</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">{t('alertModal.fields.cooldownDesc')}</p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -299,6 +576,16 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
                 {t('alertModal.actions.delete')}
               </button>
             )}
+            {/* Re-enable fired one-time alert (#312) */}
+            {(isFiredOnce || isInactivePersistent) && onReEnable && (
+              <button
+                type="button"
+                onClick={onReEnable}
+                className="px-4 py-2.5 text-sm font-medium text-green-400 bg-green-400/10 border border-green-400/20 rounded-xl hover:bg-green-400/20 transition-colors"
+              >
+                {t('alertModal.actions.reEnable')}
+              </button>
+            )}
             <div className="flex-1 flex gap-3 justify-end">
               <button
                 type="button"
@@ -309,9 +596,15 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, alert, currentPr
               </button>
               <button
                 type="submit"
-                className="px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 rounded-xl hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                disabled={rateLimited}
+                className="px-4 py-2.5 text-sm font-medium text-white bg-cyan-600 rounded-xl hover:bg-cyan-500 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={rateLimited ? `Too many alerts — try again in ${cooldownSec}s` : undefined}
               >
-                {alert ? t('alertModal.actions.save') : t('alertModal.actions.create')}
+                {rateLimited
+                  ? `${cooldownSec}s`
+                  : alert
+                    ? t('alertModal.actions.save')
+                    : t('alertModal.actions.create')}
               </button>
             </div>
           </div>

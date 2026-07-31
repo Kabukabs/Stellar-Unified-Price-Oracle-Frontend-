@@ -134,12 +134,50 @@ export default defineConfig(({ mode }) => {
     ],
     base: '/Stellar-Unified-Price-Oracle-Frontend-/',
     build: {
+      // Generate hidden source maps (not inlined into JS — kept as separate .map files).
+      // These are NOT uploaded to the CDN/static host; a post-build CI step strips them
+      // from the deployment artifact and uploads them to the error-tracking service
+      // (Sentry) instead.  See docs/source-maps.md for the full strategy.
+      sourcemap: mode === 'production' ? 'hidden' : true,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-            'vendor-recharts': ['recharts'],
-            'vendor-utils': ['zod'],
+          entryFileNames: 'assets/[name]-[hash].js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
+          manualChunks(id) {
+            const moduleId = id.replace(/\\/g, '/')
+
+            if (moduleId.includes('/node_modules/')) {
+              if (
+                moduleId.includes('/react/') ||
+                moduleId.includes('/react-dom/') ||
+                moduleId.includes('/react-router') ||
+                moduleId.includes('/scheduler/')
+              ) {
+                return 'vendor-react'
+              }
+              if (moduleId.includes('/@tanstack/react-virtual/')) {
+                return 'vendor-tables'
+              }
+              if (
+                moduleId.includes('/i18next/') ||
+                moduleId.includes('/react-i18next/') ||
+                moduleId.includes('/i18next-browser-languagedetector/')
+              ) {
+                return 'vendor-i18n'
+              }
+              if (moduleId.includes('/@tanstack/react-query/')) {
+                return 'vendor-data'
+              }
+              if (moduleId.includes('/comlink/')) {
+                return 'vendor-workers'
+              }
+              if (moduleId.includes('/zod/')) {
+                return 'vendor-validation'
+              }
+            }
+
+            return undefined
           },
         },
       },

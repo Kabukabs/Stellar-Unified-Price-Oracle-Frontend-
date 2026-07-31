@@ -1,5 +1,6 @@
 const ja = {
   nav: {
+    home: 'ホーム',
     dashboard: 'ダッシュボード',
     apiDocs: 'APIドキュメント',
     toggleMenu: 'メニューを切り替え',
@@ -51,6 +52,12 @@ const ja = {
     },
     loadingAriaLabel: '価格カードを読み込み中',
     feedsAriaLabel: '価格フィード',
+    // ── Touch gestures / Pull-to-refresh (#293) ─────────────────────────
+    pullToRefresh: {
+      pull: '下に引いて更新',
+      release: '離して更新',
+      refreshing: '更新中…',
+    },
   },
 
   filter: {
@@ -132,6 +139,8 @@ const ja = {
     ariaLabelNew: '価格アラートを作成',
     ariaLabelEdit: '価格アラートを編集',
     close: 'モーダルを閉じる',
+    firedOnceNotice: 'このアラートは{{time}}に発火しました（合計{{count}}回）。再利用するには再有効化してください。',
+    fireCount: '{{count}}回発火',
     fields: {
       assetPair: '資産ペア',
       assetPairPlaceholder: '例: BTC/USD',
@@ -141,12 +150,35 @@ const ja = {
       lowerPlaceholder: '最低価格',
       triggerOnce: '一度だけトリガー',
       triggerOnceDescription: 'トリガー後にアラートが無効になります',
+      alertMode: 'アラートモード',
+      alertModeAbsolute: '絶対価格',
+      alertModePercentage: '価格変動%',
+      percentageThreshold: '変化しきい値',
+      percentageWindow: '時間ウィンドウ',
+      percentageDirection: '方向',
+      percentageRelativeTo: '基準',
+      window5min: '5分',
+      window15min: '15分',
+      window1hr: '1時間',
+      window24hr: '24時間',
+      directionUp: '↑ 上昇',
+      directionDown: '↓ 下落',
+      directionEither: '↕ どちらも',
+      relativeToOpen: '期間始値',
+      relativeToPreviousClose: '前回終値',
+      relativeToMovingAverage: '移動平均',
+      alertType: 'アラートタイプ',
+      alertTypeOneTime: '1回限り',
+      alertTypePersistent: '継続',
+      alertTypeOneTimeDesc: '一度発火して無効になります。再利用するには再有効化してください。',
+      alertTypePersistentDesc: '条件が満たされるたびに発火します。発火回数を追跡します。',
     },
     actions: {
       delete: 'アラートを削除',
       cancel: 'キャンセル',
       save: '変更を保存',
       create: 'アラートを作成',
+      reEnable: 'アラートを再有効化',
     },
     validation: {
       assetPairRequired: '資産ペアは必須です',
@@ -154,6 +186,65 @@ const ja = {
       mustBePositive: '正の数である必要があります',
       upperGreaterThanLower: '下限しきい値より大きい値を入力してください',
       lowerLessThanUpper: '上限しきい値より小さい値を入力してください',
+    },
+  },
+
+  alertPanel: {
+    title: '価格アラート',
+    newBadge: '{{count}}件 新着',
+    empty: 'アラートはまだ設定されていません',
+    close: 'アラートパネルを閉じる',
+    sections: {
+      triggered: '発動済み',
+      active: 'アクティブなアラート',
+      inactive: '非アクティブ',
+      snoozed: 'スヌーズ中',
+      firedOnce: '発火済み（1回限り）',
+    },
+    triggered: {
+      justNow: 'たった今',
+      priceCrossed: '価格がしきい値を超えました',
+      markRead: '既読にする',
+      delete: '削除',
+    },
+    active: {
+      pause: 'アラートを一時停止',
+      delete: 'アラートを削除',
+    },
+    inactive: {
+      resume: 'アラートを再開',
+      delete: 'アラートを削除',
+    },
+    snooze: {
+      button: 'スヌーズ',
+      unsnooze: 'スヌーズ解除',
+      '15min': '15分',
+      '1hr': '1時間',
+      '4hr': '4時間',
+      '24hr': '24時間',
+      tomorrow: '明日まで（午前8時）',
+      expiresInMins: '{{mins}}分スヌーズ中',
+      expiresInHrs: '{{hrs}}時間スヌーズ中',
+    },
+    badge: {
+      oneTime: '1回限り',
+      persistent: '継続',
+      snoozed: 'スヌーズ',
+      fired: '発火済み',
+    },
+    fired: {
+      at: '{{time}}に発火',
+      reEnable: 'アラートを再有効化',
+    },
+    conditions: {
+      between: '${{lower}}〜${{upper}}',
+      above: '↑ ${{upper}}以上',
+      below: '↓ ${{lower}}以下',
+      none: 'しきい値なし',
+      percentage: '{{window}}で{{direction}} {{pct}}%',
+      dir_up: '↑ 上昇',
+      dir_down: '↓ 下落',
+      dir_either: '↕ どちらも',
     },
   },
 
@@ -226,6 +317,48 @@ const ja = {
     copy: 'コピー',
     copied: 'コピーしました！',
   },
+
+  // ── Landing / Hero (#297) ─────────────────────────────────────────────────
+  landing: {
+    hero: {
+      ariaLabel: 'マーケット概要ヒーローセクション',
+      liveStatus: 'ライブ · 全オラクル稼働中',
+      title: 'Stellar Unified Price Oracle',
+      subtitle:
+        'Chainlink、Redstone、Band、Reflectorから集計されたリアルタイム資産価格 — REST・WebSocket経由でアプリに直接配信。',
+      cta: 'ダッシュボードを開く',
+      ctaAriaLabel: '価格オラクルダッシュボードを開く',
+      apiDocs: 'APIドキュメント',
+    },
+    stats: {
+      totalPairs: '追跡ペア数',
+      totalPairsDetail: '監視中の資産ペア',
+      activeSources: 'オラクルソース',
+      activeSourcesDetail: '稼働中のデータプロバイダー',
+      avgConfidence: '平均信頼度',
+      avgConfidenceDetail: '全ペアの平均',
+      highConfidence: '高信頼度',
+      highConfidenceDetail: '90%超のペア',
+    },
+    topPairs: {
+      title: '信頼度上位ペア',
+      pairAriaLabel: '{{pair}}の価格詳細を見る',
+      sources: 'ソース',
+      confidence: '信頼度',
+    },
+    powered: {
+      label: '提供元',
+    },
+  },
+
+  // ── Drag-and-drop reordering (#294) ───────────────────────────────────────
+  draggableGrid: {
+    dragHint: 'ドラッグして並べ替え',
+    ariaLabel: '価格カードをドラッグして並べ替え',
+    dropTarget: 'ここにドロップ',
+  },
+
+  // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
 } as const
 
 export default ja

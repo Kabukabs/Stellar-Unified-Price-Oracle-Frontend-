@@ -9,7 +9,7 @@ interface UseAnnounceOptions {
  * Returns a function that announces text to screen readers via an aria-live region.
  * Announcements are throttled to avoid overwhelming the user.
  */
-export function useAnnounce(options: UseAnnounceOptions = {}) {
+export function useAnnounce(options: UseAnnounceOptions = {}): (text: string) => void {
   const { throttleMs = 5000 } = options
   const lastAnnounced = useRef(0)
   const liveRegionRef = useRef<HTMLDivElement | null>(null)

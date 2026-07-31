@@ -10,6 +10,8 @@ import {
   HealthSchema,
 } from './schemas'
 import { validate } from './validate'
+import { getApiVersionInfo, getAcceptVersionHeader } from './version'
+import { circuitBreaker, circuitKeyForPath, CircuitOpenError } from './circuitBreaker'
 
 /** Categorical classification of an {@link ApiError}, derived from the HTTP status. */
 export type ApiErrorCode =
@@ -114,26 +116,56 @@ function setRateLimitInfo(response: Response): void {
 
 async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal): Promise<T> {
   const url = `${config.apiUrl}${path}`
+  const circuitKey = circuitKeyForPath(path)
+
+  // When an endpoint group is failing repeatedly, stop sending requests to it
+  // until the cooldown elapses (see circuitBreaker.ts).
+  if (!circuitBreaker.canRequest(circuitKey)) {
+    throw new CircuitOpenError(circuitKey)
+  }
+
+  // Include the Accept-Version header on every request so the server can
+  // route to the appropriate handler version or return a version error.
+  const versionInfo = getApiVersionInfo()
+  const acceptVersion = getAcceptVersionHeader(versionInfo?.serverVersion)
 
   try {
     const res = await fetchWithRetry(url, {
       ...init,
       signal,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Version': acceptVersion,
+        ...init?.headers,
+      },
     })
 
     setRateLimitInfo(res)
 
     if (!res.ok) {
       const text = await res.text().catch(() => '')
+
+      // 406 Not Acceptable / 409 Conflict — server cannot satisfy the requested version
+      if (res.status === 406 || res.status === 409) {
+        const serverVersion = res.headers.get('X-API-Version') ?? 'unknown'
+        throw new ApiError(
+          `API version mismatch: server is at v${serverVersion}, client requested v${acceptVersion}. ` +
+          `Please update the frontend or backend to a compatible version.`,
+          res.status,
+          'UNKNOWN_ERROR',
+        )
+      }
+
       throw new ApiError(`${res.status} ${res.statusText}: ${text}`, res.status, statusToErrorCode(res.status))
     }
 
+    circuitBreaker.recordSuccess(circuitKey)
     return (await res.json()) as T
   } catch (err) {
     // Cancelled requests (unmount, pair change, etc.) are not failures — don't toast them.
     if (err instanceof DOMException && err.name === 'AbortError') throw err
 
+    circuitBreaker.recordFailure(circuitKey)
     notifyApiError(apiErrorMessage(err))
     throw err
   }
@@ -251,6 +283,116 @@ export async function fetchAllPrices(pairs?: string[], signal?: AbortSignal): Pr
 export async function fetchPrice(pair: string): Promise<PriceData> {
   const raw = await request<PriceData>(`/api/prices/${encodeURIComponent(pair)}`)
   return validate(PriceDataSchema, raw)
+}
+
+// ---------------------------------------------------------------------------
+// Request batching for fetchPricesBatched
+// ---------------------------------------------------------------------------
+// Per-pair callers (e.g. WebSocket price-update confirmation, which fires once
+// per pair per message) are debounced into a single fetchAllPrices call so a
+// burst of updates across many pairs costs one request instead of one per pair.
+interface PriceWaiter {
+  resolve: (value: PriceData) => void
+  reject: (reason: unknown) => void
+  signal?: AbortSignal
+}
+
+const pendingPrices = new Map<string, PriceWaiter[]>()
+let priceCoalesceTimer: ReturnType<typeof setTimeout> | null = null
+
+function resolveAll(waiters: PriceWaiter[], value: PriceData): void {
+  for (const w of waiters) w.resolve(value)
+}
+
+function rejectAll(waiters: PriceWaiter[], reason: unknown): void {
+  for (const w of waiters) w.reject(reason)
+}
+
+/** Falls back to an individual request for one pair — used when a pair is missing from a batch response or the whole batch failed, so one bad pair doesn't affect the rest. */
+function settleViaDirectFetch(pair: string, waiters: PriceWaiter[]): void {
+  fetchPrice(pair).then(
+    (r) => resolveAll(waiters, r),
+    (e) => rejectAll(waiters, e),
+  )
+}
+
+function flushCoalescedPrices(): void {
+  priceCoalesceTimer = null
+  if (pendingPrices.size === 0) return
+
+  const snapshot = new Map(pendingPrices)
+  pendingPrices.clear()
+
+  for (const [pair, waiters] of snapshot) {
+    const active = waiters.filter((w) => !w.signal?.aborted)
+    if (active.length === 0) {
+      for (const w of waiters) w.reject(new DOMException('Aborted', 'AbortError'))
+      snapshot.delete(pair)
+    } else {
+      snapshot.set(pair, active)
+    }
+  }
+
+  if (snapshot.size === 0) return
+
+  const pairs = [...snapshot.keys()]
+  const { maxBatchSize } = config.priceBatch
+  const batches: string[][] = []
+  for (let i = 0; i < pairs.length; i += maxBatchSize) {
+    batches.push(pairs.slice(i, i + maxBatchSize))
+  }
+
+  for (const batchPairs of batches) {
+    fetchAllPrices(batchPairs)
+      .then((results) => {
+        const byPair = new Map(results.map((r) => [r.assetPair, r]))
+        for (const pair of batchPairs) {
+          const waiters = snapshot.get(pair) ?? []
+          const result = byPair.get(pair)
+          if (result) {
+            resolveAll(waiters, result)
+          } else {
+            settleViaDirectFetch(pair, waiters)
+          }
+        }
+      })
+      .catch(() => {
+        for (const pair of batchPairs) {
+          settleViaDirectFetch(pair, snapshot.get(pair) ?? [])
+        }
+      })
+  }
+}
+
+/**
+ * Fetches the latest price for a single pair, debouncing concurrent per-pair calls
+ * within a configurable window (`config.priceBatch.debounceMs`) into one batched
+ * `fetchAllPrices` request (capped at `config.priceBatch.maxBatchSize` pairs per
+ * request). A pair missing from the batch response — or a batch that fails
+ * entirely — falls back to an individual fetch so one pair's failure doesn't
+ * affect the others.
+ */
+export function fetchPricesBatched(pair: string, signal?: AbortSignal): Promise<PriceData> {
+  return new Promise<PriceData>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+
+    const existing = pendingPrices.get(pair)
+    if (existing) {
+      existing.push({ resolve, reject, signal })
+    } else {
+      pendingPrices.set(pair, [{ resolve, reject, signal }])
+    }
+    if (!priceCoalesceTimer) {
+      priceCoalesceTimer = setTimeout(flushCoalescedPrices, config.priceBatch.debounceMs)
+    }
+
+    signal?.addEventListener('abort', () => {
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+  })
 }
 
 /**
