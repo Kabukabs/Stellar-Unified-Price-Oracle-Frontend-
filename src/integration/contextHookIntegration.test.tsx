@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { PriceProvider } from '../context/PriceContext'
 import { AlertsProvider, useAlerts } from '../hooks/useAlerts'
 import { PreferencesProvider, usePreferences } from '../preferences/PreferencesContext'
-import type { ReactNode } from 'react'
 
 // ---------------------------------------------------------------------------
 // PriceContext + useAlerts + WebSocket integration (#329)

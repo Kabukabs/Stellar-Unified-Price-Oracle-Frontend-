@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { fn } from 'storybook/test'
-import { PriceCard } from './PriceCard'
 import type { PriceData } from '../types'
+import { PriceCard } from './PriceCard'
 
 const price: PriceData = {
   assetPair: 'BTC/USD',

@@ -39,8 +39,8 @@ import { useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice } from '../utils/format'
-import { AlertHistoryLog } from './AlertHistoryLog'
 import type { AlertSnoozeDuration } from '../types'
+import { AlertHistoryLog } from './AlertHistoryLog'
 
 const SNOOZE_DURATIONS: { value: AlertSnoozeDuration; labelKey: string }[] = [
   { value: '15min', labelKey: 'alertPanel.snooze.15min' },

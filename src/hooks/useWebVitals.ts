@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { onLCP, onFID, onCLS, onINP, onFCP, onTTFB } from 'web-vitals'
 import type { Metric } from 'web-vitals'
 import { config } from '../config'
-import { trackEvent } from './useAnalytics'
 import { recordPerfMark } from '../utils/performanceMonitor'
+import { trackEvent } from './useAnalytics'
 
 interface WebVitalReport {
   name: string

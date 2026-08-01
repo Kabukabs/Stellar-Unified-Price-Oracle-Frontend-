@@ -17,10 +17,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { PreferencesPanel } from './PreferencesPanel'
+import type { ReactNode } from 'react'
 import { PreferencesProvider } from '../preferences/PreferencesContext'
 import { DEFAULT_PREFERENCES } from '../preferences/constants'
-import type { ReactNode } from 'react'
+import { PreferencesPanel } from './PreferencesPanel'
 
 vi.mock('../hooks/useIndexedDB', () => ({
   idbCache: {

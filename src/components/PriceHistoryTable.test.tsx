@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { PriceHistoryTable } from './PriceHistoryTable'
 import type { PriceHistoryEntry } from '../types'
 import { checkAccessibility } from '../test/accessibility'
+import { PriceHistoryTable } from './PriceHistoryTable'
 
 afterEach(cleanup)
 

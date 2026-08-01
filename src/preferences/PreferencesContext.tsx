@@ -2,6 +2,7 @@ import { createContext, useContext, useCallback, useEffect, useRef, useState, ty
 import { useLocation } from 'react-router-dom'
 import { useUndoRedo, type Command } from '../hooks/useUndoRedo'
 import { idbCache } from '../hooks/useIndexedDB'
+import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import { preferencesReducer, setPreference } from './slices'
 import type { Preferences } from './types'
 

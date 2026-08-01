@@ -1,9 +1,9 @@
 import { config } from '../config'
 import type { WsMessage, WsSubscribeMessage, WsUnsubscribeMessage } from '../types'
 import { wsAnalytics } from '../utils/wsAnalytics'
+import { recordWsMessageTiming } from '../utils/performanceMonitor'
 import { rateLimitManager } from './rateLimit'
 import { WsMessageSchema } from './schemas'
-import { recordWsMessageTiming } from '../utils/performanceMonitor'
 
 type MessageHandler = (msg: WsMessage) => void
 type StatusHandler = (status: ConnectionStatus) => void
