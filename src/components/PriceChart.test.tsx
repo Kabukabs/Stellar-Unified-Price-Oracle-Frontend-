@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { cleanup, render, screen, fireEvent } from '@testing-library/react'
-import { PriceChart } from './PriceChart'
 import { checkAccessibility } from '../test/accessibility'
+import { PriceChart } from './PriceChart'
 
 afterEach(cleanup)
 

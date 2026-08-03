@@ -1,7 +1,7 @@
 import { config } from '../config'
-import { fetchWithRetry } from './retry'
 import { showApiErrorToast } from '../context/ToastContext'
 import type { PriceData, PriceHistoryResponse, RateLimitInfo } from '../types'
+import { fetchWithRetry } from './retry'
 import {
   PriceDataSchema,
   PriceHistoryResponseSchema,

@@ -3,8 +3,8 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { AlertsProvider } from '../hooks/useAlerts'
-import { Layout } from './Layout'
 import { checkAccessibility } from '../test/accessibility'
+import { Layout } from './Layout'
 
 function renderLayout(children: ReactNode = <div>Test Content</div>) {
   return render(

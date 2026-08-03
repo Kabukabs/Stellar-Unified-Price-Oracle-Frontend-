@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, renderHook, act, screen } from '@testing-library/react'
 import { MemoryRouter, Link } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { PreferencesProvider, usePreferences } from './PreferencesContext'
 import { DEFAULT_PREFERENCES } from './constants'
-import type { ReactNode } from 'react'
 
 vi.mock('../hooks/useIndexedDB', () => ({
   idbCache: {

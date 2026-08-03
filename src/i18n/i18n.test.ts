@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import i18n from './index'
 import en from './locales/en'
+import i18n from './index'
 
 describe('i18n infrastructure', () => {
   beforeEach(async () => {

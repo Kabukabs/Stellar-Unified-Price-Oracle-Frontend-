@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import { PriceCardSkeleton } from './PriceCardSkeleton'
 import { checkAccessibility } from '../test/accessibility'
+import { PriceCardSkeleton } from './PriceCardSkeleton'
 
 describe('PriceCardSkeleton', () => {
   it('should have no accessibility violations', async () => {

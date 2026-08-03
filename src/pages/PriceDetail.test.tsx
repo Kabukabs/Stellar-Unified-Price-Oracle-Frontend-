@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { PriceDetail } from './PriceDetail'
 import { isValidAssetPair, VALID_PAIRS } from '../types'
+import { PriceDetail } from './PriceDetail'
 
 afterEach(cleanup)
 

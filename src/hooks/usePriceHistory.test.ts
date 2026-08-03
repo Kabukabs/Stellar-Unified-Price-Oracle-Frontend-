@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { usePriceHistory } from './usePriceHistory'
 import * as rest from '../api/rest'
+import { usePriceHistory } from './usePriceHistory'
 
 vi.mock('../api/rest', () => ({
   fetchPriceHistory: vi.fn(),

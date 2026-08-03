@@ -1,8 +1,8 @@
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { PriceCard } from './PriceCard'
 import { useDragSort } from '../hooks/useDragSort'
 import type { PriceData } from '../types'
+import { PriceCard } from './PriceCard'
 
 interface DraggablePriceGridProps {
   items: PriceData[]

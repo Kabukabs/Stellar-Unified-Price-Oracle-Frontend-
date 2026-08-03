@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { AppContent } from './App'
 import { PriceProvider } from './context/PriceContext'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
-import type { ReactNode } from 'react'
 
 /**
  * Regression guard for issue #157 ("mount missing context providers in App"),

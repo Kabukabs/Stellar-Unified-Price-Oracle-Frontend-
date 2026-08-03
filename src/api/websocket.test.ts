@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { WebSocketClient } from './websocket'
 import { FakeWebSocket } from '../test/fakeWebSocket'
+import { WebSocketClient } from './websocket'
 
 let ws: FakeWebSocket
 

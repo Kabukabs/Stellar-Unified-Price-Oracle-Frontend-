@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { Dashboard } from './Dashboard'
 import { AlertsProvider } from '../hooks/useAlerts'
 import { checkAccessibility } from '../test/accessibility'
+import { Dashboard } from './Dashboard'
 
 afterEach(cleanup)
 

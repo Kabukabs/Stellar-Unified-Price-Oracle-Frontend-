@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { PriceProvider, usePriceContext } from './PriceContext'
-import { fetchPricesBatched } from '../api/rest'
 import type { ReactNode } from 'react'
+import { fetchPricesBatched } from '../api/rest'
+import { PriceProvider, usePriceContext } from './PriceContext'
 
 const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
