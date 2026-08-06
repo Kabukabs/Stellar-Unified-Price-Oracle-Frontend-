@@ -83,10 +83,6 @@ async function dispatchNotifications(alert: Alert, currentPrice: number): Promis
   }
 }
 
-function isAlertArray(value: unknown): value is Alert[] {
-  return Array.isArray(value)
-}
-
 /** Compute snooze expiry timestamp from a duration string */
 function snoozeDurationMs(duration: AlertSnoozeDuration): number {
   const now = Date.now()

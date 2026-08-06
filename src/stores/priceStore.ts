@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ConnectionStatus } from '../api/websocket'
 import type { RateLimitStatus } from '../api/rateLimit'
-import type { LivePriceEntry, PriceData } from '../types'
+import type { LivePriceEntry } from '../types'
 
 /**
  * Zustand store for price-related state.

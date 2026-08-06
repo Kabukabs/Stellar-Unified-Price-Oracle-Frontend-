@@ -20,7 +20,7 @@
  * ```
  */
 
-import { WorkerPool, withWorker } from './workerPool'
+import { WorkerPool } from './workerPool'
 import type { DataParserWorker } from './dataParser.worker'
 import type { ExportWorker } from './export.worker'
 import type { ChartAggregationWorker } from './chartAggregation.worker'

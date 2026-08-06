@@ -15,7 +15,7 @@ import {
 import type { TooltipProps } from 'recharts'
 import type { PriceHistoryEntry } from '../types'
 import { formatChartTimeWithTz, formatPriceShort, formatTimestamp, getTimezoneAbbr } from '../utils/format'
-import { exportChartAsPng, exportChartAsSvg, rasterizeChartToDataUrl } from '../utils/chartExport'
+import { rasterizeChartToDataUrl } from '../utils/chartExport'
 import { exportPriceHistoryPdf } from '../utils/pdfExport'
 
 // ---------------------------------------------------------------------------

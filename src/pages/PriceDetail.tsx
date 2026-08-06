@@ -12,6 +12,7 @@ import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
 import { LazyPriceChart, LazyPriceHistoryTable } from '../utils/chunks'
 import { isValidAssetPair } from '../types'
 import { usePreferences } from '../preferences/PreferencesContext'
+import { getStellarAssetForPair, shortenAccount } from '../lib/stellarAssets'
 import type { CsvRow } from '../components/CsvImportZone'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -29,6 +30,53 @@ function getConfidenceColor(confidence: number): string {
     return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
   }
   return 'bg-red-500/20 text-red-400 border-red-500/30'
+}
+
+/** Canonical on-chain Stellar asset for the feed, resolved via @stellar/stellar-sdk. */
+function StellarAssetPanel({ pair }: { pair: string }) {
+  const asset = getStellarAssetForPair(pair)
+
+  if (!asset) {
+    return (
+      <p className="text-sm text-gray-400">
+        This feed aggregates an off-chain asset with no canonical on-chain Stellar representation — the
+        Soroban oracle roadmap documents how feeds like this get on-chain.
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center shrink-0">
+        <svg className="w-5 h-5 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" strokeWidth="1.5" />
+          <path strokeLinecap="round" strokeWidth="1.5" d="M12 7v10M7 12h10" />
+        </svg>
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-gray-100 flex items-center gap-2">
+          {asset.label}
+          {asset.isNative && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold uppercase tracking-wide">
+              Native
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-gray-500 font-mono mt-0.5">{asset.canonical}</p>
+        {asset.issuer && (
+          <p className="text-xs text-gray-500 mt-0.5">
+            Issued by{' '}
+            <span className="font-mono text-gray-400" title={asset.issuer}>
+              {shortenAccount(asset.issuer)}
+            </span>
+          </p>
+        )}
+        <p className="text-[11px] text-gray-600 mt-1">
+          This feed is denominated in a Stellar asset — readable on-chain with the Stellar SDK.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 export function PriceDetail() {
@@ -128,6 +176,12 @@ export function PriceDetail() {
                 </span>
               ))}
             </div>
+          </div>
+
+          {/* Stellar asset — resolved on-chain via @stellar/stellar-sdk */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
+            <StellarAssetPanel pair={price.assetPair} />
           </div>
 
           {/* Paginated History chart */}

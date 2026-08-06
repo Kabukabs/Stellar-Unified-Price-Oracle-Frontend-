@@ -38,16 +38,12 @@ interface RenderRow {
 const HIDDEN_STORAGE_KEY = 'perf_overlay_hidden'
 
 export const PerformanceOverlay = memo(function PerformanceOverlay() {
-  // Only mount in dev
-  if (!import.meta.env.DEV) return null
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // All hooks are called unconditionally (Rules of Hooks); the DEV guard below
+  // only controls rendering, while each effect self-guards its subscriptions.
   const [visible, setVisible] = useState(
     () => localStorage.getItem(HIDDEN_STORAGE_KEY) !== '1',
   )
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [perf, setPerf] = useState<PerformanceSnapshot | null>(null)
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const [renderRows, setRenderRows] = useState<RenderRow[]>([])
 
   const toggleVisible = useCallback(() => {
@@ -59,14 +55,14 @@ export const PerformanceOverlay = memo(function PerformanceOverlay() {
   }, [])
 
   // Subscribe to performance snapshots
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     return subscribePerformance((s) => setPerf(s))
   }, [])
 
   // Subscribe to render tracker — update top render counts
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     const update = (_info: RenderInfo) => {
       const counts = getRenderCounts()
       const rows = [...counts.entries()]
@@ -79,8 +75,8 @@ export const PerformanceOverlay = memo(function PerformanceOverlay() {
   }, [])
 
   // Keyboard shortcut: Alt+Shift+P
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     function onKey(e: KeyboardEvent) {
       if (e.altKey && e.shiftKey && e.key === 'P') {
         toggleVisible()
@@ -89,6 +85,9 @@ export const PerformanceOverlay = memo(function PerformanceOverlay() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [toggleVisible])
+
+  // Only mount in dev
+  if (!import.meta.env.DEV) return null
 
   if (!visible) {
     return (

@@ -172,6 +172,9 @@ export default defineConfig(({ mode }) => {
               if (moduleId.includes('/comlink/')) {
                 return 'vendor-workers'
               }
+              if (moduleId.includes('/@stellar/')) {
+                return 'vendor-stellar'
+              }
               if (moduleId.includes('/zod/')) {
                 return 'vendor-validation'
               }

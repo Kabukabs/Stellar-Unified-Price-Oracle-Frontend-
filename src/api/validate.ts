@@ -17,6 +17,11 @@ const isDev = import.meta.env.DEV || import.meta.env.MODE === 'test'
  * data in that case.
  */
 export function validate<S extends ZodTypeAny>(schema: S, data: unknown): z.infer<S> {
+  // Keep the production hot path cheap: only a random sample is schema-checked.
+  if (!isDev && Math.random() > SAMPLE_RATE) {
+    return data as z.infer<S>
+  }
+
   const result = schema.safeParse(data)
   if (result.success) {
     return result.data

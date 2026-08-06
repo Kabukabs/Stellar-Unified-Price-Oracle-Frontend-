@@ -101,6 +101,7 @@ export const ConnectionBadge = memo(function ConnectionBadge({
   retryAfterMs,
   diagnostics,
 }: ConnectionBadgeProps): ReactElement {
+  const { t } = useTranslation()
   const s = STATUS_MAP[status] ?? STATUS_MAP['disconnected']
   const isRateLimited = rateLimitStatus === 'limited'
 

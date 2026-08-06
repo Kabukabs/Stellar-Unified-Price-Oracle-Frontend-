@@ -96,7 +96,9 @@ export function downloadFile(content: string, filename: string, mimeType: string
 
 /** Triggers a browser file download for binary data (Uint8Array). */
 export function downloadBinaryFile(data: Uint8Array, filename: string, mimeType: string): void {
-  const blob = new Blob([data], { type: mimeType })
+  // `.slice()` copies the view into a fresh ArrayBuffer so it satisfies the
+  // BlobPart typing (Uint8Array<ArrayBufferLike> is otherwise rejected).
+  const blob = new Blob([data.slice()], { type: mimeType })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

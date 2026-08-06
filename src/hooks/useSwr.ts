@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /** In-memory cache entry storing the last fetched value and the time it was stored. */
 interface CacheEntry {
@@ -47,9 +47,6 @@ export interface SwrResult<T> {
   /** Trigger an immediate refetch outside of the normal polling cycle. */
   refetch: () => void
 }
-
-// Suspense cache: keyed by `key`, stores the thrown promise or result/error
-const suspenseCache = new Map<string, { status: 'pending' | 'fulfilled' | 'rejected'; value?: unknown; error?: unknown; promise?: Promise<unknown> }>()
 
 /**
  * Minimal stale-while-revalidate hook for data fetching.
@@ -103,7 +100,6 @@ export function useSwr<T>(
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(!cached)
   const [isValidating, setIsValidating] = useState(false)
-  const [, startTransition] = useTransition()
 
   // Monotonically-increasing sequence counter to detect stale responses
   const execSeqRef = useRef(0)
