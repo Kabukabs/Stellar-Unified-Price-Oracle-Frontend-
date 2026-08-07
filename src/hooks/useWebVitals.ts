@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { onLCP, onFID, onCLS, onINP, onFCP, onTTFB } from 'web-vitals'
 import type { Metric } from 'web-vitals'
 import { config } from '../config'
+import { recordPerfMark } from '../utils/performanceMonitor'
+import { trackEvent } from './useAnalytics'
 
 interface WebVitalReport {
   name: string
@@ -33,6 +35,16 @@ function sendToAnalytics(report: WebVitalReport) {
     navigator.sendBeacon(config.analyticsEndpoint, blob)
   }
 
+  // Also report via the configured analytics provider (Plausible / Umami)
+  trackEvent(`web_vital:${report.name.toLowerCase()}`, {
+    value: Math.round(report.value),
+    rating: report.rating,
+    delta: Math.round(report.delta),
+    route: report.route,
+    viewport: report.viewport,
+    connection: report.connection ?? undefined,
+  })
+
   if (import.meta.env.DEV) {
     console.info(
       `[Web Vitals] ${report.name} ${report.rating} ${report.value.toFixed(2)}`,
@@ -46,6 +58,9 @@ export function useWebVitals(): void {
     if (!shouldTrack()) return
 
     const reportMetric = (metric: Metric) => {
+      // Place a performance mark so the metric appears in the DevTools timeline
+      recordPerfMark(`web_vital:${metric.name}:${metric.rating}`)
+
       const task = () => {
         sendToAnalytics({
           name: metric.name,

@@ -1,8 +1,9 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useUndoRedo, type Command } from '../hooks/useUndoRedo'
-import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import { idbCache } from '../hooks/useIndexedDB'
+import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
+import { preferencesReducer, setPreference } from './slices'
 import type { Preferences } from './types'
 
 const PREFS_IDB_KEY = 'user-preferences'
@@ -22,16 +23,7 @@ const PreferencesContext = createContext<PreferencesContextValue | null>(null)
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const location = useLocation()
   const prevPathRef = useRef(location.pathname)
-  const [initialPrefs, setInitialPrefs] = useState<Preferences>(DEFAULT_PREFERENCES)
   const [idbLoaded, setIdbLoaded] = useState(false)
-
-  // Load persisted preferences from IndexedDB on mount
-  useEffect(() => {
-    idbCache.get<Preferences>('preferences', PREFS_IDB_KEY, Infinity).then((saved) => {
-      if (saved) setInitialPrefs({ ...DEFAULT_PREFERENCES, ...saved })
-      setIdbLoaded(true)
-    })
-  }, [])
 
   const {
     state: preferences,
@@ -41,7 +33,20 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     canUndo,
     canRedo,
     clear,
-  } = useUndoRedo<Preferences>(initialPrefs, MAX_UNDO_DEPTH)
+    reset,
+  } = useUndoRedo<Preferences>(DEFAULT_PREFERENCES, MAX_UNDO_DEPTH)
+
+  // Load persisted preferences from IndexedDB on mount. `reset` (rather than
+  // the initial state passed to useUndoRedo) is required here since that
+  // initial value is only ever read on the very first render — by the time
+  // this async load resolves, useUndoRedo's own state already exists and
+  // won't re-sync to a later change in the value it was constructed with.
+  useEffect(() => {
+    idbCache.get<Preferences>('preferences', PREFS_IDB_KEY, Infinity).then((saved) => {
+      if (saved) reset({ ...DEFAULT_PREFERENCES, ...saved })
+      setIdbLoaded(true)
+    })
+  }, [reset])
 
   // Persist to IndexedDB whenever preferences change
   useEffect(() => {
@@ -55,9 +60,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       const previousValue = preferences[key]
       if (previousValue === value) return
 
+      // Both directions go through the slice reducers, so an update can only ever
+      // touch the slice that owns `key`.
       const command: Command<Preferences> = {
-        apply: (s) => ({ ...s, [key]: value }),
-        undo: (s) => ({ ...s, [key]: previousValue }),
+        apply: (s) => preferencesReducer(s, setPreference(key, value)),
+        undo: (s) => preferencesReducer(s, setPreference(key, previousValue)),
         description: `${key}: ${previousValue} → ${value}`,
       }
       execute(command)

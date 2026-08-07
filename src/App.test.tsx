@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { AppContent } from './App'
+import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import type { PriceContextValue } from './context/PriceContext'
 
 // Routing is orthogonal to the accessibility side-effects, and useAccessibility pulls in
@@ -12,6 +15,9 @@ vi.mock('./hooks/useAccessibility', () => ({ useAccessibility: () => {} }))
 
 vi.mock('./context/PriceContext', () => ({
   usePriceContext: vi.fn(),
+  // AppContent renders the real PriceProvider (see #157 / #181); since usePriceContext
+  // itself is mocked above, this only needs to pass children through.
+  PriceProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
 // Keep the real data hooks (useSwr, usePriceHistory) but stub the network so the
@@ -55,10 +61,18 @@ const priceContextValue = {
 // so findBy* assertions need a slightly generous timeout.
 const FIND = { timeout: 5000 }
 
+function makeQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } })
+}
+
 function renderRoute(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <AppContent />
+      <QueryClientProvider client={makeQueryClient()}>
+        <ErrorReporterProvider>
+          <AppContent />
+        </ErrorReporterProvider>
+      </QueryClientProvider>
     </MemoryRouter>,
   )
 }

@@ -1,18 +1,47 @@
-import type { Preferences } from './types'
+import type {
+  AccessibilityPreferences,
+  DataPreferences,
+  LayoutPreferences,
+  Preferences,
+  PrivacyPreferences,
+} from './types'
 
-export const DEFAULT_PREFERENCES: Preferences = {
+/** Defaults grouped to match the slices in `slices.ts`. */
+export const DEFAULT_DATA_PREFERENCES: DataPreferences = {
   refreshInterval: 10000,
   chartTimeRange: '24h',
   staleThresholdMinutes: 5,
+  sourcePriority: ['chainlink', 'redstone', 'band', 'reflector'],
+}
+
+export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
   dashboardView: 'card',
   cardOrder: [],
+}
+
+export const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
   reducedMotion: false,
   highContrast: false,
   largeText: false,
+}
+
+export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
   analyticsOptOut: false,
+  chartTimezone: 'UTC',
 } as const
 
 export const MAX_UNDO_DEPTH = 20
+
+/**
+ * Flat composite of all default preference slices.
+ * Consumed by PreferencesContext, the Zustand preferences store, and tests.
+ */
+export const DEFAULT_PREFERENCES: Preferences = {
+  ...DEFAULT_DATA_PREFERENCES,
+  ...DEFAULT_LAYOUT_PREFERENCES,
+  ...DEFAULT_ACCESSIBILITY_PREFERENCES,
+  ...DEFAULT_PRIVACY_PREFERENCES,
+}
 
 export const REFRESH_INTERVAL_OPTIONS = [
   { value: 5000, label: '5 seconds' },
@@ -32,4 +61,12 @@ export const STALE_THRESHOLD_OPTIONS = [
   { value: 5, label: '5 minutes' },
   { value: 15, label: '15 minutes' },
   { value: 30, label: '30 minutes' },
+] as const
+
+export const CHART_TIMEZONE_OPTIONS = [
+  { value: 'UTC' as const, label: 'UTC', abbr: 'UTC' },
+  { value: 'Local' as const, label: 'Local', abbr: 'Local' },
+  { value: 'America/New_York' as const, label: 'New York (ET)', abbr: 'ET' },
+  { value: 'Europe/London' as const, label: 'London (GMT/BST)', abbr: 'London' },
+  { value: 'Asia/Tokyo' as const, label: 'Tokyo (JST)', abbr: 'JST' },
 ] as const

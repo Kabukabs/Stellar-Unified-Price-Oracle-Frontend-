@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useSwr } from '../hooks/useSwr'
+import { useQuery } from '@tanstack/react-query'
 import { WebSocketClient, type ConnectionStatus } from '../api/websocket'
-import { fetchAllPrices, fetchPrice } from '../api/rest'
+import { fetchAllPrices, fetchPricesBatched } from '../api/rest'
 import { rateLimitManager, type RateLimitStatus } from '../api/rateLimit'
+import { useOutboundQueue } from '../hooks/useOutboundQueue'
 import { config } from '../config'
 import type { LivePriceEntry, PriceData } from '../types'
 
@@ -13,7 +14,7 @@ export interface PriceContextValue {
   /** `true` while the initial REST fetch has not yet resolved. */
   pricesLoading: boolean
   /** Error message from the last failed REST fetch, or `null` on success. */
-  pricesError: string | null
+  pricesError: Error | null
   /** `true` whenever a background REST revalidation is in flight. */
   pricesValidating: boolean
   /** Live price entries keyed by asset pair, updated optimistically on each WebSocket message. */
@@ -24,6 +25,18 @@ export interface PriceContextValue {
   rateLimitStatus: RateLimitStatus
   /** Remaining retry window for rate limiting in milliseconds. */
   rateLimitRetryAfterMs: number
+  /**
+   * Total outbound requests held by the client-side rate limiter (#330).
+   * Distinct from `pricesValidating`: a queued request has not been sent yet.
+   */
+  outboundQueued: number
+  /**
+   * `true` when a price request is waiting on the client-side limiter, so a
+   * consumer can render "waiting to send" rather than an ordinary spinner.
+   */
+  pricesQueued: boolean
+  /** `true` when the client is queueing requests or paused by a server `Retry-After`. */
+  requestsThrottled: boolean
   /** Trigger an immediate refetch of all prices outside the normal polling cycle. */
   refetchPrices: () => void
   /** Subscribe to live WebSocket updates for the given asset pairs. */
@@ -43,11 +56,23 @@ const PriceContext = createContext<PriceContextValue | null>(null)
  * as a fallback when the WebSocket is disconnected.
  */
 export function PriceProvider({ children }: { children: ReactNode }) {
-  const { data: prices = [], loading: pricesLoading, error: pricesError, isValidating: pricesValidating, refetch: refetchPrices } = useSwr<PriceData[]>(
-    'prices',
-    () => fetchAllPrices(),
-    { refreshInterval: config.refreshInterval, staleTime: 5000, retryCount: 3 },
-  )
+  const {
+    data: prices = [],
+    isLoading: pricesLoading,
+    error: pricesError,
+    isFetching: pricesValidating,
+    refetch: refetchPrices,
+  } = useQuery<PriceData[], Error>({
+    queryKey: ['prices'],
+    queryFn: () => fetchAllPrices(),
+    refetchInterval: config.refreshInterval,
+    staleTime: 5_000,
+    retry: 3,
+  })
+
+  // Client-side back-pressure (#330). Surfaced through context so any consumer
+  // can distinguish "request in flight" from "request queued, not yet sent".
+  const outbound = useOutboundQueue()
 
   const [livePrices, setLivePrices] = useState<Map<string, LivePriceEntry>>(new Map())
   const [wsStatus, setWsStatus] = useState<ConnectionStatus>('disconnected')
@@ -100,7 +125,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
     const revalidatePair = async (pair: string, requestId: number) => {
       try {
-        const restPrice = await fetchPrice(pair)
+        const restPrice = await fetchPricesBatched(pair)
 
         if (requestIds.get(pair) !== requestId) return
 
@@ -211,6 +236,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
   const subscribe = (pairs: string[]): void => wsRef.current?.subscribe(pairs)
   const unsubscribe = (pairs: string[]): void => wsRef.current?.unsubscribe(pairs)
+  const handleRefetchPrices = (): void => { void refetchPrices() }
 
   const value: PriceContextValue = {
     prices,
@@ -221,7 +247,10 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     wsStatus,
     rateLimitStatus,
     rateLimitRetryAfterMs,
-    refetchPrices,
+    outboundQueued: outbound.queued,
+    pricesQueued: outbound.queuedByGroup.prices > 0,
+    requestsThrottled: outbound.degraded,
+    refetchPrices: handleRefetchPrices,
     subscribe,
     unsubscribe,
   }

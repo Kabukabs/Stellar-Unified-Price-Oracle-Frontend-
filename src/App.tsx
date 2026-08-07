@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactElement } from 'react'
+import { useEffect, type ReactElement } from 'react'
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -7,17 +7,28 @@ import { DashboardSkeleton } from './components/Skeletons/DashboardSkeleton'
 import { PriceDetailSkeleton } from './components/PriceDetailSkeleton'
 import { ApiDocsSkeleton } from './components/Skeletons/ApiDocsSkeleton'
 import { NotFoundSkeleton } from './components/Skeletons/NotFoundSkeleton'
+import { PriceProvider } from './context/PriceContext'
 import { AlertsProvider } from './hooks/useAlerts'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
+import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics, trackPageview } from './hooks/useAnalytics'
-
-const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
-const PriceDetail = lazy(() => import('./pages/PriceDetail').then((m) => ({ default: m.PriceDetail })))
-const ApiDocs = lazy(() => import('./pages/ApiDocs').then((m) => ({ default: m.ApiDocs })))
-const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })))
+import { usePerformanceMonitor } from './hooks/usePerformanceMonitor'
+import { useInitApiVersion } from './hooks/useApiVersion'
+import { PerformanceOverlay } from './components/PerformanceOverlay'
+import { ApiVersionBanner } from './components/ApiVersionBanner'
+import {
+  LazyApiDocs,
+  LazyDashboard,
+  LazyLanding,
+  LazyNotFound,
+  LazyPriceDetail,
+  preloadDashboard,
+  preloadPriceDetail,
+} from './utils/chunks'
+import { scheduleIdlePreload } from './utils/preloadCache'
 
 const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 
@@ -25,16 +36,36 @@ export function AppContent(): ReactElement {
   const location = useLocation()
   useAccessibility()
   trackPageview(location.pathname)
+
+  useEffect(() => {
+    if (location.pathname === '/') {
+      return scheduleIdlePreload(() => void preloadDashboard())
+    }
+    if (location.pathname === '/dashboard') {
+      return scheduleIdlePreload(() => void preloadPriceDetail())
+    }
+    return undefined
+  }, [location.pathname])
+
   return (
     <ErrorBoundary key={location.key}>
       <AlertsProvider>
+        <ApiVersionBanner />
         <Layout>
           <Routes>
             <Route
               path="/"
               element={
                 <RouteSuspense fallback={<DashboardSkeleton />}>
-                  <Dashboard />
+                  <LazyLanding />
+                </RouteSuspense>
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <RouteSuspense fallback={<DashboardSkeleton />}>
+                  <LazyDashboard />
                 </RouteSuspense>
               }
             />
@@ -42,7 +73,7 @@ export function AppContent(): ReactElement {
               path="/prices/:pair"
               element={
                 <RouteSuspense fallback={<PriceDetailSkeleton />}>
-                  <PriceDetail />
+                  <LazyPriceDetail />
                 </RouteSuspense>
               }
             />
@@ -50,7 +81,7 @@ export function AppContent(): ReactElement {
               path="/price/:pair"
               element={
                 <RouteSuspense fallback={<PriceDetailSkeleton />}>
-                  <PriceDetail />
+                  <LazyPriceDetail />
                 </RouteSuspense>
               }
             />
@@ -58,7 +89,7 @@ export function AppContent(): ReactElement {
               path="/api-docs"
               element={
                 <RouteSuspense fallback={<ApiDocsSkeleton />}>
-                  <ApiDocs />
+                  <LazyApiDocs />
                 </RouteSuspense>
               }
             />
@@ -66,7 +97,7 @@ export function AppContent(): ReactElement {
               path="*"
               element={
                 <RouteSuspense fallback={<NotFoundSkeleton />}>
-                  <NotFound />
+                  <LazyNotFound />
                 </RouteSuspense>
               }
             />
@@ -79,23 +110,22 @@ export function AppContent(): ReactElement {
 
 export default function App(): ReactElement {
   useWebVitals()
+  usePerformanceMonitor()
+  useInitApiVersion()
   initAnalytics()
 
   return (
     <BrowserRouter basename={BASENAME}>
-      <PreferencesProvider>
-        <ToastProvider>
-          <Suspense
-            fallback={
-              <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950">
-                <div className="animate-pulse text-gray-400 text-sm">Loading...</div>
-              </div>
-            }
-          >
-            <AppContent />
-          </Suspense>
-        </ToastProvider>
-      </PreferencesProvider>
+      <ErrorReporterProvider>
+        <PreferencesProvider>
+          <ToastProvider>
+            <PriceProvider>
+              <AppContent />
+              {import.meta.env.DEV && <PerformanceOverlay />}
+            </PriceProvider>
+          </ToastProvider>
+        </PreferencesProvider>
+      </ErrorReporterProvider>
     </BrowserRouter>
   )
 }

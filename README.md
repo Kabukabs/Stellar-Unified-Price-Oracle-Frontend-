@@ -144,6 +144,19 @@ vercel --prod
 
 Set `VITE_API_URL` and `VITE_WS_URL` as environment variables in the Vercel project settings.
 
+#### Security headers
+
+`vercel.json` also sends a Content Security Policy plus HSTS, `X-Frame-Options`,
+`X-Content-Type-Options`, `Referrer-Policy` and `Permissions-Policy` on every response.
+
+The policy runs `script-src 'self'` — no `'unsafe-inline'`. Keep it that way: put startup
+JavaScript in [`public/theme-init.js`](public/theme-init.js) rather than an inline `<script>`
+block or an inline `on*` handler in [`index.html`](index.html), both of which CSP blocks.
+`style-src` does allow `'unsafe-inline'`, which Tailwind and Recharts require.
+
+`connect-src` is `'self' https: wss:` so that any `VITE_API_URL` / `VITE_WS_URL` works out of
+the box. Once the backend origin is fixed for a deployment, narrow it to that origin.
+
 ### Netlify
 
 A [`netlify.toml`](netlify.toml) is included with the equivalent redirect rule:

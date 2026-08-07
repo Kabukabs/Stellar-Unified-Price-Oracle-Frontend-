@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
-
-const STORAGE_KEY = 'notification-channels'
+import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 
 interface NotificationConfig {
   email: { address: string; enabled: boolean }
   webPush: { enabled: boolean }
   webhook: { url: string; secret: string; enabled: boolean }
+}
+
+/**
+ * What actually reaches `localStorage`: everything except the webhook signing secret.
+ *
+ * The secret is password-equivalent — anything that can read `localStorage` could
+ * forge signed webhook deliveries with it. It is held in component state for the
+ * session only, so the user re-enters it after a reload. See `utils/storage.ts`.
+ */
+type PersistedNotificationConfig = Omit<NotificationConfig, 'webhook'> & {
+  webhook: Omit<NotificationConfig['webhook'], 'secret'>
 }
 
 const DEFAULT_CONFIG: NotificationConfig = {
@@ -16,18 +26,32 @@ const DEFAULT_CONFIG: NotificationConfig = {
 }
 
 function loadConfig(): NotificationConfig {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return DEFAULT_CONFIG
-    const parsed = JSON.parse(raw) as Partial<NotificationConfig>
-    return {
-      email: { ...DEFAULT_CONFIG.email, ...parsed.email },
-      webPush: { ...DEFAULT_CONFIG.webPush, ...parsed.webPush },
-      webhook: { ...DEFAULT_CONFIG.webhook, ...parsed.webhook },
-    }
-  } catch {
-    return DEFAULT_CONFIG
+  const parsed = readJson<Partial<PersistedNotificationConfig>>(STORAGE_KEYS.notificationChannels, {})
+  const loaded: NotificationConfig = {
+    email: { ...DEFAULT_CONFIG.email, ...parsed.email },
+    webPush: { ...DEFAULT_CONFIG.webPush, ...parsed.webPush },
+    // Spread first, then force `secret` empty so a value written by an older build
+    // cannot survive into state.
+    webhook: { ...DEFAULT_CONFIG.webhook, ...parsed.webhook, secret: '' },
   }
+
+  // Older builds persisted the secret. Rewrite the record without it on first read
+  // so the stale value does not sit in storage until the user next saves.
+  if (parsed.webhook && 'secret' in parsed.webhook) {
+    saveConfig(loaded)
+  }
+
+  return loaded
+}
+
+function saveConfig(config: NotificationConfig): void {
+  const { secret: _secret, ...webhook } = config.webhook
+  const persisted: PersistedNotificationConfig = {
+    email: config.email,
+    webPush: config.webPush,
+    webhook,
+  }
+  writeJson(STORAGE_KEYS.notificationChannels, persisted)
 }
 
 type TabId = 'email' | 'webpush' | 'webhook'
@@ -68,7 +92,7 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
   }, [isOpen])
 
   const save = useCallback(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+    saveConfig(config)
     onClose()
   }, [config, onClose])
 
@@ -326,8 +350,12 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
                   setConfig((c) => ({ ...c, webhook: { ...c.webhook, secret: e.target.value } }))
                 }
                 placeholder="Signing secret"
+                aria-describedby="notif-webhook-secret-help"
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
               />
+              <p id="notif-webhook-secret-help" className="mt-1.5 text-xs text-gray-500">
+                Not saved to this browser — re-enter it after a reload.
+              </p>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <input

@@ -9,7 +9,11 @@ import {
   type ReactNode,
 } from 'react'
 
-const MIN_SKELETON_MS = 200
+/**
+ * Minimum time a route skeleton stays on screen once shown.
+ * Prevents a sub-perceptual flash when a lazy chunk resolves almost instantly.
+ */
+export const MIN_SKELETON_DISPLAY_MS = 200
 
 const RouteLoadContext = createContext<number>(Date.now())
 
@@ -46,7 +50,7 @@ export function RouteSuspense({ fallback, children }: RouteSuspenseProps): React
   return (
     <RouteLoadContext.Provider value={loadStartedAt.current}>
       <Suspense fallback={fallback}>
-        <EnsureMinSkeletonTime placeholder={fallback} minMs={MIN_SKELETON_MS}>
+        <EnsureMinSkeletonTime placeholder={fallback} minMs={MIN_SKELETON_DISPLAY_MS}>
           {children}
         </EnsureMinSkeletonTime>
       </Suspense>

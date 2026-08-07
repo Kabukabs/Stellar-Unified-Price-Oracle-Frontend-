@@ -1,5 +1,9 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { config } from '../config'
+
+/** How long the "Copied!" confirmation stays visible after copying a snippet. */
+const COPY_FEEDBACK_RESET_MS = 1500
 
 type Method = 'GET' | 'POST' | 'WS'
 type SnippetLang = 'curl' | 'javascript' | 'python'
@@ -132,6 +136,7 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useTranslation()
 
   if (!endpoint.tryPath || endpoint.method === 'WS') return null
 
@@ -162,7 +167,7 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
         disabled={loading}
         className="px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-900/40 border border-cyan-800 text-cyan-400 hover:bg-cyan-900/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Sending…' : 'Try it out'}
+        {loading ? t('apiDocs.sending') : t('apiDocs.tryItOut')}
       </button>
       {error && (
         <pre className="mt-2 p-3 rounded-lg bg-red-900/20 border border-red-800 text-red-400 text-xs overflow-auto max-h-48 whitespace-pre-wrap">
@@ -181,6 +186,7 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
 function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
   const [lang, setLang] = useState<SnippetLang>('curl')
   const [copied, setCopied] = useState(false)
+  const { t } = useTranslation()
 
   const baseUrl = config.apiUrl.replace(/\/api$/, '')
   const snippet = buildSnippet(lang, endpoint, baseUrl)
@@ -188,7 +194,7 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
   const handleCopy = () => {
     navigator.clipboard.writeText(snippet).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setTimeout(() => setCopied(false), COPY_FEEDBACK_RESET_MS)
     })
   }
 
@@ -204,7 +210,7 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
       </div>
 
       <div className="border-t border-gray-800 px-4 pt-3 pb-4">
-        <div className="flex gap-1 mb-2" role="tablist" aria-label="Code snippet language">
+        <div className="flex gap-1 mb-2" role="tablist" aria-label={t('export.langSelector')}>
           {(['curl', 'javascript', 'python'] as SnippetLang[]).map((l) => (
             <button
               key={l}
@@ -225,9 +231,9 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
             type="button"
             onClick={handleCopy}
             className="ml-auto text-xs text-gray-500 hover:text-gray-300 transition-colors"
-            aria-label="Copy snippet"
+            aria-label={t('apiDocs.copy')}
           >
-            {copied ? 'Copied!' : 'Copy'}
+            {copied ? t('apiDocs.copied') : t('apiDocs.copy')}
           </button>
         </div>
         <pre className="p-3 rounded-lg bg-gray-950 text-gray-300 text-xs overflow-x-auto leading-relaxed">
@@ -240,13 +246,12 @@ function EndpointCard({ endpoint }: { endpoint: Endpoint }) {
 }
 
 export function ApiDocs() {
+  const { t } = useTranslation()
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">API Documentation</h1>
-        <p className="text-sm text-gray-400 mt-1">
-          REST and WebSocket endpoints exposed by the Stellar Unified Price Oracle Aggregator.
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('apiDocs.title')}</h1>
+        <p className="text-sm text-gray-400 mt-1">{t('apiDocs.subtitle')}</p>
         {config.openApiSpecUrl && (
           <a
             href={config.openApiSpecUrl}
@@ -257,14 +262,14 @@ export function ApiDocs() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
-            Open OpenAPI Spec
+            {t('apiDocs.openSpec')}
           </a>
         )}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3 text-xs text-gray-500">
-        <span>Base URL: <code className="font-mono text-gray-300">{config.apiUrl.replace(/\/api$/, '')}</code></span>
-        <span>WS: <code className="font-mono text-gray-300">{config.wsUrl}</code></span>
+        <span>{t('apiDocs.baseUrl')} <code className="font-mono text-gray-300">{config.apiUrl.replace(/\/api$/, '')}</code></span>
+        <span>{t('apiDocs.ws')} <code className="font-mono text-gray-300">{config.wsUrl}</code></span>
       </div>
 
       <div className="space-y-4">
