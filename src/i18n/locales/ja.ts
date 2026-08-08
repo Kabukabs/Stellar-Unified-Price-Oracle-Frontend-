@@ -25,6 +25,7 @@ const ja = {
     select: {
       button: '選択',
       buttonWithCount: '選択 ({{count}})',
+      buttonShort: '選択',
       ariaLabel: '選択モードを切り替え',
     },
     viewToggle: {

@@ -259,3 +259,26 @@ body {
     font-family: 'Courier New', Courier, monospace !important;
   }
 }
+
+/* ── Sticky Table Columns (mobile horizontal scroll) ────────── */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.sticky-col-header {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+tr:hover .sticky-col,
+tr:hover .sticky-col-header {
+  background-color: rgb(31 41 55 / 0.5);
+}
+
+tr.bg-cyan-900\/20 .sticky-col,
+tr.bg-cyan-900\/20:hover .sticky-col {
+  background-color: rgb(0 150 136 / 0.2);
+}

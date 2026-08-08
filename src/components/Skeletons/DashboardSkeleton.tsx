@@ -15,8 +15,9 @@ export function DashboardSkeleton(): ReactElement {
         <div className="flex items-center gap-3">
           <SkeletonBone className="h-9 w-48 rounded-lg" />
           <SkeletonBone className="h-9 w-20 rounded-lg" />
-          <SkeletonBone className="h-9 w-24 rounded-lg" />
+          <SkeletonBone className="h-9 w-20 rounded-lg" />
           <SkeletonBone className="h-9 w-16 rounded-lg" />
+          <SkeletonBone className="h-9 w-20 rounded-lg hidden sm:block" />
         </div>
       </div>
 

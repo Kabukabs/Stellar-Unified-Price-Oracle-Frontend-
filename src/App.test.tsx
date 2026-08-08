@@ -113,10 +113,10 @@ describe('App routing', () => {
     renderRoute('/')
     await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND)
 
-    await user.click(screen.getByRole('link', { name: 'API Docs' }))
+    await user.click(screen.getAllByRole('link', { name: 'API Docs' })[0])
     expect(await screen.findByRole('heading', { name: 'API Documentation' }, FIND)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('link', { name: 'Dashboard' }))
+    await user.click(screen.getAllByRole('link', { name: 'Dashboard' })[0])
     expect(await screen.findByRole('heading', { name: 'Price Oracle Dashboard' }, FIND)).toBeInTheDocument()
   })
 

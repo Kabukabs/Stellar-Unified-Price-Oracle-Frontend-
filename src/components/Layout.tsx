@@ -11,6 +11,7 @@ import {
   preloadLanding,
   preloadSettingsPanel,
 } from '../utils/chunks'
+import { QueuedRequestsBadge } from './QueuedRequestsBadge'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -93,7 +94,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
         <div className="px-4 sm:px-6 h-full flex items-center justify-between">
           {/* Brand + desktop nav links */}
           <div className="flex items-center gap-3">
-            <NavLink to="/" end className="flex items-center gap-3">
+            <NavLink to="/" end className="flex items-center gap-3 min-h-[44px]">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-xs font-bold text-white">
                 O
               </div>
@@ -128,7 +129,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
               onClick={() => setSettingsOpen(true)}
               onMouseEnter={preloadSettingsPanel}
               onFocus={preloadSettingsPanel}
-              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label={t('settings.title')}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -140,7 +141,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
               onClick={togglePanel}
               onMouseEnter={preloadAlertPanel}
               onFocus={preloadAlertPanel}
-              className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               aria-label={t('nav.toggleAlerts')}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

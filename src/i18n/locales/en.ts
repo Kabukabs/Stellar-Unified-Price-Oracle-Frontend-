@@ -27,6 +27,7 @@ const en = {
     select: {
       button: 'Select',
       buttonWithCount: 'Select ({{count}})',
+      buttonShort: 'Sel',
       ariaLabel: 'Toggle selection mode',
     },
     viewToggle: {
