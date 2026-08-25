@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactElement } from 'react'
 import { createPortal } from 'react-dom'
 import { useToast, type Toast, type ToastType, type ToastPriority } from '../context/ToastContext'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 const ICONS: Record<ToastType, React.ReactNode> = {
   success: (
@@ -49,6 +50,7 @@ const PRIORITY_ACCENT: Record<ToastPriority, string> = {
 
 function ToastItem({ toast, index }: { toast: Toast; index: number }) {
   const { removeToast } = useToast()
+  const reducedMotion = useReducedMotion()
   const ref = useRef<HTMLDivElement>(null)
   const touchStartX = useRef(0)
 
@@ -69,6 +71,15 @@ function ToastItem({ toast, index }: { toast: Toast; index: number }) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    
+    // If reduced motion is active, show toast immediately without animation
+    if (reducedMotion) {
+      el.style.opacity = '1'
+      el.style.transform = 'translateX(0) scale(1)'
+      el.style.transition = 'none'
+      return
+    }
+    
     el.style.opacity = '0'
     el.style.transform = 'translateX(1rem) scale(0.97)'
     requestAnimationFrame(() => {
@@ -76,7 +87,7 @@ function ToastItem({ toast, index }: { toast: Toast; index: number }) {
       el.style.opacity = '1'
       el.style.transform = 'translateX(0) scale(1)'
     })
-  }, [])
+  }, [reducedMotion])
 
   const priority = toast.priority ?? 'normal'
   const accentClass = PRIORITY_ACCENT[priority]

@@ -4,6 +4,7 @@ import type {
   LayoutPreferences,
   Preferences,
   PrivacyPreferences,
+  LocaleCode,
 } from './types'
 
 /** Defaults grouped to match the slices in `slices.ts`. */
@@ -28,6 +29,7 @@ export const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
 export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
   analyticsOptOut: false,
   chartTimezone: 'UTC',
+  formatLocale: 'auto',
 } as const
 
 export const MAX_UNDO_DEPTH = 20
@@ -69,4 +71,15 @@ export const CHART_TIMEZONE_OPTIONS = [
   { value: 'America/New_York' as const, label: 'New York (ET)', abbr: 'ET' },
   { value: 'Europe/London' as const, label: 'London (GMT/BST)', abbr: 'London' },
   { value: 'Asia/Tokyo' as const, label: 'Tokyo (JST)', abbr: 'JST' },
+] as const
+
+export const FORMAT_LOCALE_OPTIONS: { value: LocaleCode; label: string; example: string }[] = [
+  { value: 'auto', label: 'Auto (from language)', example: '1,234.56' },
+  { value: 'en-US', label: 'English (US)', example: '1,234.56' },
+  { value: 'de-DE', label: 'Deutsch (Deutschland)', example: '1.234,56' },
+  { value: 'fr-FR', label: 'Français (France)', example: '1 234,56' },
+  { value: 'ja-JP', label: '日本語 (日本)', example: '1,234.56' },
+  { value: 'es-ES', label: 'Español (España)', example: '1.234,56' },
+  { value: 'ar-SA', label: 'العربية (السعودية)', example: '١٬٢٣٤٫٥٦' },
+  { value: 'pt-BR', label: 'Português (Brasil)', example: '1.234,56' },
 ] as const
