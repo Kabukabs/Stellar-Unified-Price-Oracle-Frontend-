@@ -282,3 +282,95 @@ tr.bg-cyan-900\/20 .sticky-col,
 tr.bg-cyan-900\/20:hover .sticky-col {
   background-color: rgb(0 150 136 / 0.2);
 }
+
+/* ── RTL: Logical Properties & Directional Overrides ────────── */
+/*
+ * Anything that was built with physical properties (left/right) needs an RTL
+ * counterpart. We rely on `[dir="rtl"]` set on <html> by applyRtl().
+ *
+ * Strategy:
+ *  1. Use logical properties inline where Tailwind doesn't cover them.
+ *  2. Flip sticky column anchors (left → right).
+ *  3. Mirror the skeleton shimmer sweep direction.
+ *  4. Flip the settings panel slide-in side (left border → right border).
+ *  5. Mirror any explicit translate-x animations.
+ */
+
+/* --- Skip-to-content link: left → right in RTL --- */
+[dir="rtl"] a[href="#main-content"].focus\:left-2:focus {
+  left: auto;
+  right: 0.5rem;
+}
+
+/* --- Sticky table columns: anchor to the right in RTL --- */
+[dir="rtl"] .sticky-col,
+[dir="rtl"] .sticky-col-header {
+  left: auto;
+  right: 0;
+}
+
+/* --- Skeleton shimmer: sweep right-to-left in RTL --- */
+[dir="rtl"] .skeleton-shimmer::after {
+  transform: translateX(100%);
+}
+
+@keyframes skeleton-shimmer-sweep-rtl {
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+[dir="rtl"] .skeleton-shimmer::after {
+  animation-name: skeleton-shimmer-sweep-rtl;
+}
+
+/* --- Settings panel: open from left side in RTL --- */
+/*
+ * SettingsPanel uses `justify-end` + a panel with `border-l`.
+ * In RTL the panel should slide in from the left, so we override the flex
+ * direction and the border side.
+ */
+[dir="rtl"] .rtl-panel-container {
+  justify-content: flex-start;
+}
+
+[dir="rtl"] .rtl-panel-container > [class*="border-l"] {
+  border-left: none;
+  border-right: 1px solid rgb(31 41 55);
+}
+
+/* --- Notification badge: flip absolute corner in RTL --- */
+/*
+ * Badges positioned with `-top-1 -right-1` use physical right.
+ * We redirect them to the physical left so they appear in the logical
+ * start corner (which is the right side in LTR, left side in RTL).
+ */
+[dir="rtl"] .rtl-badge-flip {
+  right: auto;
+  left: -0.25rem;
+}
+
+/* --- Active nav tab indicator: flip translate-x in RTL --- */
+/*
+ * The active bottom-nav indicator uses `left-1/2 -translate-x-1/2`.
+ * No change needed; that pattern is already symmetric. But for any
+ * component that uses a fixed positive/negative translateX, mirror it:
+ */
+[dir="rtl"] .rtl-mirror-x {
+  transform: scaleX(-1);
+}
+
+/* --- Undo/redo icon arrows: mirror in RTL --- */
+[dir="rtl"] .rtl-icon-mirror {
+  transform: scaleX(-1);
+}
+
+/* --- Page transition: reverse slide direction in RTL --- */
+@keyframes slide-in-from-right-rtl {
+  from { transform: translateX(-24px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+[dir="rtl"] .rtl-slide-in {
+  animation-name: slide-in-from-right-rtl;
+}

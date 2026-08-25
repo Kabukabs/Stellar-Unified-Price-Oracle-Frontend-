@@ -294,6 +294,8 @@ const fr = {
     },
     language: {
       label: 'Langue de l\'interface',
+      rtlOverride: 'Forcer la mise en page RTL',
+      rtlOverrideDesc: 'Forcer le sens RTL pour les tests sans changer de langue',
     },
     actions: {
       undo: 'Annuler',

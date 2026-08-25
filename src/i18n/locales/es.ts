@@ -381,6 +381,8 @@ const es = {
     },
     language: {
       label: 'Idioma de la interfaz',
+      rtlOverride: 'Forzar diseño RTL',
+      rtlOverrideDesc: 'Anular dirección a RTL para pruebas sin cambiar de idioma',
     },
     actions: {
       undo: 'Deshacer',

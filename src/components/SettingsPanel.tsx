@@ -101,21 +101,29 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
             <h3 id="language-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
               {t('settings.sections.language')}
             </h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                {t('settings.language.label')}
-              </label>
-              <select
-                value={i18n.language.split('-')[0]}
-                onChange={(e) => i18n.changeLanguage(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {LANGUAGE_LABELS[lang as SupportedLanguage]}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  {t('settings.language.label')}
+                </label>
+                <select
+                  value={i18n.language.split('-')[0]}
+                  onChange={(e) => i18n.changeLanguage(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {LANGUAGE_LABELS[lang as SupportedLanguage]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <AccessibilityToggle
+                label={t('settings.language.rtlOverride')}
+                description={t('settings.language.rtlOverrideDesc')}
+                checked={preferences.rtlEnabled}
+                onChange={(val) => updatePreference('rtlEnabled', val)}
+              />
             </div>
           </section>
 
