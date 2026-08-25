@@ -12,6 +12,7 @@ import {
   preloadSettingsPanel,
 } from '../utils/chunks'
 import { QueuedRequestsBadge } from './QueuedRequestsBadge'
+import { SkipNavLink } from './SkipNavLink'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -79,12 +80,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-200">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:rounded-lg focus:outline-none"
-      >
-        Skip to main content
-      </a>
+      <SkipNavLink />
 
       {/* ── Top navigation bar ─────────────────────────────────────── */}
       <nav
