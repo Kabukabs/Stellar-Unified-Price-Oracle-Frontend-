@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:https": "HTTPS=true vite",
+    "setup-https": "node scripts/setup-https.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
