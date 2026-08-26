@@ -2,11 +2,13 @@ import { createContext, useContext, useCallback, useEffect, useRef, useState, ty
 import { useLocation } from 'react-router-dom'
 import { useUndoRedo, type Command } from '../hooks/useUndoRedo'
 import { idbCache } from '../hooks/useIndexedDB'
+import { createBroadcastChannel } from '../utils/broadcastChannel'
 import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import { preferencesReducer, setPreference } from './slices'
 import type { Preferences } from './types'
 
 const PREFS_IDB_KEY = 'user-preferences'
+const prefsChannel = createBroadcastChannel<Preferences>('kiro-preferences')
 
 interface PreferencesContextValue {
   preferences: Preferences
@@ -52,8 +54,21 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (idbLoaded) {
       idbCache.set('preferences', PREFS_IDB_KEY, preferences)
+      // Broadcast preferences change to other tabs
+      prefsChannel.broadcast('preferences-update', preferences)
     }
   }, [preferences, idbLoaded])
+
+  // Listen for preference changes from other tabs
+  useEffect(() => {
+    const unsubscribe = prefsChannel.subscribe((msg) => {
+      if (msg.type === 'preferences-update') {
+        // Update preferences without creating undo history
+        reset({ ...DEFAULT_PREFERENCES, ...msg.payload })
+      }
+    })
+    return unsubscribe
+  }, [reset])
 
   const updatePreference = useCallback(
     <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
