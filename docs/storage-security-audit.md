@@ -17,6 +17,7 @@ forbidden — see `AGENTS.md § Client Storage Convention`.
 | `notification-channels` | JSON `NotificationChannels` | Email address, webhook URL, Telegram chat ID. **Signing secret is NOT included** — it lives in memory only. | email¹ | ✗ |
 | `analyticsOptOut` | `'1'` or `'0'` | Analytics opt-out flag | ✗ | ✗ |
 | `stellar-oracle-theme` | `'dark'` or `'light'` | UI theme choice | ✗ | ✗ |
+| `sound-preferences` | JSON `{ enabled, volume }` | Alert sound enabled flag + volume (0-1) | ✗ | ✗ |
 
 ¹ The email address is used only for local alert routing, is typed directly by
 the user, and never sent to any third party by the frontend.

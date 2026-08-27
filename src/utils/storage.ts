@@ -50,6 +50,8 @@ export const STORAGE_KEYS = {
   analyticsOptOut: 'analyticsOptOut',
   /** `'dark'` / `'light'`. Also read by the pre-paint script in `index.html`. */
   theme: 'stellar-oracle-theme',
+  /** Alert sound enabled flag + volume (#308). No PII. */
+  soundPreferences: 'sound-preferences',
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
@@ -228,6 +230,7 @@ function formatBytes(bytes: number): string {
  * |                        | NOT persisted** (memory-only in NotificationChannelsModal).        |
  * | analyticsOptOut        | '1' (opted out) or '0'. No PII.                                   |
  * | stellar-oracle-theme   | 'dark' or 'light'. No PII.                                        |
+ * | sound-preferences      | Alert sound enabled flag + volume (0-1). No PII.                   |
  *
  * ## IndexedDB stores (stellar-oracle DB)
  * | Store       | TTL      | Contents                                               |
@@ -261,6 +264,10 @@ export const STORAGE_INVENTORY = Object.freeze({
     {
       key: STORAGE_KEYS.theme,
       description: "UI theme choice ('dark'/'light'). No PII.",
+    },
+    {
+      key: STORAGE_KEYS.soundPreferences,
+      description: 'Alert sound enabled flag + volume (0-1). No PII.',
     },
   ],
   indexedDB: [
