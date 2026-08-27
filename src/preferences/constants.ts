@@ -23,6 +23,7 @@ export const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
   reducedMotion: false,
   highContrast: false,
   largeText: false,
+  rtlEnabled: false,
 }
 
 export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
