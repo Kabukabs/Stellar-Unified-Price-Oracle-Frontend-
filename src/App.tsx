@@ -14,7 +14,8 @@ import { PreferencesProvider } from './preferences/PreferencesContext'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
-import { initAnalytics, trackPageview } from './hooks/useAnalytics'
+import { initAnalytics } from './hooks/useAnalytics'
+import { useAnalyticsRouting } from './utils/analyticsRouting'
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor'
 import { useInitApiVersion } from './hooks/useApiVersion'
 import { PerformanceOverlay } from './components/PerformanceOverlay'
@@ -37,7 +38,7 @@ const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 export function AppContent(): ReactElement {
   const location = useLocation()
   useAccessibility()
-  trackPageview(location.pathname)
+  useAnalyticsRouting()
 
   useEffect(() => {
     if (location.pathname === '/') {

@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:https": "HTTPS=true vite",
+    "setup-https": "node scripts/setup-https.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
@@ -28,6 +30,8 @@
     "test:e2e:webkit": "playwright test --project=webkit",
     "test:e2e:visual": "playwright test --project=visual-regression",
     "test:e2e:visual:update": "node scripts/update-visual-baselines.js",
+    "test:e2e:mobile": "playwright test --grep @mobile",
+    "test:e2e:responsive": "playwright test e2e/responsive.spec.ts e2e/mobile-responsive.spec.ts",
     "check:api-version": "node scripts/check-api-version.js",
     "generate:openapi": "npx openapi-typescript ${BACKEND_OPENAPI_URL:-http://localhost:3000/openapi.json} --output src/api/openapi-types.ts"
   },
@@ -55,7 +59,9 @@
     "@stellar/stellar-sdk": "^16.2.0",
     "@tanstack/react-query": "^5.0.0",
     "@tanstack/react-virtual": "^3.14.9",
+    "@types/dompurify": "^3.0.5",
     "comlink": "4.4.2",
+    "dompurify": "^3.4.14",
     "i18next": "24.2.3",
     "i18next-browser-languagedetector": "8.0.5",
     "jspdf": "^4.2.1",

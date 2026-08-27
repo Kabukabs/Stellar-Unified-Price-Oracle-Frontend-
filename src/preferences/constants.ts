@@ -4,6 +4,7 @@ import type {
   LayoutPreferences,
   Preferences,
   PrivacyPreferences,
+  LocaleCode,
 } from './types'
 
 /** Defaults grouped to match the slices in `slices.ts`. */
@@ -12,6 +13,7 @@ export const DEFAULT_DATA_PREFERENCES: DataPreferences = {
   chartTimeRange: '24h',
   staleThresholdMinutes: 5,
   sourcePriority: ['chainlink', 'redstone', 'band', 'reflector'],
+  onChainDivergenceThresholdPercent: 1,
 }
 
 export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
@@ -23,11 +25,13 @@ export const DEFAULT_ACCESSIBILITY_PREFERENCES: AccessibilityPreferences = {
   reducedMotion: false,
   highContrast: false,
   largeText: false,
+  rtlEnabled: false,
 }
 
 export const DEFAULT_PRIVACY_PREFERENCES: PrivacyPreferences = {
   analyticsOptOut: false,
   chartTimezone: 'UTC',
+  formatLocale: 'auto',
 } as const
 
 export const MAX_UNDO_DEPTH = 20
@@ -63,10 +67,28 @@ export const STALE_THRESHOLD_OPTIONS = [
   { value: 30, label: '30 minutes' },
 ] as const
 
+export const DIVERGENCE_THRESHOLD_OPTIONS = [
+  { value: 0.5, label: '0.5%' },
+  { value: 1, label: '1%' },
+  { value: 2, label: '2%' },
+  { value: 5, label: '5%' },
+] as const
+
 export const CHART_TIMEZONE_OPTIONS = [
   { value: 'UTC' as const, label: 'UTC', abbr: 'UTC' },
   { value: 'Local' as const, label: 'Local', abbr: 'Local' },
   { value: 'America/New_York' as const, label: 'New York (ET)', abbr: 'ET' },
   { value: 'Europe/London' as const, label: 'London (GMT/BST)', abbr: 'London' },
   { value: 'Asia/Tokyo' as const, label: 'Tokyo (JST)', abbr: 'JST' },
+] as const
+
+export const FORMAT_LOCALE_OPTIONS: { value: LocaleCode; label: string; example: string }[] = [
+  { value: 'auto', label: 'Auto (from language)', example: '1,234.56' },
+  { value: 'en-US', label: 'English (US)', example: '1,234.56' },
+  { value: 'de-DE', label: 'Deutsch (Deutschland)', example: '1.234,56' },
+  { value: 'fr-FR', label: 'Français (France)', example: '1 234,56' },
+  { value: 'ja-JP', label: '日本語 (日本)', example: '1,234.56' },
+  { value: 'es-ES', label: 'Español (España)', example: '1.234,56' },
+  { value: 'ar-SA', label: 'العربية (السعودية)', example: '١٬٢٣٤٫٥٦' },
+  { value: 'pt-BR', label: 'Português (Brasil)', example: '1.234,56' },
 ] as const

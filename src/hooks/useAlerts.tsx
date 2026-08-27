@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, createContext, useContext, ReactNode 
 import type { Alert, AlertHistoryEntry, AlertsContextType, AlertSnoozeDuration } from '../types'
 import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
+import { createBroadcastChannel } from '../utils/broadcastChannel'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 import { playAlertSound, unlockAudioContext } from '../utils/alertSound'
 import { loadSoundPreferences } from '../utils/soundPreferences'
@@ -9,6 +10,9 @@ import { useRateLimit } from './useRateLimit'
 
 /** Cap on the fired-alert history log (#309), oldest entries dropped first. */
 const HISTORY_LIMIT = 500
+
+const alertsChannel = createBroadcastChannel<Alert[]>('kiro-alerts')
+const alertsHistoryChannel = createBroadcastChannel<AlertHistoryEntry[]>('kiro-alerts-history')
 
 // ---------------------------------------------------------------------------
 // #315 – Notification channel types (mirrors NotificationChannelsModal)
@@ -359,11 +363,35 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     saveAlerts(alerts)
+    // Broadcast alerts change to other tabs
+    alertsChannel.broadcast('alerts-update', alerts)
   }, [alerts])
 
   useEffect(() => {
     saveHistory(history)
+    // Broadcast history change to other tabs
+    alertsHistoryChannel.broadcast('alerts-history-update', history)
   }, [history])
+
+  // Listen for alerts changes from other tabs
+  useEffect(() => {
+    const unsubscribe = alertsChannel.subscribe((msg) => {
+      if (msg.type === 'alerts-update') {
+        setAlerts(msg.payload)
+      }
+    })
+    return unsubscribe
+  }, [])
+
+  // Listen for history changes from other tabs
+  useEffect(() => {
+    const unsubscribe = alertsHistoryChannel.subscribe((msg) => {
+      if (msg.type === 'alerts-history-update') {
+        setHistory(msg.payload)
+      }
+    })
+    return unsubscribe
+  }, [])
 
   const addAlert = useCallback(
     (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => {

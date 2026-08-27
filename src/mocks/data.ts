@@ -1,5 +1,7 @@
 import type { PriceData, PriceHistoryResponse } from '../types'
 import { VALID_PAIRS } from '../types'
+import type { OnChainPriceRecord, OracleNetwork } from '../types/onchain'
+import { getContractRegistryEntry } from '../lib/contractRegistry'
 
 const SOURCES = ['chainlink', 'redstone', 'band', 'reflector'] as const
 
@@ -26,6 +28,40 @@ export function mockPriceData(pair = 'XLM/USD'): PriceData {
 
 export function mockAllPrices(): PriceData[] {
   return VALID_PAIRS.map(mockPriceData)
+}
+
+/** Off-chain base price for a feed's base asset code, e.g. `XLM` → 0.12. Mirrors {@link BASE_PRICES}. */
+const BASE_PRICES_BY_ASSET: Record<string, number> = {
+  XLM: 0.12,
+  BTC: 65000,
+  ETH: 3200,
+  USDC: 1.0,
+}
+
+let mockLedger = 52_000_000
+
+/**
+ * Simulates the latest price a Soroban oracle contract has published on-chain.
+ *
+ * Deliberately drifts from the off-chain price by a few basis points and lags
+ * behind it by a random publish delay, so the divergence panel has something
+ * real to compare against. Throws whatever {@link getContractRegistryEntry}
+ * throws for an asset/network with no registered contract.
+ */
+export function mockOnChainPrice(network: OracleNetwork, asset: string): OnChainPriceRecord {
+  const entry = getContractRegistryEntry(network, asset)
+  const base = BASE_PRICES_BY_ASSET[entry.asset] ?? 1
+  const publishDelayMs = 15_000 + Math.random() * 4 * 60_000
+  mockLedger += 1 + Math.floor(Math.random() * 3)
+
+  return {
+    asset: entry.asset,
+    network: entry.network,
+    contractId: entry.contractId,
+    price: randomPrice(base),
+    publishedAt: Date.now() - publishDelayMs,
+    ledger: mockLedger,
+  }
 }
 
 export function mockHistory(pair: string, count = 100): PriceHistoryResponse {

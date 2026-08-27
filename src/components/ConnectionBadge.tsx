@@ -48,10 +48,11 @@
  * - The coloured dot has `aria-hidden="true"` — meaning is conveyed by the text label.
  * - A `Tooltip` provides the full explanation for users who want more detail.
  */
-import { memo, type ReactElement } from 'react'
+import { memo, useEffect, useRef, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RateLimitStatus } from '../api/rateLimit'
 import type { ConnectionStatus, ConnectionDiagnostics } from '../api/websocket'
+import { useAnnounce } from '../hooks/useAnnounce'
 import { Tooltip } from './Tooltip'
 
 const STATUS_MAP: Record<ConnectionStatus, { label: string; color: string; tooltip: string }> = {
@@ -102,6 +103,34 @@ export const ConnectionBadge = memo(function ConnectionBadge({
   diagnostics,
 }: ConnectionBadgeProps): ReactElement {
   const { t } = useTranslation()
+  const { announce } = useAnnounce()
+  const prevStatusRef = useRef<ConnectionStatus | 'rate-limited'>(status)
+  
+  // Announce status changes to screen readers
+  useEffect(() => {
+    const isRateLimited = rateLimitStatus === 'limited'
+    const currentKey = isRateLimited ? 'rate-limited' : status
+    
+    if (prevStatusRef.current !== currentKey) {
+      let announcement = ''
+      
+      if (isRateLimited) {
+        announcement = retryAfterMs && retryAfterMs > 0
+          ? `API rate limited, requests will resume in ${Math.ceil(retryAfterMs / 1000)} seconds`
+          : 'API rate limited'
+      } else {
+        const s = STATUS_MAP[status] ?? STATUS_MAP['disconnected']
+        announcement = `Connection status: ${s.label}`
+        if (diagnostics?.retryCount) {
+          announcement += ` (attempt ${diagnostics.retryCount} of 20)`
+        }
+      }
+      
+      announce(announcement, isRateLimited || status === 'dead' ? 'assertive' : 'polite')
+      prevStatusRef.current = currentKey
+    }
+  }, [status, rateLimitStatus, retryAfterMs, diagnostics, announce])
+
   const s = STATUS_MAP[status] ?? STATUS_MAP['disconnected']
   const isRateLimited = rateLimitStatus === 'limited'
 

@@ -50,10 +50,8 @@ export const STORAGE_KEYS = {
   analyticsOptOut: 'analyticsOptOut',
   /** `'dark'` / `'light'`. Also read by the pre-paint script in `index.html`. */
   theme: 'stellar-oracle-theme',
-  /** Alert sound enabled flag + volume (#308). No PII. */
-  soundPreferences: 'sound-preferences',
-  /** Most-recently-used language codes, newest first (#373). No PII. */
-  recentLanguages: 'recent-languages',
+  /** Random per-browser bucket id used for sticky percentage-rollout feature flags (#359). No PII. */
+  featureFlagBucket: 'feature-flag-bucket',
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
@@ -232,8 +230,7 @@ function formatBytes(bytes: number): string {
  * |                        | NOT persisted** (memory-only in NotificationChannelsModal).        |
  * | analyticsOptOut        | '1' (opted out) or '0'. No PII.                                   |
  * | stellar-oracle-theme   | 'dark' or 'light'. No PII.                                        |
- * | sound-preferences      | Alert sound enabled flag + volume (0-1). No PII.                   |
- * | recent-languages       | Most-recently-used language codes, newest first. No PII.          |
+ * | feature-flag-bucket    | Random per-browser bucket id for sticky flag rollout. No PII.     |
  *
  * ## IndexedDB stores (stellar-oracle DB)
  * | Store       | TTL      | Contents                                               |
@@ -269,12 +266,8 @@ export const STORAGE_INVENTORY = Object.freeze({
       description: "UI theme choice ('dark'/'light'). No PII.",
     },
     {
-      key: STORAGE_KEYS.soundPreferences,
-      description: 'Alert sound enabled flag + volume (0-1). No PII.',
-    },
-    {
-      key: STORAGE_KEYS.recentLanguages,
-      description: 'Most-recently-used language codes, newest first. No PII.',
+      key: STORAGE_KEYS.featureFlagBucket,
+      description: 'Random per-browser bucket id for sticky percentage-rollout feature flags. No PII.',
     },
   ],
   indexedDB: [

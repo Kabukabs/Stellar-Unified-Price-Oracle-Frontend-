@@ -2,13 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import * as rest from '../api/rest'
 import { usePriceHistory } from './usePriceHistory'
+import { idbCache } from './useIndexedDB'
 
 vi.mock('../api/rest', () => ({
   fetchPriceHistory: vi.fn(),
 }))
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.clearAllMocks()
+  // usePriceHistory now caches the first page in idbCache's 'history' store
+  // (#321) — clear it so tests reusing the same pair don't see a prior test's
+  // cached entry instead of exercising a fresh fetchPriceHistory call.
+  await idbCache.clear('history')
 })
 
 describe('usePriceHistory', () => {
@@ -28,6 +33,23 @@ describe('usePriceHistory', () => {
     await waitFor(() => expect(result.current.loading).toBe(false), { timeout: 5000 })
     expect(result.current.history).toEqual(history)
     expect(result.current.hasMore).toBe(true)
+  })
+
+  it('serves a repeat mount for the same pair from the IndexedDB cache (#321)', async () => {
+    const history = [
+      { price: 50000, timestamp: 1000, confidence: 0.99, sources: ['chainlink'] },
+    ]
+    vi.mocked(rest.fetchPriceHistory).mockResolvedValue({ pair: 'BTC/USD', history })
+
+    const first = renderHook(() => usePriceHistory('BTC/USD', { pageSize: 2, refreshInterval: 60000 }))
+    await waitFor(() => expect(first.result.current.loading).toBe(false), { timeout: 5000 })
+    expect(rest.fetchPriceHistory).toHaveBeenCalledTimes(1)
+    first.unmount()
+
+    const second = renderHook(() => usePriceHistory('BTC/USD', { pageSize: 2, refreshInterval: 60000 }))
+    await waitFor(() => expect(second.result.current.loading).toBe(false), { timeout: 5000 })
+    expect(second.result.current.history).toEqual(history)
+    expect(rest.fetchPriceHistory).toHaveBeenCalledTimes(1)
   })
 
   it('sets error on initial fetch failure', async () => {

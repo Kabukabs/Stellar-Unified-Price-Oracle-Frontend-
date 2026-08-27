@@ -1,59 +1,75 @@
-name: Release Notes
+name: Release
 
 on:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches: [main, staging, develop]
 
 permissions:
   contents: write
+  packages: write
+  pull-requests: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release-notes:
-    name: Generate changelog and draft release
+  release:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      # Categorized changelog for just this tag, generated from Conventional
-      # Commits per cliff.toml (mirrors the commit types commitlint enforces).
-      - name: Generate release notes
-        id: changelog
-        uses: orhun/git-cliff-action@v3
+      - uses: actions/setup-node@v4
         with:
-          config: cliff.toml
-          args: --latest --strip header
+          node-version: 22
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
 
-      # Credits every commit author in this tag's range, so the release
-      # notes don't rely on the changelog template alone for attribution.
-      - name: List contributors for this release
-        id: contributors
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_USE_MOCK: 'true'
+
+      - name: Run tests
+        run: npm run test:run
+
+      - name: Release
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          semantic_version: 24.0.0
+          branches: |
+            [
+              "main",
+              {"name": "develop", "prerelease": true},
+              {"name": "staging", "prerelease": "rc"}
+            ]
+          dry_run: false
+          ci: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Upload to CDN (on main release)
+        if: success() && github.ref == 'refs/heads/main'
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
-          RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
-          {
-            echo "list<<CONTRIBUTORS_EOF"
-            git log "$RANGE" --format='- %an' | sort -u
-            echo "CONTRIBUTORS_EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "Build artifacts ready for deployment:"
+          ls -lah dist/
+        # Replace with actual CDN upload command (e.g., AWS S3, Vercel, etc.)
 
-      # Created as a draft, not published — a maintainer reviews the
-      # generated notes and hits "Publish release" once satisfied.
-      - name: Create draft GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Create GitHub Release Summary
+        if: always()
+        uses: actions/github-script@v7
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          draft: true
-          body: |
-            ${{ steps.changelog.outputs.content }}
-
-            ### Contributors
-
-            ${{ steps.contributors.outputs.list }}
+          script: |
+            const fs = require('fs');
+            const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+            const lines = changelog.split('\n');
+            const latestEntry = lines.slice(0, 50).join('\n');
+            
+            core.notice(`Release complete! Check CHANGELOG.md for details.`);
