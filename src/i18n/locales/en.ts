@@ -325,6 +325,18 @@ const en = {
     offlineDetail: 'Data may be stale until you reconnect',
   },
 
+  // ── PWA install / update prompts (#361) ───────────────────────────────────
+  pwa: {
+    installTitle: 'Install Stellar Oracle',
+    installDetail: 'Add this app to your device for quick access and offline support.',
+    installAction: 'Install',
+    installDismiss: 'Not now',
+    updateTitle: 'Update available',
+    updateDetail: 'A new version of the app is ready.',
+    updateAction: 'Reload',
+    updateDismiss: 'Later',
+  },
+
   // ── NotFound page ─────────────────────────────────────────────────────────
   notFound: {
     heading: '404',

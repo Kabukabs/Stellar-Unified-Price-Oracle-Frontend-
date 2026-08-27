@@ -20,6 +20,8 @@ import { usePerformanceMonitor } from './hooks/usePerformanceMonitor'
 import { useInitApiVersion } from './hooks/useApiVersion'
 import { PerformanceOverlay } from './components/PerformanceOverlay'
 import { ApiVersionBanner } from './components/ApiVersionBanner'
+import { InstallPrompt } from './components/InstallPrompt'
+import { PwaUpdateBanner } from './components/PwaUpdateBanner'
 import {
   LazyApiDocs,
   LazyDashboard,
@@ -52,6 +54,8 @@ export function AppContent(): ReactElement {
     <ErrorBoundary key={location.key}>
       <AlertsProvider>
         <ApiVersionBanner />
+        <InstallPrompt />
+        <PwaUpdateBanner />
         <Layout>
           <Routes>
             <Route

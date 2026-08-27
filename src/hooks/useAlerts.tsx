@@ -4,6 +4,8 @@ import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
 import { createBroadcastChannel } from '../utils/broadcastChannel'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
+import { playAlertSound, unlockAudioContext } from '../utils/alertSound'
+import { loadSoundPreferences } from '../utils/soundPreferences'
 import { useRateLimit } from './useRateLimit'
 
 /** Cap on the fired-alert history log (#309), oldest entries dropped first. */
@@ -284,6 +286,14 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
           // #315 – Dispatch to all enabled notification channels (push, email, webhook)
           void dispatchNotifications(alert, currentPrice)
 
+          // #308 – Play an alert sound, respecting the mute/volume preference.
+          // No-ops silently if the user hasn't interacted with the page yet
+          // (autoplay policy) or sound is muted.
+          const soundPrefs = loadSoundPreferences()
+          if (soundPrefs.enabled) {
+            playAlertSound(soundPrefs.volume)
+          }
+
           firedEntries.push({
             id: crypto.randomUUID(),
             alertId: alert.id,
@@ -332,6 +342,22 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
+    }
+  }, [])
+
+  // #308 – Unlock the alert-sound AudioContext on the first user interaction,
+  // since browsers block audio playback until a gesture has occurred.
+  useEffect(() => {
+    function handleFirstInteraction() {
+      unlockAudioContext()
+      window.removeEventListener('click', handleFirstInteraction)
+      window.removeEventListener('keydown', handleFirstInteraction)
+    }
+    window.addEventListener('click', handleFirstInteraction)
+    window.addEventListener('keydown', handleFirstInteraction)
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction)
+      window.removeEventListener('keydown', handleFirstInteraction)
     }
   }, [])
 
