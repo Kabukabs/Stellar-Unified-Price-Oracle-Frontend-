@@ -421,6 +421,8 @@ const en = {
     },
     language: {
       label: 'Interface Language',
+      rtlOverride: 'Force RTL Layout',
+      rtlOverrideDesc: 'Override direction to RTL for testing without switching language',
     },
     actions: {
       undo: 'Undo',
