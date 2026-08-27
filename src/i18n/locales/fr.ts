@@ -260,6 +260,17 @@ const fr = {
     offlineDetail: 'Les données peuvent être obsolètes jusqu\'à la reconnexion',
   },
 
+  pwa: {
+    installTitle: 'Installer Stellar Oracle',
+    installDetail: 'Ajoutez cette application à votre appareil pour un accès rapide et une utilisation hors ligne.',
+    installAction: 'Installer',
+    installDismiss: 'Pas maintenant',
+    updateTitle: 'Mise à jour disponible',
+    updateDetail: "Une nouvelle version de l'application est prête.",
+    updateAction: 'Recharger',
+    updateDismiss: 'Plus tard',
+  },
+
   notFound: {
     heading: '404',
     message: 'Page introuvable',

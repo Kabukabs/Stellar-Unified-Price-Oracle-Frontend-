@@ -306,6 +306,17 @@ const es = {
     offlineDetail: 'Los datos pueden estar desactualizados hasta que se reconecte',
   },
 
+  pwa: {
+    installTitle: 'Instalar Stellar Oracle',
+    installDetail: 'Añade esta app a tu dispositivo para acceso rápido y uso sin conexión.',
+    installAction: 'Instalar',
+    installDismiss: 'Ahora no',
+    updateTitle: 'Actualización disponible',
+    updateDetail: 'Una nueva versión de la app está lista.',
+    updateAction: 'Recargar',
+    updateDismiss: 'Más tarde',
+  },
+
   notFound: {
     heading: '404',
     message: 'Página no encontrada',
