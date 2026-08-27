@@ -14,6 +14,7 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
+import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 import en from './locales/en'
 import es from './locales/es'
 import fr from './locales/fr'
@@ -44,6 +45,40 @@ const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur'])
 export function applyRtl(lang: string): void {
   const code = lang.split('-')[0]
   document.documentElement.dir = RTL_LANGUAGES.has(code) ? 'rtl' : 'ltr'
+}
+
+/** Cap on the recently-used language list (#373). */
+const RECENT_LANGUAGES_LIMIT = 3
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string')
+}
+
+/** Reads the most-recently-used language codes, newest first. */
+export function loadRecentLanguages(): string[] {
+  return readJson<string[]>(STORAGE_KEYS.recentLanguages, [], isStringArray)
+}
+
+/**
+ * Records `lang` as the most-recently-used language, moving it to the front
+ * and dropping older entries beyond {@link RECENT_LANGUAGES_LIMIT}. Called on
+ * every `languageChanged` event, so it also captures the language detected on
+ * first load.
+ */
+function recordRecentLanguage(lang: string): void {
+  const code = lang.split('-')[0]
+  const existing = loadRecentLanguages().filter((l) => l !== code)
+  writeJson(STORAGE_KEYS.recentLanguages, [code, ...existing].slice(0, RECENT_LANGUAGES_LIMIT))
+}
+
+/**
+ * Returns `languages` ordered with recently-used codes first (most recent
+ * first), followed by the remaining languages in their original order.
+ */
+export function orderByRecentlyUsed<T extends string>(languages: readonly T[]): T[] {
+  const recent = loadRecentLanguages().filter((l): l is T => (languages as readonly string[]).includes(l))
+  const rest = languages.filter((l) => !recent.includes(l))
+  return [...recent, ...rest]
 }
 
 i18n
@@ -78,9 +113,10 @@ i18n
     applyRtl(i18n.language)
   })
 
-// Keep direction in sync on every language change
+// Keep direction in sync and track recently-used languages on every change
 i18n.on('languageChanged', (lang) => {
   applyRtl(lang)
+  recordRecentLanguage(lang)
 })
 
 export default i18n

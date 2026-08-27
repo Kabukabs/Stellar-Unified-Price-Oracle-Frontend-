@@ -18,6 +18,7 @@ forbidden — see `AGENTS.md § Client Storage Convention`.
 | `analyticsOptOut` | `'1'` or `'0'` | Analytics opt-out flag | ✗ | ✗ |
 | `stellar-oracle-theme` | `'dark'` or `'light'` | UI theme choice | ✗ | ✗ |
 | `sound-preferences` | JSON `{ enabled, volume }` | Alert sound enabled flag + volume (0-1) | ✗ | ✗ |
+| `recent-languages` | JSON `string[]` | Most-recently-used language codes, newest first | ✗ | ✗ |
 
 ¹ The email address is used only for local alert routing, is typed directly by
 the user, and never sent to any third party by the frontend.

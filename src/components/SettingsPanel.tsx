@@ -7,7 +7,7 @@ import {
   STALE_THRESHOLD_OPTIONS,
   CHART_TIMEZONE_OPTIONS,
 } from '../preferences/constants'
-import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type SupportedLanguage } from '../i18n'
+import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, orderByRecentlyUsed, type SupportedLanguage } from '../i18n'
 import { clearAllData, getLocalStorageSize, writeRaw, STORAGE_KEYS } from '../utils/storage'
 import { loadSoundPreferences, saveSoundPreferences } from '../utils/soundPreferences'
 import { playAlertSound, unlockAudioContext } from '../utils/alertSound'
@@ -135,7 +135,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
                 onChange={(e) => i18n.changeLanguage(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
-                {SUPPORTED_LANGUAGES.map((lang) => (
+                {orderByRecentlyUsed(SUPPORTED_LANGUAGES).map((lang) => (
                   <option key={lang} value={lang}>
                     {LANGUAGE_LABELS[lang as SupportedLanguage]}
                   </option>

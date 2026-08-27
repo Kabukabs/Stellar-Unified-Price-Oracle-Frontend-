@@ -52,6 +52,8 @@ export const STORAGE_KEYS = {
   theme: 'stellar-oracle-theme',
   /** Alert sound enabled flag + volume (#308). No PII. */
   soundPreferences: 'sound-preferences',
+  /** Most-recently-used language codes, newest first (#373). No PII. */
+  recentLanguages: 'recent-languages',
 } as const
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS]
@@ -231,6 +233,7 @@ function formatBytes(bytes: number): string {
  * | analyticsOptOut        | '1' (opted out) or '0'. No PII.                                   |
  * | stellar-oracle-theme   | 'dark' or 'light'. No PII.                                        |
  * | sound-preferences      | Alert sound enabled flag + volume (0-1). No PII.                   |
+ * | recent-languages       | Most-recently-used language codes, newest first. No PII.          |
  *
  * ## IndexedDB stores (stellar-oracle DB)
  * | Store       | TTL      | Contents                                               |
@@ -268,6 +271,10 @@ export const STORAGE_INVENTORY = Object.freeze({
     {
       key: STORAGE_KEYS.soundPreferences,
       description: 'Alert sound enabled flag + volume (0-1). No PII.',
+    },
+    {
+      key: STORAGE_KEYS.recentLanguages,
+      description: 'Most-recently-used language codes, newest first. No PII.',
     },
   ],
   indexedDB: [
