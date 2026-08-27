@@ -24,6 +24,8 @@ export interface AccessibilityPreferences {
   reducedMotion: boolean
   highContrast: boolean
   largeText: boolean
+  /** Force RTL layout regardless of detected language, for testing / preference override. */
+  rtlEnabled: boolean
 }
 
 /** User choices about data collection. */

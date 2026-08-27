@@ -294,6 +294,8 @@ const ja = {
     },
     language: {
       label: 'インターフェース言語',
+      rtlOverride: 'RTLレイアウトを強制',
+      rtlOverrideDesc: '言語を変えずにRTLレイアウトをテストするために方向を上書き',
     },
     actions: {
       undo: '元に戻す',

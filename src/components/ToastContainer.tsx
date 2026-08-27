@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactElement } from 'react'
 import { createPortal } from 'react-dom'
 import { useToast, type Toast, type ToastType, type ToastPriority } from '../context/ToastContext'
-import { useReducedMotion } from '../hooks/useReducedMotion'
+import { useAnnounce } from '../hooks/useAnnounce'
 
 const ICONS: Record<ToastType, React.ReactNode> = {
   success: (
@@ -50,9 +50,31 @@ const PRIORITY_ACCENT: Record<ToastPriority, string> = {
 
 function ToastItem({ toast, index }: { toast: Toast; index: number }) {
   const { removeToast } = useToast()
-  const reducedMotion = useReducedMotion()
+  const { announce } = useAnnounce()
   const ref = useRef<HTMLDivElement>(null)
   const touchStartX = useRef(0)
+  const announcedRef = useRef(false)
+
+  // Announce toast to screen readers on mount
+  useEffect(() => {
+    if (!announcedRef.current) {
+      announcedRef.current = true
+      const priority = toast.priority ?? 'normal'
+      const isUrgent = priority === 'critical' || priority === 'high'
+      
+      // Build announcement message
+      let message = toast.message
+      if (toast.description) {
+        message += `. ${toast.description}`
+      }
+      if (toast.type !== 'info') {
+        message = `${toast.type.charAt(0).toUpperCase() + toast.type.slice(1)}: ${message}`
+      }
+      
+      // Announce with appropriate priority
+      announce(message, isUrgent ? 'assertive' : 'polite')
+    }
+  }, [toast, announce])
 
   function onTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX
