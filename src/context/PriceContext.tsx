@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { WebSocketClient, type ConnectionStatus } from '../api/websocket'
 import { fetchAllPrices, fetchPricesBatched } from '../api/rest'
 import { rateLimitManager, type RateLimitStatus } from '../api/rateLimit'
@@ -70,6 +70,8 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     retry: 3,
   })
 
+  const queryClient = useQueryClient()
+
   // Client-side back-pressure (#330). Surfaced through context so any consumer
   // can distinguish "request in flight" from "request queued, not yet sent".
   const outbound = useOutboundQueue()
@@ -128,6 +130,12 @@ export function PriceProvider({ children }: { children: ReactNode }) {
         const restPrice = await fetchPricesBatched(pair)
 
         if (requestIds.get(pair) !== requestId) return
+
+        // Patch the REST cache with the WS-confirmed value so it doesn't serve a
+        // stale entry for this pair until the next poll cycle (#321).
+        queryClient.setQueryData<PriceData[]>(['prices'], (old) =>
+          old ? old.map((p) => (p.assetPair === pair ? restPrice : p)) : old,
+        )
 
         setLivePrices((prev) => {
           const current = prev.get(pair)
@@ -196,7 +204,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
       }
       timers.clear()
     }
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     setLivePrices((prev) => {
