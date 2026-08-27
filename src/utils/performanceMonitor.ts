@@ -6,6 +6,7 @@
  * - Long task detection via PerformanceObserver (tasks >50 ms)
  * - Performance marks for key user interactions
  * - WebSocket message processing time tracking
+ * - JS heap usage sampling with a high-usage warning (#322)
  *
  * All state is held in module-level variables so it survives across React
  * render cycles. Listeners receive a snapshot of the current metrics each
@@ -51,6 +52,10 @@ export interface PerformanceSnapshot {
   wsTiming: WsMessageTiming[]
   /** Average WS message processing time in ms, or null if no samples */
   avgWsProcessingMs: number | null
+  /** Used JS heap size in bytes, or null when `performance.memory` is unsupported */
+  memoryUsedBytes: number | null
+  /** `true` when `memoryUsedBytes` exceeds {@link MEMORY_WARNING_THRESHOLD_BYTES} */
+  isMemoryWarning: boolean
 }
 
 type Listener = (snapshot: PerformanceSnapshot) => void
@@ -63,12 +68,23 @@ const LONG_TASK_WINDOW_MS = 60_000
 const MAX_MARKS = 100
 const MAX_WS_TIMINGS = 100
 
+/** Warn when used JS heap size exceeds this (200 MB, per #322's acceptance criteria). */
+export const MEMORY_WARNING_THRESHOLD_BYTES = 200 * 1024 * 1024
+const MEMORY_SAMPLE_INTERVAL_MS = 2_000
+
+/** Non-standard Chrome-only API for JS heap usage. Absent in Firefox/Safari. */
+interface PerformanceMemory {
+  usedJSHeapSize: number
+}
+
 // ── Module state ─────────────────────────────────────────────────────────────
 
 let fps = 0
 let rafHandle: number | null = null
 let longTaskObserver: PerformanceObserver | null = null
 let isRunning = false
+let memoryIntervalHandle: ReturnType<typeof setInterval> | null = null
+let memoryUsedBytes: number | null = null
 
 const longTasks: LongTask[] = []
 const marks: PerformanceMark[] = []
@@ -98,6 +114,8 @@ function snapshot(): PerformanceSnapshot {
     marks: [...marks],
     wsTiming: [...wsTiming],
     avgWsProcessingMs: avgWs,
+    memoryUsedBytes,
+    isMemoryWarning: memoryUsedBytes !== null && memoryUsedBytes > MEMORY_WARNING_THRESHOLD_BYTES,
   }
 }
 
@@ -155,6 +173,28 @@ function startLongTaskObserver(): void {
   }
 }
 
+// ── Memory sampling ──────────────────────────────────────────────────────────
+
+function sampleMemory(): void {
+  const mem = (performance as Performance & { memory?: PerformanceMemory }).memory
+  if (!mem) return
+  memoryUsedBytes = mem.usedJSHeapSize
+  notify()
+}
+
+function startMemorySampler(): void {
+  if (memoryIntervalHandle !== null) return
+  sampleMemory()
+  memoryIntervalHandle = setInterval(sampleMemory, MEMORY_SAMPLE_INTERVAL_MS)
+}
+
+function stopMemorySampler(): void {
+  if (memoryIntervalHandle !== null) {
+    clearInterval(memoryIntervalHandle)
+    memoryIntervalHandle = null
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -166,10 +206,11 @@ export function startPerformanceMonitor(): void {
   isRunning = true
   rafHandle = requestAnimationFrame(rafTick)
   startLongTaskObserver()
+  startMemorySampler()
 }
 
 /**
- * Stops the FPS sampler and disconnects the long task observer.
+ * Stops the FPS sampler, disconnects the long task observer, and stops memory sampling.
  */
 export function stopPerformanceMonitor(): void {
   isRunning = false
@@ -181,6 +222,7 @@ export function stopPerformanceMonitor(): void {
     longTaskObserver.disconnect()
     longTaskObserver = null
   }
+  stopMemorySampler()
 }
 
 /**
@@ -265,5 +307,6 @@ export function resetPerformanceMonitor(): void {
   frameTimestamps.length = 0
   fps = 0
   totalLongTasks = 0
+  memoryUsedBytes = null
   notify()
 }
