@@ -1,11 +1,45 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { WebSocketClient, type ConnectionStatus } from '../api/websocket'
 import { fetchAllPrices, fetchPricesBatched } from '../api/rest'
 import { rateLimitManager, type RateLimitStatus } from '../api/rateLimit'
 import { useOutboundQueue } from '../hooks/useOutboundQueue'
 import { config } from '../config'
 import type { LivePriceEntry, PriceData } from '../types'
+
+/**
+ * Internal event emitter for per-pair live price updates.
+ * Prevents components from re-rendering when unrelated pairs update.
+ */
+class PriceUpdateEmitter {
+  private listeners: Map<string, Set<(entry: LivePriceEntry) => void>> = new Map()
+
+  subscribe(pair: string, callback: (entry: LivePriceEntry) => void): () => void {
+    if (!this.listeners.has(pair)) {
+      this.listeners.set(pair, new Set())
+    }
+    this.listeners.get(pair)!.add(callback)
+
+    return () => {
+      const set = this.listeners.get(pair)
+      if (set) {
+        set.delete(callback)
+        if (set.size === 0) {
+          this.listeners.delete(pair)
+        }
+      }
+    }
+  }
+
+  emit(pair: string, entry: LivePriceEntry): void {
+    const callbacks = this.listeners.get(pair)
+    if (callbacks) {
+      callbacks.forEach((cb) => cb(entry))
+    }
+  }
+}
+
+const priceUpdateEmitter = new PriceUpdateEmitter()
 
 /** Value exposed by {@link PriceProvider} via React context. */
 export interface PriceContextValue {
@@ -43,6 +77,8 @@ export interface PriceContextValue {
   subscribe: (pairs: string[]) => void
   /** Unsubscribe from WebSocket updates for the given asset pairs. */
   unsubscribe: (pairs: string[]) => void
+  /** Internal: emit live price update for a specific pair (do not use directly). */
+  _emitPriceUpdate: (pair: string, entry: LivePriceEntry) => void
 }
 
 const PriceContext = createContext<PriceContextValue | null>(null)
@@ -171,7 +207,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
         setLivePrices((prev) => {
           const next = new Map(prev)
           const current = prev.get(msg.assetPair)
-          next.set(msg.assetPair, {
+          const entry: LivePriceEntry = {
             data: {
               assetPair: msg.assetPair,
               price: msg.price,
@@ -181,7 +217,10 @@ export function PriceProvider({ children }: { children: ReactNode }) {
             },
             syncState: 'optimistic',
             flashVersion: (current?.flashVersion ?? 0) + 1,
-          })
+          }
+          next.set(msg.assetPair, entry)
+          // Emit update for this specific pair to avoid re-rendering unrelated components
+          priceUpdateEmitter.emit(msg.assetPair, entry)
           return next
         })
 
@@ -245,6 +284,9 @@ export function PriceProvider({ children }: { children: ReactNode }) {
   const subscribe = (pairs: string[]): void => wsRef.current?.subscribe(pairs)
   const unsubscribe = (pairs: string[]): void => wsRef.current?.unsubscribe(pairs)
   const handleRefetchPrices = (): void => { void refetchPrices() }
+  const emitPriceUpdate = useCallback((pair: string, entry: LivePriceEntry): void => {
+    priceUpdateEmitter.emit(pair, entry)
+  }, [])
 
   const value: PriceContextValue = {
     prices,
@@ -261,6 +303,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     refetchPrices: handleRefetchPrices,
     subscribe,
     unsubscribe,
+    _emitPriceUpdate: emitPriceUpdate,
   }
 
   return (
@@ -281,4 +324,36 @@ export function usePriceContext(): PriceContextValue {
     throw new Error('usePriceContext must be used within a PriceProvider')
   }
   return ctx
+}
+
+/**
+ * Hook to subscribe to live price updates for a specific asset pair.
+ * Components using this hook only re-render when the specified pair updates,
+ * not when other pairs update.
+ *
+ * @param pair - The asset pair to subscribe to (e.g., "BTC/USD")
+ * @returns The current live price entry for the pair, or `undefined` if not available
+ *
+ * @example
+ * ```tsx
+ * function PriceDisplay({ pair }: { pair: string }) {
+ *   const liveEntry = useLivePriceForPair(pair)
+ *   return <div>{liveEntry?.data.price}</div>
+ * }
+ * ```
+ */
+export function useLivePriceForPair(pair: string): LivePriceEntry | undefined {
+  const { livePrices } = usePriceContext()
+  const [liveEntry, setLiveEntry] = useState<LivePriceEntry | undefined>(() =>
+    livePrices.get(pair),
+  )
+
+  useEffect(() => {
+    const unsubscribe = priceUpdateEmitter.subscribe(pair, (entry) => {
+      setLiveEntry(entry)
+    })
+    return unsubscribe
+  }, [pair])
+
+  return liveEntry
 }
