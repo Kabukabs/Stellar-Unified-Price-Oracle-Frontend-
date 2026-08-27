@@ -26,6 +26,10 @@ interface ImportMetaEnv {
   // ── Debug ───────────────────────────────────────────────────
   /** Log verbosity ("debug" | "info" | "warn" | "error").  Optional. */
   readonly VITE_LOG_LEVEL: string
+
+  // ── Stellar network ─────────────────────────────────────────
+  /** Stellar network for on-chain oracle reads and explorer links ("testnet" | "mainnet").  Optional. */
+  readonly VITE_STELLAR_NETWORK: string
 }
 
 interface ImportMeta {

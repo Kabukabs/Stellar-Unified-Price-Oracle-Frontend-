@@ -1,4 +1,4 @@
-import type { PriceData, PriceHistoryResponse } from '../types'
+import type { PriceData, PriceHistoryResponse, PriceProof } from '../types'
 import { VALID_PAIRS } from '../types'
 import type { OnChainPriceRecord, OracleNetwork } from '../types/onchain'
 import { getContractRegistryEntry } from '../lib/contractRegistry'
@@ -77,4 +77,3 @@ export function mockHistory(pair: string, count = 100): PriceHistoryResponse {
     })),
   }
 }
-

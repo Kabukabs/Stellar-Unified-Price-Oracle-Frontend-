@@ -131,3 +131,4 @@ export type BatchHistoryResponseFromSchema = z.infer<typeof BatchHistoryResponse
 export type AlertFromSchema = z.infer<typeof AlertSchema>
 export type AlertHistoryEntryFromSchema = z.infer<typeof AlertHistoryEntrySchema>
 export type WsMessageFromSchema = z.infer<typeof WsMessageSchema>
+export type PriceProofFromSchema = z.infer<typeof PriceProofSchema>

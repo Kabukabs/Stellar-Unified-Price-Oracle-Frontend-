@@ -16,13 +16,7 @@ import { circuitBreaker, circuitKeyForPath, CircuitOpenError } from './circuitBr
 
 /** Categorical classification of an {@link ApiError}, derived from the HTTP status. */
 export type ApiErrorCode =
-  | 'BAD_REQUEST'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'RATE_LIMITED'
-  | 'SERVER_ERROR'
-  | 'UNKNOWN_ERROR'
+  'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'NOT_FOUND' | 'RATE_LIMITED' | 'SERVER_ERROR' | 'UNKNOWN_ERROR'
 
 /**
  * Typed error thrown by {@link request} for non-ok, non-retryable HTTP responses
@@ -115,7 +109,23 @@ function setRateLimitInfo(response: Response): void {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal): Promise<T> {
+/** Extra behaviour flags for {@link request}. */
+interface RequestOptions {
+  /**
+   * HTTP statuses that should still throw {@link ApiError} but must not
+   * trigger the automatic error toast — for endpoints where a given status
+   * is an expected, gracefully-handled outcome rather than a failure (e.g.
+   * 404 from `/proof` meaning "no on-chain proof for this asset").
+   */
+  silentStatuses?: readonly number[]
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  signal?: AbortSignal,
+  options?: RequestOptions,
+): Promise<T> {
   const url = `${config.apiUrl}${path}`
   const circuitKey = circuitKeyForPath(path)
 
@@ -151,7 +161,7 @@ async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal
         const serverVersion = res.headers.get('X-API-Version') ?? 'unknown'
         throw new ApiError(
           `API version mismatch: server is at v${serverVersion}, client requested v${acceptVersion}. ` +
-          `Please update the frontend or backend to a compatible version.`,
+            `Please update the frontend or backend to a compatible version.`,
           res.status,
           'UNKNOWN_ERROR',
         )
@@ -167,7 +177,8 @@ async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal
     if (err instanceof DOMException && err.name === 'AbortError') throw err
 
     circuitBreaker.recordFailure(circuitKey)
-    notifyApiError(apiErrorMessage(err))
+    const silent = err instanceof ApiError && options?.silentStatuses?.includes(err.status)
+    if (!silent) notifyApiError(apiErrorMessage(err))
     throw err
   }
 }
@@ -286,6 +297,38 @@ export async function fetchPrice(pair: string): Promise<PriceData> {
   return validate(PriceDataSchema, raw)
 }
 
+/**
+ * Fetches the on-chain verification proof for an asset pair's aggregated
+ * price — the per-source signed contributions and aggregate signature/commitment
+ * published to the Soroban oracle contract (see
+ * docs/adr/0001-onchain-soroban-price-oracle.md).
+ *
+ * Pass `timestamp` to verify a specific historical record instead of the latest
+ * one; the backend resolves it to the on-chain record whose version was current
+ * at that time.
+ *
+ * Resolves to `null` — rather than throwing — when no proof exists for this
+ * pair/timestamp (e.g. the asset has no canonical on-chain representation, or
+ * the on-chain oracle hasn't been rolled out to it yet), so callers can render
+ * a graceful empty state instead of an error banner. Any other failure (network,
+ * 5xx, etc.) still throws.
+ */
+export async function fetchPriceProof(pair: string, timestamp?: number): Promise<PriceProof | null> {
+  const query = timestamp !== undefined ? `?timestamp=${timestamp}` : ''
+  try {
+    const raw = await request<PriceProof>(
+      `/api/prices/${encodeURIComponent(pair)}/proof${query}`,
+      undefined,
+      undefined,
+      { silentStatuses: [404] },
+    )
+    return validate(PriceProofSchema, raw)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null
+    throw err
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Request batching for fetchPricesBatched
 // ---------------------------------------------------------------------------
@@ -390,9 +433,13 @@ export function fetchPricesBatched(pair: string, signal?: AbortSignal): Promise<
       priceCoalesceTimer = setTimeout(flushCoalescedPrices, config.priceBatch.debounceMs)
     }
 
-    signal?.addEventListener('abort', () => {
-      reject(new DOMException('Aborted', 'AbortError'))
-    }, { once: true })
+    signal?.addEventListener(
+      'abort',
+      () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true },
+    )
   })
 }
 
@@ -429,18 +476,26 @@ export function fetchPriceHistory(
       coalesceTimer = setTimeout(flushCoalesced, COALESCE_WINDOW_MS)
     }
 
-    signal?.addEventListener('abort', () => {
-      reject(new DOMException('Aborted', 'AbortError'))
-    }, { once: true })
+    signal?.addEventListener(
+      'abort',
+      () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true },
+    )
   })
 }
 
 /** Fetches price history for multiple asset pairs in a single POST request. */
 export async function fetchBatchHistory(pairs: string[], signal?: AbortSignal): Promise<PriceHistoryResponse[]> {
-  const raw = await request<PriceHistoryResponse[]>('/api/prices/history/batch', {
-    method: 'POST',
-    body: JSON.stringify({ pairs }),
-  }, signal)
+  const raw = await request<PriceHistoryResponse[]>(
+    '/api/prices/history/batch',
+    {
+      method: 'POST',
+      body: JSON.stringify({ pairs }),
+    },
+    signal,
+  )
   return validate(BatchHistoryResponseSchema, raw)
 }
 

@@ -1,9 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { PreferencesProvider } from '../preferences/PreferencesContext'
 import { PriceDetail } from './PriceDetail'
 
 afterEach(cleanup)
+
+vi.mock('../components/PriceProofPanel', () => ({
+  PriceProofPanel: () => <div data-testid="price-proof-panel" />,
+}))
+
+vi.mock('../hooks/useIndexedDB', () => ({
+  idbCache: {
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    clear: vi.fn().mockResolvedValue(undefined),
+    subscribe: vi.fn().mockReturnValue(() => {}),
+    fetchWithCache: vi.fn().mockResolvedValue(null),
+  },
+}))
 
 const defaultHistory = {
   history: [],
@@ -39,9 +55,11 @@ vi.mock('../components/OnChainComparisonPanel', () => ({
 function renderWithPair(pair = 'BTC%2FUSD') {
   return render(
     <MemoryRouter initialEntries={[`/prices/${pair}`]}>
-      <Routes>
-        <Route path="/prices/:pair" element={<PriceDetail />} />
-      </Routes>
+      <PreferencesProvider>
+        <Routes>
+          <Route path="/prices/:pair" element={<PriceDetail />} />
+        </Routes>
+      </PreferencesProvider>
     </MemoryRouter>,
   )
 }
@@ -66,17 +84,29 @@ describe('PriceDetail', () => {
 
   it('shows loading skeleton while price is loading', async () => {
     const { useSwr } = await import('../hooks/useSwr')
-    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: true, error: null, errorMessage: null, isValidating: false, refetch: vi.fn() })
+    vi.mocked(useSwr).mockReturnValue({
+      data: undefined,
+      loading: true,
+      error: null,
+      errorMessage: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
 
     renderWithPair()
-    expect(
-      screen.getByRole('status', { name: 'Loading price detail' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading price detail' })).toBeInTheDocument()
   })
 
   it('shows error state when price fetch fails', async () => {
     const { useSwr } = await import('../hooks/useSwr')
-    vi.mocked(useSwr).mockReturnValue({ data: undefined, loading: false, error: new Error('Failed to fetch'), errorMessage: 'Failed to fetch', isValidating: false, refetch: vi.fn() })
+    vi.mocked(useSwr).mockReturnValue({
+      data: undefined,
+      loading: false,
+      error: new Error('Failed to fetch'),
+      errorMessage: 'Failed to fetch',
+      isValidating: false,
+      refetch: vi.fn(),
+    })
 
     renderWithPair()
     expect(screen.getByRole('alert')).toBeInTheDocument()
@@ -114,9 +144,7 @@ describe('PriceDetail', () => {
     })
 
     renderWithPair()
-    expect(
-      screen.getByRole('heading', { name: 'BTC/USD' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'BTC/USD' })).toBeInTheDocument()
   })
 
   it('shows chart when data is loaded', async () => {
@@ -262,15 +290,11 @@ describe('PriceDetail', () => {
 
     renderWithPair()
 
-    // The chart error fallback should be rendered
-    expect(
-      screen.getByRole('alert', { name: 'Chart rendering failed' }),
-    ).toBeInTheDocument()
+    // The chart error fallback should be rendered (lazy-loaded, resolves asynchronously)
+    expect(await screen.findByRole('alert', { name: 'Chart rendering failed' })).toBeInTheDocument()
     expect(screen.getByText('Chart failed to load')).toBeInTheDocument()
     expect(
-      screen.getByText(
-        'The price history chart encountered an error. Price data is still available above.',
-      ),
+      screen.getByText('The price history chart encountered an error. Price data is still available above.'),
     ).toBeInTheDocument()
 
     spy.mockRestore()
@@ -314,11 +338,9 @@ describe('PriceDetail', () => {
 
     renderWithPair()
 
-    // Chart should render, error fallback should not
-    expect(screen.getByTestId('price-chart')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('alert', { name: 'Chart rendering failed' }),
-    ).not.toBeInTheDocument()
+    // Chart should render (lazy-loaded, resolves asynchronously), error fallback should not
+    expect(await screen.findByTestId('price-chart')).toBeInTheDocument()
+    expect(screen.queryByRole('alert', { name: 'Chart rendering failed' })).not.toBeInTheDocument()
 
     // Price data rendered too
     expect(screen.getByRole('heading', { name: 'BTC/USD' })).toBeInTheDocument()
@@ -341,8 +363,8 @@ describe('PriceDetail', () => {
     })
 
     renderWithPair()
-    expect(screen.getByTestId('price-chart')).toBeInTheDocument()
-    const table = screen.getByRole('table', { name: 'Price history table' })
+    expect(await screen.findByTestId('price-chart')).toBeInTheDocument()
+    const table = await screen.findByRole('table', { name: 'Price history table' })
     expect(table).toBeInTheDocument()
     expect(within(table).getByText('$49,500.00')).toBeInTheDocument()
   })
@@ -368,4 +390,40 @@ describe('PriceDetail', () => {
     expect(screen.queryByRole('table', { name: 'Price history table' })).not.toBeInTheDocument()
   })
 
+  // ─── Overview / Proof tabs ─────────────────────────────────────
+
+  it('shows the Overview tab content by default', async () => {
+    const { useSwr } = await import('../hooks/useSwr')
+    vi.mocked(useSwr).mockReturnValue({
+      data: mockPriceData,
+      loading: false,
+      error: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
+
+    renderWithPair()
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Proof' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByTestId('price-chart')).toBeInTheDocument()
+    expect(screen.queryByTestId('price-proof-panel')).not.toBeInTheDocument()
+  })
+
+  it('switches to the Proof tab and hides Overview content', async () => {
+    const { useSwr } = await import('../hooks/useSwr')
+    vi.mocked(useSwr).mockReturnValue({
+      data: mockPriceData,
+      loading: false,
+      error: null,
+      isValidating: false,
+      refetch: vi.fn(),
+    })
+
+    renderWithPair()
+    fireEvent.click(screen.getByRole('tab', { name: 'Proof' }))
+
+    expect(await screen.findByTestId('price-proof-panel')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Proof' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByTestId('price-chart')).not.toBeInTheDocument()
+  })
 })

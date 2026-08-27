@@ -13,6 +13,7 @@ export const config = {
   analyticsEndpoint: env.VITE_ANALYTICS_URL,
   useMock: env.VITE_USE_MOCK === 'true',
   logLevel: env.VITE_LOG_LEVEL,
+  stellarNetwork: env.VITE_STELLAR_NETWORK,
   refreshInterval: 10_000,
   wsReconnectDelay: 3_000,
   wsBroadcastInterval: 5_000,
