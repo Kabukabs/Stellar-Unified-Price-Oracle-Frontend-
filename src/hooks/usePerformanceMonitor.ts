@@ -19,6 +19,7 @@ import {
   recordPerfMark,
   type PerformanceSnapshot,
 } from '../utils/performanceMonitor'
+import { isFeatureEnabled } from '../config/featureFlags'
 import { trackEvent } from './useAnalytics'
 
 const REPORT_LONG_TASK_THRESHOLD_MS = 200   // only report notably long tasks
@@ -51,9 +52,11 @@ export function usePerformanceMonitor(): PerformanceSnapshot | null {
     trackEvent('perf:jank', { fps: s.fps })
   }, [])
 
-  // Rate-limited high-memory warning (#322)
+  // Rate-limited high-memory warning (#322). Gated behind a feature flag so
+  // it can be killed via VITE_FLAG_MEMORY_WARNING_REPORTING if noisy (#359).
   const handleMemoryWarning = useCallback((s: PerformanceSnapshot) => {
     if (!s.isMemoryWarning || s.memoryUsedBytes === null) return
+    if (!isFeatureEnabled('memoryWarningReporting')) return
     const now = Date.now()
     if (now - lastMemoryWarningRef.current < MEMORY_WARNING_COOLDOWN_MS) return
     lastMemoryWarningRef.current = now
