@@ -32,6 +32,9 @@ vi.mock('../hooks/usePriceHistory', () => ({ usePriceHistory: vi.fn() }))
 vi.mock('../components/CsvImportZone', () => ({
   CsvImportZone: () => <div data-testid="csv-import-zone" />,
 }))
+vi.mock('../components/OnChainComparisonPanel', () => ({
+  OnChainComparisonPanel: () => <div data-testid="onchain-comparison-panel" />,
+}))
 
 function renderWithPair(pair = 'BTC%2FUSD') {
   return render(

@@ -10,6 +10,8 @@ export interface DataPreferences {
   staleThresholdMinutes: number
   /** Priority order of oracle sources to prefer as the "active" source for a feed. */
   sourcePriority: string[]
+  /** Percentage divergence between off-chain and on-chain price that flags a pair as breached. */
+  onChainDivergenceThresholdPercent: number
 }
 
 /** How the dashboard arranges what it shows. */

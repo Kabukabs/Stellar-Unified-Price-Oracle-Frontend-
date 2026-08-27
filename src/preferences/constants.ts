@@ -12,6 +12,7 @@ export const DEFAULT_DATA_PREFERENCES: DataPreferences = {
   chartTimeRange: '24h',
   staleThresholdMinutes: 5,
   sourcePriority: ['chainlink', 'redstone', 'band', 'reflector'],
+  onChainDivergenceThresholdPercent: 1,
 }
 
 export const DEFAULT_LAYOUT_PREFERENCES: LayoutPreferences = {
@@ -61,6 +62,13 @@ export const STALE_THRESHOLD_OPTIONS = [
   { value: 5, label: '5 minutes' },
   { value: 15, label: '15 minutes' },
   { value: 30, label: '30 minutes' },
+] as const
+
+export const DIVERGENCE_THRESHOLD_OPTIONS = [
+  { value: 0.5, label: '0.5%' },
+  { value: 1, label: '1%' },
+  { value: 2, label: '2%' },
+  { value: 5, label: '5%' },
 ] as const
 
 export const CHART_TIMEZONE_OPTIONS = [

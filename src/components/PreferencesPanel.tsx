@@ -21,6 +21,7 @@
  * | Refresh interval  | `refreshInterval`       | 5 s, 10 s, 30 s, 60 s      |
  * | Chart time range  | `chartTimeRange`        | 1 h, 6 h, 24 h, 7 d, 30 d  |
  * | Stale threshold   | `staleThresholdMinutes` | 1, 2, 5, 10, 30 min         |
+ * | Divergence threshold | `onChainDivergenceThresholdPercent` | 0.5%, 1%, 2%, 5% |
  *
  * ## Undo / Redo
  * Each preference change is recorded as a command in the undo stack (depth
@@ -48,6 +49,7 @@ import {
   REFRESH_INTERVAL_OPTIONS,
   CHART_RANGE_OPTIONS,
   STALE_THRESHOLD_OPTIONS,
+  DIVERGENCE_THRESHOLD_OPTIONS,
 } from '../preferences/constants'
 import type { Preferences } from '../preferences/types'
 
@@ -121,6 +123,27 @@ export const PreferencesPanel = memo(function PreferencesPanel() {
           }
         >
           {STALE_THRESHOLD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* On-chain divergence threshold */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="divergence-threshold" className="text-sm font-medium text-gray-200">
+          On-chain divergence threshold
+        </label>
+        <select
+          id="divergence-threshold"
+          className="rounded bg-slate-800 px-3 py-2 text-sm text-gray-100"
+          value={preferences.onChainDivergenceThresholdPercent}
+          onChange={(e) =>
+            updatePreference('onChainDivergenceThresholdPercent', Number(e.target.value))
+          }
+        >
+          {DIVERGENCE_THRESHOLD_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
