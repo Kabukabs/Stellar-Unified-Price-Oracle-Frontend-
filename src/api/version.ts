@@ -1,297 +1,330 @@
 /**
- * api/version.ts
+ * Version Reporting Utilities
  *
- * API versioning support for the Stellar Unified Price Oracle frontend.
+ * Provides version information and environment details for monitoring,
+ * debugging, and production support.
  *
- * Strategy:
- * - The frontend declares the API version it targets via `CURRENT_API_VERSION`.
- * - Every REST request includes an `Accept-Version` header so the server can
- *   respond with the closest compatible version it supports.
- * - On startup, `detectApiVersion()` pings the `/api/version` endpoint (or
- *   `/health` as fallback) to read the `X-API-Version` response header. If the
- *   server version is incompatible the UI shows a clear error and gracefully
- *   degrades (no data-fetch errors silently swallowed).
- * - `migrateApiPayload()` applies lightweight shape transformations when the
- *   detected server version differs from the current target.
+ * Usage:
+ * ```typescript
+ * import { getVersionInfo, getAppVersion } from './utils/version'
  *
- * Version numbering follows semver MAJOR.MINOR convention. A MAJOR mismatch
- * is considered breaking (incompatible); a MINOR mismatch is a warning.
+ * // Get current version
+ * const version = getAppVersion()
+ *
+ * // Get full version info with environment
+ * const info = getVersionInfo()
+ * console.log(info)
+ * ```
  */
 
-import { config } from '../config'
-
-// ── Version constants ────────────────────────────────────────────────────────
-
-/** The API version this frontend build targets. */
-export const CURRENT_API_VERSION = '1.0'
-
-/** Minimum server API version this frontend can work with. */
-export const MIN_COMPATIBLE_API_VERSION = '1.0'
-
-/** Maximum server API version this frontend has been tested against. */
-export const MAX_COMPATIBLE_API_VERSION = '1.99'
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export type VersionCompatibility = 'compatible' | 'minor-mismatch' | 'incompatible' | 'unknown'
-
-export interface ApiVersionInfo {
-  /** Version reported by the server, or null if the endpoint didn't return one */
-  serverVersion: string | null
-  /** Version the frontend currently targets */
-  clientVersion: string
-  compatibility: VersionCompatibility
-  /** Human-readable description of the compatibility status */
-  message: string
-  /** Whether any features should be disabled due to incompatibility */
-  degraded: boolean
-  detectedAt: number
-}
-
-// ── Semver helpers ───────────────────────────────────────────────────────────
-
-function parseMajorMinor(version: string): [number, number] | null {
-  const parts = version.trim().split('.')
-  const major = parseInt(parts[0], 10)
-  const minor = parts[1] !== undefined ? parseInt(parts[1], 10) : 0
-  if (isNaN(major) || isNaN(minor)) return null
-  return [major, minor]
+/**
+ * Version information interface
+ */
+export interface VersionInfo {
+  /** Application version (e.g., "1.2.3") */
+  version: string
+  /** Git commit SHA (short form) */
+  commit: string
+  /** Build timestamp (ISO 8601) */
+  buildTime: string
+  /** Build environment (development, staging, production) */
+  environment: string
+  /** Node version used for build */
+  nodeVersion: string
+  /** Git branch the build came from */
+  branch: string
+  /** Whether this is a pre-release version */
+  prerelease: boolean
+  /** Whether this is a development build */
+  isDev: boolean
+  /** Whether this is a production build */
+  isProd: boolean
 }
 
 /**
- * Determines compatibility between the reported server version and the
- * version range the frontend supports.
+ * Build-time version information (injected during build)
+ * These values are replaced by the build system
  */
-export function checkVersionCompatibility(serverVersion: string): VersionCompatibility {
-  const server = parseMajorMinor(serverVersion)
-  const min = parseMajorMinor(MIN_COMPATIBLE_API_VERSION)
-  const max = parseMajorMinor(MAX_COMPATIBLE_API_VERSION)
-  const current = parseMajorMinor(CURRENT_API_VERSION)
-
-  if (!server || !min || !max || !current) return 'unknown'
-
-  const [sMajor, sMinor] = server
-  const [minMajor] = min
-  const [maxMajor] = max
-  const [, currentMinor] = current
-
-  // Major version outside supported range → incompatible
-  if (sMajor < minMajor || sMajor > maxMajor) return 'incompatible'
-
-  // Same major, minor differs → warn but allow
-  if (sMinor !== currentMinor) return 'minor-mismatch'
-
-  return 'compatible'
+export const BUILD_INFO = {
+  VERSION: '__BUILD_VERSION__',
+  COMMIT: '__BUILD_COMMIT__',
+  BUILD_TIME: '__BUILD_TIME__',
+  BRANCH: '__BUILD_BRANCH__',
 }
 
-function buildVersionInfo(serverVersion: string | null): ApiVersionInfo {
-  if (serverVersion === null) {
-    return {
-      serverVersion: null,
-      clientVersion: CURRENT_API_VERSION,
-      compatibility: 'unknown',
-      message:
-        'Could not determine the API version. The app will continue but some features may not work correctly.',
-      degraded: false,
-      detectedAt: Date.now(),
-    }
+/**
+ * Get the current application version
+ * @returns Version string (e.g., "1.2.3" or "1.2.3-alpha.1")
+ */
+export function getAppVersion(): string {
+  // Try to get from build-time injection first
+  if (BUILD_INFO.VERSION && BUILD_INFO.VERSION !== '__BUILD_VERSION__') {
+    return BUILD_INFO.VERSION
   }
 
-  const compatibility = checkVersionCompatibility(serverVersion)
+  // Fallback to package.json version
+  return import.meta.env.VITE_APP_VERSION || '0.0.0'
+}
 
-  const messages: Record<VersionCompatibility, string> = {
-    compatible: `API version ${serverVersion} is fully compatible.`,
-    'minor-mismatch': `API version ${serverVersion} differs from the expected ${CURRENT_API_VERSION}. Minor version mismatches are usually compatible — if you see unexpected behaviour please update either the frontend or backend.`,
-    incompatible: `API version ${serverVersion} is incompatible with this frontend (requires ${MIN_COMPATIBLE_API_VERSION}–${MAX_COMPATIBLE_API_VERSION}). Please update the backend or frontend to a compatible version.`,
-    unknown: `Unknown API version format "${serverVersion}". Could not determine compatibility.`,
+/**
+ * Get the build commit SHA
+ * @returns Short commit SHA or 'unknown'
+ */
+export function getBuildCommit(): string {
+  if (BUILD_INFO.COMMIT && BUILD_INFO.COMMIT !== '__BUILD_COMMIT__') {
+    return BUILD_INFO.COMMIT
   }
+  return import.meta.env.VITE_BUILD_COMMIT || 'unknown'
+}
+
+/**
+ * Get the build timestamp
+ * @returns ISO 8601 timestamp or current time
+ */
+export function getBuildTime(): string {
+  if (BUILD_INFO.BUILD_TIME && BUILD_INFO.BUILD_TIME !== '__BUILD_TIME__') {
+    return BUILD_INFO.BUILD_TIME
+  }
+  return new Date().toISOString()
+}
+
+/**
+ * Get the build branch
+ * @returns Git branch name
+ */
+export function getBuildBranch(): string {
+  if (BUILD_INFO.BRANCH && BUILD_INFO.BRANCH !== '__BUILD_BRANCH__') {
+    return BUILD_INFO.BRANCH
+  }
+  return import.meta.env.VITE_BUILD_BRANCH || 'unknown'
+}
+
+/**
+ * Check if version is a pre-release (contains alpha, beta, rc)
+ */
+export function isPrerelease(version: string): boolean {
+  return /-(alpha|beta|rc|pre)(\.\d+)?/i.test(version)
+}
+
+/**
+ * Get comprehensive version information
+ */
+export function getVersionInfo(): VersionInfo {
+  const version = getAppVersion()
+  const isDev = import.meta.env.DEV
+  const isProd = import.meta.env.PROD
 
   return {
-    serverVersion,
-    clientVersion: CURRENT_API_VERSION,
-    compatibility,
-    message: messages[compatibility],
-    degraded: compatibility === 'incompatible',
-    detectedAt: Date.now(),
+    version,
+    commit: getBuildCommit(),
+    buildTime: getBuildTime(),
+    environment: isProd ? 'production' : isDev ? 'development' : 'unknown',
+    nodeVersion: __NODE_VERSION__ || 'unknown',
+    branch: getBuildBranch(),
+    prerelease: isPrerelease(version),
+    isDev,
+    isProd,
   }
 }
 
-// ── Feature detection ─────────────────────────────────────────────────────────
+/**
+ * Format version info as a readable string
+ */
+export function formatVersionInfo(info: VersionInfo): string {
+  return `
+Version: ${info.version}${info.prerelease ? ' (prerelease)' : ''}
+Commit: ${info.commit}
+Built: ${new Date(info.buildTime).toLocaleString()}
+Environment: ${info.environment}
+Branch: ${info.branch}
+Node: ${info.nodeVersion}
+  `.trim()
+}
 
 /**
- * Pings the API version endpoint on startup to detect the server version.
- *
- * Resolution order:
- * 1. GET /api/version   — dedicated version endpoint (returns { version: "..." })
- * 2. GET /health        — reads `X-API-Version` response header
- *
- * Returns an {@link ApiVersionInfo} describing the compatibility status.
- * Never throws — on any error it returns an 'unknown' compatibility info so the
- * app can continue operating.
+ * Get a user-friendly version string
+ * Suitable for UI display
  */
-export async function detectApiVersion(signal?: AbortSignal): Promise<ApiVersionInfo> {
-  // 1. Try dedicated /api/version endpoint
-  try {
-    const res = await fetch(`${config.apiUrl}/api/version`, {
-      signal,
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Version': CURRENT_API_VERSION,
-      },
-    })
-    if (res.ok) {
-      // Check response header first (takes precedence over body)
-      const headerVersion = res.headers.get('X-API-Version')
-      if (headerVersion) return buildVersionInfo(headerVersion)
+export function getUserVersionString(): string {
+  const version = getAppVersion()
+  const isDev = import.meta.env.DEV
 
-      // Fall through to parse JSON body
-      const json = await res.json().catch(() => null) as Record<string, unknown> | null
-      const bodyVersion =
-        typeof json?.version === 'string' ? json.version :
-        typeof json?.apiVersion === 'string' ? json.apiVersion :
-        null
-      if (bodyVersion) return buildVersionInfo(bodyVersion)
+  if (isDev) {
+    const commit = getBuildCommit()
+    return `${version} (dev, ${commit})`
+  }
+
+  if (isPrerelease(version)) {
+    const branch = getBuildBranch()
+    return `${version} (${branch})`
+  }
+
+  return version
+}
+
+/**
+ * Log version information to console
+ * Useful for debugging in browser DevTools
+ */
+export function logVersionInfo(): void {
+  const info = getVersionInfo()
+  const formatted = formatVersionInfo(info)
+
+  console.group('🚀 Application Version Info')
+  console.log(formatted)
+  console.table(info)
+  console.groupEnd()
+}
+
+/**
+ * Store version info in window for debugging
+ * Access in DevTools console: window.__VERSION_INFO__
+ */
+export function exposeVersionInfo(): void {
+  if (typeof window !== 'undefined') {
+    (window as any).__VERSION_INFO__ = getVersionInfo()
+    (window as any).__FORMAT_VERSION = formatVersionInfo
+  }
+}
+
+/**
+ * Check if app needs update based on version comparison
+ * Returns true if remote version is newer than current
+ */
+export function shouldUpdate(remoteVersion: string, currentVersion?: string): boolean {
+  const current = currentVersion || getAppVersion()
+  const remote = parseVersion(remoteVersion)
+  const curr = parseVersion(current)
+
+  if (remote.major > curr.major) return true
+  if (remote.major === curr.major && remote.minor > curr.minor) return true
+  if (remote.major === curr.major && remote.minor === curr.minor && remote.patch > curr.patch) return true
+
+  return false
+}
+
+interface ParsedVersion {
+  major: number
+  minor: number
+  patch: number
+  prerelease: string
+}
+
+function parseVersion(version: string): ParsedVersion {
+  const match = version.match(/(\d+)\.(\d+)\.(\d+)(?:-(.+))?/)
+
+  return {
+    major: match ? parseInt(match[1], 10) : 0,
+    minor: match ? parseInt(match[2], 10) : 0,
+    patch: match ? parseInt(match[3], 10) : 0,
+    prerelease: match ? match[4] || '' : '',
+  }
+}
+
+/**
+ * Create a version API endpoint for CI/CD or monitoring
+ * Returns version info as JSON
+ */
+export function createVersionEndpoint() {
+  return {
+    getVersion: () => getAppVersion(),
+    getVersionInfo: () => getVersionInfo(),
+    getUserVersion: () => getUserVersionString(),
+    shouldUpdate: (remoteVersion: string) => shouldUpdate(remoteVersion),
+  }
+}
+
+// Placeholder for Node version (will be injected by build)
+declare const __NODE_VERSION__: string | undefined
+
+/**
+ * API version information interface
+ */
+export interface ApiVersionInfo {
+  version: string
+  /** Minimum compatible client version */
+  minClientVersion?: string
+  /** Maximum compatible client version */
+  maxClientVersion?: string
+  breaking?: boolean
+  deprecated?: boolean
+  supportedFeatures?: string[]
+}
+
+/**
+ * Get API version information from server
+ * Cached per session
+ */
+let cachedApiVersionInfo: ApiVersionInfo | null = null
+
+export async function getApiVersionInfo(): Promise<ApiVersionInfo | null> {
+  if (cachedApiVersionInfo) {
+    return cachedApiVersionInfo
+  }
+
+  try {
+    const response = await fetch('/api/version')
+    if (response.ok) {
+      cachedApiVersionInfo = await response.json()
+      return cachedApiVersionInfo
     }
   } catch {
-    // network error or AbortError — try fallback
-    if (signal?.aborted) return buildVersionInfo(null)
+    // API version endpoint not available or failed
   }
 
-  // 2. Fall back to /health — read X-API-Version header
-  try {
-    const res = await fetch(`${config.apiUrl.replace(/\/api$/, '')}/health`, {
-      signal,
-      headers: { 'Accept-Version': CURRENT_API_VERSION },
-    })
-    const headerVersion = res.headers.get('X-API-Version')
-    if (headerVersion) return buildVersionInfo(headerVersion)
-  } catch {
-    if (signal?.aborted) return buildVersionInfo(null)
-  }
-
-  return buildVersionInfo(null)
-}
-
-// ── Accept-Version header value ───────────────────────────────────────────────
-
-/**
- * Returns the `Accept-Version` header value to include on every API request.
- * Uses the current version by default; pass a detected server version to pin
- * requests to that version if the server supports it.
- */
-export function getAcceptVersionHeader(serverVersion?: string | null): string {
-  // If the server reported a compatible but different minor version, accept that too
-  if (serverVersion && checkVersionCompatibility(serverVersion) === 'minor-mismatch') {
-    return serverVersion
-  }
-  return CURRENT_API_VERSION
-}
-
-// ── Migration utilities ────────────────────────────────────────────────────────
-
-/**
- * Applies shape transformations to a raw API payload when the server reports
- * a different version from the frontend target. Useful for backwards compatibility
- * when the backend has not yet been updated.
- *
- * Add cases here as the API evolves. Each migration is a pure function that
- * takes the raw payload and returns the normalised shape.
- *
- * @param payload  - Raw object returned by the API
- * @param fromVersion - The server version the payload came from
- * @param toVersion   - The version shape we want (defaults to CURRENT_API_VERSION)
- */
-export function migrateApiPayload<T extends Record<string, unknown>>(
-  payload: T,
-  fromVersion: string,
-  toVersion: string = CURRENT_API_VERSION,
-): T {
-  const from = parseMajorMinor(fromVersion)
-  const to = parseMajorMinor(toVersion)
-  if (!from || !to) return payload
-
-  let result: Record<string, unknown> = { ...payload }
-
-  // ── v0.x → v1.0 ────────────────────────────────────────────────────────────
-  // Example: pre-v1.0 API used `pair` instead of `assetPair`
-  if (from[0] === 0 && to[0] >= 1) {
-    if ('pair' in result && !('assetPair' in result)) {
-      result = { ...result, assetPair: result['pair'] }
-    }
-    // pre-v1.0 used integer prices multiplied by 1e6
-    if (typeof result['price'] === 'number' && result['price'] > 1_000_000) {
-      result = { ...result, price: (result['price'] as number) / 1_000_000 }
-    }
-    // pre-v1.0 confidence was 0-100 not 0-1
-    if (typeof result['confidence'] === 'number' && (result['confidence'] as number) > 1) {
-      result = { ...result, confidence: (result['confidence'] as number) / 100 }
-    }
-  }
-
-  return result as T
-}
-
-// ── Version state store ────────────────────────────────────────────────────────
-
-/**
- * Module-level singleton holding the most recently detected API version info.
- * Updated by `initApiVersionDetection()` on app startup.
- */
-let _currentVersionInfo: ApiVersionInfo | null = null
-
-type VersionListener = (info: ApiVersionInfo) => void
-const versionListeners = new Set<VersionListener>()
-
-export function getApiVersionInfo(): ApiVersionInfo | null {
-  return _currentVersionInfo
-}
-
-export function subscribeApiVersion(listener: VersionListener): () => void {
-  versionListeners.add(listener)
-  if (_currentVersionInfo) listener(_currentVersionInfo)
-  return () => versionListeners.delete(listener)
-}
-
-function setVersionInfo(info: ApiVersionInfo): void {
-  _currentVersionInfo = info
-  versionListeners.forEach((l) => l(info))
+  return null
 }
 
 /**
- * Runs API version detection on startup and updates the global version state.
- * Safe to call multiple times — concurrent calls are coalesced.
+ * Get Accept header value for API versioning
+ * Used in REST requests to specify client API version
  */
-let _detectionInFlight: Promise<ApiVersionInfo> | null = null
-
-export async function initApiVersionDetection(signal?: AbortSignal): Promise<ApiVersionInfo> {
-  if (_detectionInFlight) return _detectionInFlight
-  _detectionInFlight = detectApiVersion(signal).then((info) => {
-    setVersionInfo(info)
-    _detectionInFlight = null
-
-    if (import.meta.env.DEV) {
-      const icon = info.compatibility === 'compatible' ? '✅' : info.compatibility === 'incompatible' ? '❌' : '⚠️'
-      console.info(`[API Version] ${icon} Server: ${info.serverVersion ?? 'unknown'} / Client: ${info.clientVersion} — ${info.compatibility}`)
-    }
-
-    return info
-  })
-  return _detectionInFlight
+export function getAcceptVersionHeader(): string {
+  const version = getAppVersion()
+  return `application/vnd.stellar+json;version=${version}`
 }
 
-// ── CI / testing helper ───────────────────────────────────────────────────────
-
 /**
- * Validates that a given version string is compatible with the current frontend.
- * Throws with a descriptive message if incompatible. Use in CI scripts or tests.
+ * Check if client version is compatible with API version
  */
-export function assertVersionCompatible(serverVersion: string): void {
-  const compat = checkVersionCompatibility(serverVersion)
-  if (compat === 'incompatible') {
-    throw new Error(
-      `API version incompatibility: server reports v${serverVersion}, ` +
-      `frontend requires v${MIN_COMPATIBLE_API_VERSION}–${MAX_COMPATIBLE_API_VERSION}. ` +
-      `Update the backend or frontend to resolve this.`,
-    )
+export function isCompatibleWithApi(clientVersion: string, apiInfo: ApiVersionInfo): boolean {
+  if (!apiInfo.minClientVersion && !apiInfo.maxClientVersion) {
+    return true
   }
+
+  const clientParts = parseVersionStrict(clientVersion)
+  const minParts = apiInfo.minClientVersion ? parseVersionStrict(apiInfo.minClientVersion) : null
+  const maxParts = apiInfo.maxClientVersion ? parseVersionStrict(apiInfo.maxClientVersion) : null
+
+  if (minParts && compareVersionParts(clientParts, minParts) < 0) {
+    return false
+  }
+
+  if (maxParts && compareVersionParts(clientParts, maxParts) > 0) {
+    return false
+  }
+
+  return true
+}
+
+interface VersionParts {
+  major: number
+  minor: number
+  patch: number
+}
+
+function parseVersionStrict(version: string): VersionParts {
+  const match = version.match(/(\d+)\.(\d+)\.(\d+)/)
+  return {
+    major: match ? parseInt(match[1], 10) : 0,
+    minor: match ? parseInt(match[2], 10) : 0,
+    patch: match ? parseInt(match[3], 10) : 0,
+  }
+}
+
+function compareVersionParts(a: VersionParts, b: VersionParts): number {
+  if (a.major !== b.major) return a.major > b.major ? 1 : -1
+  if (a.minor !== b.minor) return a.minor > b.minor ? 1 : -1
+  if (a.patch !== b.patch) return a.patch > b.patch ? 1 : -1
+  return 0
 }

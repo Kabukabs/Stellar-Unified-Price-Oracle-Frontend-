@@ -17,6 +17,7 @@ import type { PriceHistoryEntry } from '../types'
 import { formatChartTimeWithTz, formatPriceShort, formatTimestamp, getTimezoneAbbr } from '../utils/format'
 import { rasterizeChartToDataUrl } from '../utils/chartExport'
 import { exportPriceHistoryPdf } from '../utils/pdfExport'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 // ---------------------------------------------------------------------------
 // #305 – Chart annotation types
@@ -242,6 +243,7 @@ function ChartContent({
   // #302 – Track previous data length to detect incremental real-time appends.
   // Only animate (isAnimationActive) on first render or time-range change;
   // suppress it on incremental appends so the chart doesn't re-animate on every tick.
+  const reducedMotion = useReducedMotion()
   const prevDataLengthRef = useRef<number>(0)
   const prevTimeRangeRef = useRef<TimeRange>(timeRange)
   const isRangeChange = prevTimeRangeRef.current !== timeRange
@@ -249,8 +251,8 @@ function ChartContent({
   const filteredLength = filterByRange(data, timeRange).length
   const isIncremental = !isRangeChange && prevDataLengthRef.current > 0 && filteredLength > prevDataLengthRef.current
   prevDataLengthRef.current = filteredLength
-  // Animate only on initial mount or range change, not on real-time appends
-  const shouldAnimate = !isIncremental
+  // Animate only on initial mount or range change, not on real-time appends or when reduced motion is active
+  const shouldAnimate = !isIncremental && !reducedMotion
 
   // #305 – Annotation management state
   const [localAnnotations, setLocalAnnotations] = useState<ChartAnnotation[]>(annotations)

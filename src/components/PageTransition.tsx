@@ -6,6 +6,7 @@ import {
   type ReactElement,
 } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useReducedMotion } from '../hooks/useReducedMotion'
 
 interface PageTransitionProps {
   children: ReactNode
@@ -18,6 +19,7 @@ interface PageTransitionProps {
  */
 export function PageTransition({ children }: PageTransitionProps): ReactElement {
   const location = useLocation()
+  const reducedMotion = useReducedMotion()
   const [displayChildren, setDisplayChildren] = useState(children)
   const [phase, setPhase] = useState<'enter' | 'idle'>('idle')
   const prevPathRef = useRef(location.pathname)
@@ -34,17 +36,22 @@ export function PageTransition({ children }: PageTransitionProps): ReactElement 
     setDisplayChildren(children)
     setPhase('enter')
 
-    frameRef.current = requestAnimationFrame(() => {
+    // If reduced motion, skip animation frames — just show content immediately
+    if (reducedMotion) {
+      setPhase('idle')
+    } else {
       frameRef.current = requestAnimationFrame(() => {
-        setPhase('idle')
+        frameRef.current = requestAnimationFrame(() => {
+          setPhase('idle')
+        })
       })
-    })
+    }
 
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname])
+  }, [location.pathname, reducedMotion])
 
   // Keep displayed children in sync when not transitioning
   useEffect(() => {
@@ -57,7 +64,7 @@ export function PageTransition({ children }: PageTransitionProps): ReactElement 
   const enterStyle: React.CSSProperties =
     phase === 'enter'
       ? { opacity: 0, transform: 'translateY(6px)' }
-      : { opacity: 1, transform: 'translateY(0)', transition: 'opacity 0.22s ease, transform 0.22s ease' }
+      : { opacity: 1, transform: 'translateY(0)', transition: reducedMotion ? 'none' : 'opacity 0.22s ease, transform 0.22s ease' }
 
   return (
     <div style={enterStyle} className="page-transition-root">

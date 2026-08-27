@@ -3,14 +3,15 @@
 ## Table of Contents
 
 1. [Prerequisites and Environment Requirements](#1-prerequisites-and-environment-requirements)
-2. [Build Configuration for Different Environments](#2-build-configuration-for-different-environments)
-3. [Vercel Deployment Steps](#3-vercel-deployment-steps)
-4. [Environment Variable Reference](#4-environment-variable-reference)
-5. [Custom Domain Setup](#5-custom-domain-setup)
-6. [SSL/HTTPS Configuration](#6-sslhttps-configuration)
-7. [Monitoring and Alerting Setup](#7-monitoring-and-alerting-setup)
-8. [Rollback Procedure](#8-rollback-procedure)
-9. [Performance Tuning Guide](#9-performance-tuning-guide)
+2. [Staging Environment](#2-staging-environment)
+3. [Build Configuration for Different Environments](#3-build-configuration-for-different-environments)
+4. [Vercel Deployment Steps](#4-vercel-deployment-steps)
+5. [Environment Variable Reference](#5-environment-variable-reference)
+6. [Custom Domain Setup](#6-custom-domain-setup)
+7. [SSL/HTTPS Configuration](#7-sslhttps-configuration)
+8. [Monitoring and Alerting Setup](#8-monitoring-and-alerting-setup)
+9. [Rollback Procedure](#9-rollback-procedure)
+10. [Performance Tuning Guide](#10-performance-tuning-guide)
 
 ---
 
@@ -42,7 +43,7 @@ Copy the example environment file and populate it with real values before buildi
 cp .env.example .env
 ```
 
-Ensure the following variables are set (see [§4 Environment Variable Reference](#4-environment-variable-reference) for full details):
+Ensure the following variables are set (see [§5 Environment Variable Reference](#5-environment-variable-reference) for full details):
 
 - `VITE_API_URL` — REST API base URL
 - `VITE_WS_URL` — WebSocket endpoint
@@ -53,7 +54,71 @@ This frontend consumes the [Stellar Unified Price Oracle Aggregator API](https:/
 
 ---
 
-## 2. Build Configuration for Different Environments
+## 2. Staging Environment
+
+### Overview
+
+A staging environment provides a production-like validation layer before code reaches live users. It:
+
+- **Deploys automatically** after successful CI tests on the `main` branch
+- **Uses test API endpoints** to avoid affecting production data
+- **Protected by basic auth** to restrict access to authorized users
+- **Runs full E2E test suite** before production promotion
+- **Provides a manual promotion workflow** with approval gates
+
+### Quick Start
+
+To set up a staging environment:
+
+1. **Create a staging project** in your hosting platform (e.g., Vercel):
+   ```bash
+   vercel projects add stellar-oracle-frontend-staging
+   ```
+
+2. **Add GitHub repository secrets** for staging credentials:
+   - `VERCEL_STAGING_PROJECT_ID` — Vercel staging project ID
+   - `STAGING_API_URL` — Staging API base URL
+   - `STAGING_WS_URL` — Staging WebSocket URL
+   - `STAGING_BASIC_AUTH_USER` — Basic auth username
+   - `STAGING_BASIC_AUTH_PASS` — Basic auth password
+
+3. **Generate and configure basic auth**:
+   ```bash
+   ./scripts/setup-staging-auth.sh
+   ```
+
+4. **Verify staging security**:
+   ```bash
+   ./scripts/verify-staging-security.sh --user <username> --pass <password>
+   ```
+
+### Automatic Deployments
+
+On every push to `main`:
+
+1. CI pipeline runs all checks (typecheck, lint, build, unit tests, E2E tests)
+2. If all checks pass, the `deploy-staging` job runs
+3. Frontend is built with staging API endpoints
+4. Deployed to Vercel staging project
+5. GitHub deployment status is created
+
+### Manual Promotion to Production
+
+When ready to go live:
+
+1. Go to **Actions** → **Promote to Production**
+2. Click **Run workflow**
+3. Select staging commit (default: latest main)
+4. Choose whether to run E2E tests
+5. Wait for approval gate
+6. Once approved, production deployment begins
+7. Post-deployment smoke tests verify the deploy
+
+For details, see [docs/STAGING_DEPLOYMENT.md](./docs/STAGING_DEPLOYMENT.md).
+
+---
+
+## 3. Build Configuration for Different Environments
 
 ### Development
 
@@ -127,7 +192,7 @@ npm run build:analyze
 
 ---
 
-## 3. Vercel Deployment Steps
+## 4. Vercel Deployment Steps
 
 ### First-Time Setup
 
@@ -227,7 +292,7 @@ netlify deploy --prod --dir dist
 
 ---
 
-## 4. Environment Variable Reference
+## 5. Environment Variable Reference
 
 All variables are prefixed with `VITE_` so Vite bakes them into the client bundle at build time. Never put secrets in these variables — they are visible in the shipped JavaScript.
 
@@ -251,7 +316,7 @@ Environment variables are validated at app startup in `src/config/validateEnv.ts
 
 ---
 
-## 5. Custom Domain Setup
+## 6. Custom Domain Setup
 
 ### Vercel
 
@@ -278,7 +343,7 @@ Environment variables are validated at app startup in `src/config/validateEnv.ts
 
 ---
 
-## 6. SSL/HTTPS Configuration
+## 7. SSL/HTTPS Configuration
 
 ### Automatic Certificate Provisioning (Vercel / Netlify)
 
@@ -321,7 +386,7 @@ Adjust `connect-src` to match your `VITE_API_URL` and `VITE_WS_URL` origins.
 
 ---
 
-## 7. Monitoring and Alerting Setup
+## 8. Monitoring and Alerting Setup
 
 ### Web Vitals (Built-in)
 
@@ -382,7 +447,7 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) sends build and test fa
 
 ---
 
-## 8. Rollback Procedure
+## 9. Rollback Procedure
 
 ### Vercel Rollback
 
@@ -443,7 +508,7 @@ npm run build
 
 ---
 
-## 9. Performance Tuning Guide
+## 10. Performance Tuning Guide
 
 ### Code Splitting
 
