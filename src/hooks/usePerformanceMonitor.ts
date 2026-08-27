@@ -23,10 +23,12 @@ import { trackEvent } from './useAnalytics'
 
 const REPORT_LONG_TASK_THRESHOLD_MS = 200   // only report notably long tasks
 const FPS_JANK_REPORT_COOLDOWN_MS   = 30_000 // rate-limit jank reports
+const MEMORY_WARNING_COOLDOWN_MS    = 60_000 // rate-limit memory warnings (#322)
 
 export function usePerformanceMonitor(): PerformanceSnapshot | null {
   const [snapshot, setSnapshot] = useState<PerformanceSnapshot | null>(null)
   const lastJankReportRef = useRef(0)
+  const lastMemoryWarningRef = useRef(0)
 
   // Report a long task to analytics if it's egregiously long
   const handleLongTask = useCallback((s: PerformanceSnapshot) => {
@@ -49,6 +51,17 @@ export function usePerformanceMonitor(): PerformanceSnapshot | null {
     trackEvent('perf:jank', { fps: s.fps })
   }, [])
 
+  // Rate-limited high-memory warning (#322)
+  const handleMemoryWarning = useCallback((s: PerformanceSnapshot) => {
+    if (!s.isMemoryWarning || s.memoryUsedBytes === null) return
+    const now = Date.now()
+    if (now - lastMemoryWarningRef.current < MEMORY_WARNING_COOLDOWN_MS) return
+    lastMemoryWarningRef.current = now
+    const usedMb = Math.round(s.memoryUsedBytes / (1024 * 1024))
+    console.warn(`[performanceMonitor] JS heap usage is ${usedMb} MB, which exceeds the 200 MB warning threshold.`)
+    trackEvent('perf:memory_warning', { used_mb: usedMb })
+  }, [])
+
   useEffect(() => {
     startPerformanceMonitor()
     recordPerfMark('app:ready')
@@ -57,13 +70,14 @@ export function usePerformanceMonitor(): PerformanceSnapshot | null {
       setSnapshot(s)
       handleLongTask(s)
       handleJank(s)
+      handleMemoryWarning(s)
     })
 
     return () => {
       unsubscribe()
       stopPerformanceMonitor()
     }
-  }, [handleLongTask, handleJank])
+  }, [handleLongTask, handleJank, handleMemoryWarning])
 
   return snapshot
 }
