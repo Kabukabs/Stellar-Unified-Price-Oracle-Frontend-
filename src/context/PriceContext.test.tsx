@@ -142,6 +142,34 @@ describe('PriceProvider', () => {
     })
   })
 
+  it('patches the REST cache with the WS-confirmed price (#321)', async () => {
+    const client = makeQueryClient()
+    const setSpy = vi.spyOn(client, 'setQueryData')
+
+    render(
+      <QueryClientProvider client={client}>
+        <PriceProvider>
+          <TestConsumer />
+        </PriceProvider>
+      </QueryClientProvider>,
+    )
+
+    act(() => {
+      messageHandler?.({
+        type: 'price_update',
+        assetPair: 'BTC/USD',
+        price: 50010,
+        timestamp: 1700000001000,
+        confidence: 0.99,
+        sources: ['chainlink'],
+      })
+    })
+
+    await waitFor(() => {
+      expect(setSpy).toHaveBeenCalledWith(['prices'], expect.any(Function))
+    })
+  })
+
   it('rolls back when REST revalidation conflicts with the optimistic update', async () => {
     vi.mocked(fetchPricesBatched).mockResolvedValueOnce({
       assetPair: 'BTC/USD',

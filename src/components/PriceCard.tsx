@@ -45,7 +45,7 @@
  * - The alert SVG icon carries `aria-hidden="true"` so screen readers skip it.
  * - Source badge tooltips are keyboard-focusable via the `Tooltip` wrapper.
  */
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PriceData, PriceSyncState } from '../types'
 import { formatPrice } from '../utils/format'

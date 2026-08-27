@@ -15,11 +15,14 @@ import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import { WalletProvider } from './wallet/WalletContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
-import { initAnalytics, trackPageview } from './hooks/useAnalytics'
+import { initAnalytics } from './hooks/useAnalytics'
+import { useAnalyticsRouting } from './utils/analyticsRouting'
 import { usePerformanceMonitor } from './hooks/usePerformanceMonitor'
 import { useInitApiVersion } from './hooks/useApiVersion'
 import { PerformanceOverlay } from './components/PerformanceOverlay'
 import { ApiVersionBanner } from './components/ApiVersionBanner'
+import { InstallPrompt } from './components/InstallPrompt'
+import { PwaUpdateBanner } from './components/PwaUpdateBanner'
 import {
   LazyApiDocs,
   LazyDashboard,
@@ -36,7 +39,7 @@ const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, '')
 export function AppContent(): ReactElement {
   const location = useLocation()
   useAccessibility()
-  trackPageview(location.pathname)
+  useAnalyticsRouting()
 
   useEffect(() => {
     if (location.pathname === '/') {
@@ -52,6 +55,8 @@ export function AppContent(): ReactElement {
     <ErrorBoundary key={location.key}>
       <AlertsProvider>
         <ApiVersionBanner />
+        <InstallPrompt />
+        <PwaUpdateBanner />
         <Layout>
           <Routes>
             <Route

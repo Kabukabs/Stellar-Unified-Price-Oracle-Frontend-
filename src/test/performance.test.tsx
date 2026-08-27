@@ -65,9 +65,13 @@ describe('render count regression: Dashboard', () => {
       wsStatus: 'connected',
       rateLimitStatus: 'ok',
       rateLimitRetryAfterMs: 0,
+      outboundQueued: 0,
+      pricesQueued: false,
+      requestsThrottled: false,
       refetchPrices: vi.fn(),
       subscribe: vi.fn(),
       unsubscribe: vi.fn(),
+      _emitPriceUpdate: vi.fn(),
     })
   })
 

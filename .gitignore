@@ -59,7 +59,18 @@ playwright-report/
 # Do NOT add e2e/snapshots/ here — those are the approved baselines
 
 # ── IDE / editor ──────────────────────────────────────────────────────────────
-.vscode/
+# Track shared workspace configuration (settings, extensions, tasks, debug)
+!.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/*.md
+# Workspace file
+!*.code-workspace
+
+# Exclude IDE-specific files
 .idea/
 *.swp
 *.swo

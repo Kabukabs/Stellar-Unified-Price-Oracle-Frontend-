@@ -1,12 +1,16 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
+import { applyRtl } from '../i18n'
+import i18n from '../i18n'
 import { useUndoRedo, type Command } from '../hooks/useUndoRedo'
 import { idbCache } from '../hooks/useIndexedDB'
+import { createBroadcastChannel } from '../utils/broadcastChannel'
 import { DEFAULT_PREFERENCES, MAX_UNDO_DEPTH } from './constants'
 import { preferencesReducer, setPreference } from './slices'
 import type { Preferences } from './types'
 
 const PREFS_IDB_KEY = 'user-preferences'
+const prefsChannel = createBroadcastChannel<Preferences>('kiro-preferences')
 
 interface PreferencesContextValue {
   preferences: Preferences
@@ -52,8 +56,17 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (idbLoaded) {
       idbCache.set('preferences', PREFS_IDB_KEY, preferences)
+      // Broadcast preferences change to other tabs
+      prefsChannel.broadcast('preferences-update', preferences)
     }
   }, [preferences, idbLoaded])
+
+  // Keep <html dir="rtl|ltr"> in sync with the rtlEnabled preference override.
+  // When rtlEnabled is true we force RTL regardless of the active language;
+  // when false we let the language code decide (passing undefined).
+  useEffect(() => {
+    applyRtl(i18n.language, preferences.rtlEnabled || undefined)
+  }, [preferences.rtlEnabled])
 
   const updatePreference = useCallback(
     <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
