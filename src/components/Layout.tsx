@@ -133,6 +133,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
             {/* Client-side outbound back-pressure (#330). Renders nothing unless
                 requests are queued or the server asked us to pause. */}
             <QueuedRequestsBadge />
+            <WalletButton />
             <button
               onClick={() => setSettingsOpen(true)}
               onMouseEnter={preloadSettingsPanel}
