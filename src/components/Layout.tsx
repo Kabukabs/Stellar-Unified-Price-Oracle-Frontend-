@@ -12,6 +12,7 @@ import {
   preloadSettingsPanel,
 } from '../utils/chunks'
 import { QueuedRequestsBadge } from './QueuedRequestsBadge'
+import { SkipNavLink } from './SkipNavLink'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
