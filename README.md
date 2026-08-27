@@ -48,6 +48,27 @@ npm run dev
 
 The dev server starts at `http://localhost:5173`.
 
+### Local HTTPS Setup (Optional)
+
+Service Workers, geolocation, and some WebSocket features require HTTPS. To enable local HTTPS:
+
+```bash
+# 1. Install mkcert (one-time)
+brew install mkcert      # macOS
+choco install mkcert     # Windows
+sudo apt-get install mkcert  # Linux
+
+# 2. Generate certificates
+npm run setup-https
+
+# 3. Start dev server with HTTPS
+npm run dev:https
+```
+
+Access the app at `https://localhost:5173` (browser may show security warning, which is expected).
+
+See [Local HTTPS Setup Guide](./docs/https-setup.md) for more information.
+
 ### Environment Variables
 
 | Variable | Default | Description |
@@ -60,6 +81,8 @@ The dev server starts at `http://localhost:5173`.
 | Command | Description |
 |---|---|
 | `npm run dev` | Start the Vite dev server with HMR |
+| `npm run dev:https` | Start the dev server with HTTPS (requires `npm run setup-https` first) |
+| `npm run setup-https` | Generate local HTTPS certificates using mkcert |
 | `npm run build` | Type-check and build for production (outputs to `dist/`) |
 | `npm run preview` | Serve the production build locally |
 | `npm run test` | Run tests in watch mode (Vitest) |
@@ -193,15 +216,15 @@ docs/
 
 ## Architecture Decision Records
 
-Key architectural decisions are documented in [`docs/adr/`](docs/adr/):
+Key architectural decisions are documented in [`docs/adr/`](docs/adr/). Start here to understand:
 
-| ADR | Decision |
-|---|---|
-| [ADR-001](docs/adr/ADR-001-react-vite-typescript.md) | React + Vite + TypeScript |
-| [ADR-002](docs/adr/ADR-002-state-management.md) | State management strategy |
-| [ADR-003](docs/adr/ADR-003-websocket-vs-polling.md) | WebSocket vs polling architecture |
-| [ADR-004](docs/adr/ADR-004-tailwind-css.md) | Tailwind CSS for styling |
-| [ADR-005](docs/adr/ADR-005-error-handling.md) | Error handling strategy |
+| ADR | Title | Focus |
+|---|---|---|
+| [ADR-001](docs/adr/ADR-001-state-management.md) | State Management Approach | React Context + Zustand hybrid, managing high-frequency vs. low-frequency updates |
+| [ADR-002](docs/adr/ADR-002-data-fetching.md) | Data Fetching Strategy | WebSocket fast path + REST fallback, optimistic updates, deduplication, rate limiting |
+| [ADR-003](docs/adr/ADR-003-component-architecture.md) | Component Architecture | Functional components, memoization conventions, composition layers |
+
+**New contributors:** Read the ADRs in order to understand the system without diving into source code.
 
 ## License
 
