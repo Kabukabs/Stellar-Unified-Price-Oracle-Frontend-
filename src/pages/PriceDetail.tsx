@@ -6,6 +6,7 @@ import { usePriceHistory } from '../hooks/usePriceHistory'
 import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
+import { OnChainComparisonPanel } from '../components/OnChainComparisonPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { VisibleSuspense } from '../components/VisibleSuspense'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
@@ -182,6 +183,16 @@ export function PriceDetail() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
             <StellarAssetPanel pair={price.assetPair} />
+          </div>
+
+          {/* Off-chain vs on-chain price comparison */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">On-Chain Comparison</p>
+            <OnChainComparisonPanel
+              pair={price.assetPair}
+              offChainPrice={price.price}
+              thresholdPercent={preferences.onChainDivergenceThresholdPercent}
+            />
           </div>
 
           {/* Paginated History chart */}

@@ -20,6 +20,12 @@ const envSchema = z.object({
 
   VITE_OPENAPI_SPEC_URL: z.string().default(''),
 
+  // ── On-chain ───────────────────────────────────────────────────────────────
+  // Soroban network the on-chain comparison panel reads from by default.
+  VITE_ORACLE_NETWORK: z
+    .enum(['mainnet', 'testnet', 'futurenet'])
+    .default('testnet'),
+
   // ── Analytics ──────────────────────────────────────────────────────────────
   VITE_ANALYTICS_URL: z.string().default(''),
 

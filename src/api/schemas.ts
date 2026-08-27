@@ -35,6 +35,19 @@ export const HealthSchema = z.object({
   uptime: z.number(),
 })
 
+/**
+ * Strict Zod schema for {@link import('../types/onchain').OnChainPriceRecord}.
+ * All fields are required. Extra properties are stripped.
+ */
+export const OnChainPriceRecordSchema = z.object({
+  asset: z.string().min(1),
+  network: z.enum(['mainnet', 'testnet', 'futurenet']),
+  contractId: z.string().min(1),
+  price: z.number().finite(),
+  publishedAt: z.number().int().min(0),
+  ledger: z.number().int().min(0),
+})
+
 // ── Alert schema (localStorage deserialization) ──────────────────────────────
 
 export const AlertSchema = z.object({

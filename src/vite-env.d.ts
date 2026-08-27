@@ -9,6 +9,12 @@ interface ImportMetaEnv {
   /** URL of the backend OpenAPI spec (used by generate:openapi script).  Optional. */
   readonly VITE_OPENAPI_SPEC_URL: string
 
+  // ── On-chain ────────────────────────────────────────────────
+  /** Soroban network the on-chain comparison panel reads from ("mainnet" | "testnet" | "futurenet").  Optional. */
+  readonly VITE_ORACLE_NETWORK: string
+  /** JSON override of the contract registry for local/test deployments, e.g. {"testnet":{"XLM":"C..."}}.  Optional. */
+  readonly VITE_ORACLE_CONTRACT_OVERRIDES: string
+
   // ── Analytics ───────────────────────────────────────────────
   /** Endpoint for Web Vitals / custom analytics.  Optional — leave blank to disable. */
   readonly VITE_ANALYTICS_URL: string

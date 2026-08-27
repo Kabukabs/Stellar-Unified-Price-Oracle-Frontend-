@@ -42,6 +42,18 @@ A real-time dashboard for the Stellar Unified Price Oracle & Aggregator. Display
 - **Responsive** — Works on desktop and mobile
 - **Dark theme** — Low-light UI designed for monitoring dashboards
 
+## Roadmap
+
+- **On-chain publishing** — the aggregated price feed is published to Soroban
+  oracle contracts on Stellar, so any dApp can read a verified price directly
+  from the chain instead of trusting an off-chain API alone.
+- **On-chain comparison in the dashboard** — `PriceDetail` compares the live
+  off-chain price against the latest on-chain publish for that asset, with a
+  configurable divergence threshold and alerting when the two disagree.
+
+See [docs/on-chain.md](docs/on-chain.md) for the contract registry, read
+interface, and a runnable client example against testnet.
+
 ## Stack
 
 | Layer | Tech |
