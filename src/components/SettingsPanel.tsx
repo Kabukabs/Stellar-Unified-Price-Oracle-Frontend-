@@ -6,6 +6,7 @@ import {
   CHART_RANGE_OPTIONS,
   STALE_THRESHOLD_OPTIONS,
   CHART_TIMEZONE_OPTIONS,
+  FORMAT_LOCALE_OPTIONS,
 } from '../preferences/constants'
 import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type SupportedLanguage } from '../i18n'
 import { clearAllData, getLocalStorageSize, writeRaw, STORAGE_KEYS } from '../utils/storage'
@@ -208,6 +209,32 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
                   Timezone used for X-axis labels on price charts.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Number & Date Format
+                </label>
+                <select
+                  value={preferences.formatLocale}
+                  onChange={(e) =>
+                    updatePreference(
+                      'formatLocale',
+                      e.target.value as typeof preferences.formatLocale,
+                    )
+                  }
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  aria-label="Format locale for numbers and dates"
+                >
+                  {FORMAT_LOCALE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  How to format prices, numbers, and dates. "Auto" uses your language setting.
                 </p>
               </div>
             </div>

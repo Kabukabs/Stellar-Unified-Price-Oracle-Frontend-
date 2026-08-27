@@ -62,6 +62,12 @@ body {
   }
 }
 
+/* Reduced motion: disable shimmer animation but keep the placeholder visible */
+.reduced-motion .skeleton-shimmer::after {
+  animation: none !important;
+  background-image: none !important;
+}
+
 /* Off-screen skeleton rows/cards skip layout & paint until scrolled into view. */
 .skeleton-offscreen {
   content-visibility: auto;
@@ -82,23 +88,36 @@ body {
   }
 }
 
+/* Reduced motion: instant fade-in */
+.reduced-motion .skeleton-fade-in {
+  animation: none !important;
+  opacity: 1 !important;
+}
+
 /* ── Accessibility: Reduced Motion ─────────────────────────────── */
-.reduced-motion *,
-.reduced-motion *::before,
-.reduced-motion *::after {
-  animation-duration: 0.01ms !important;
+/* When user enables reduced-motion toggle or system prefers-reduced-motion: reduce */
+.reduced-motion * {
+  animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
-  transition-duration: 0.01ms !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
   scroll-behavior: auto !important;
+}
+
+/* Effectively disable keyframe animations when reduced-motion is active */
+.reduced-motion @keyframes {
+  from { }
+  to { }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

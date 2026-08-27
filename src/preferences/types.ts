@@ -2,6 +2,7 @@ export type ChartTimeRange = '24h' | '7d' | '30d'
 export type RefreshInterval = 5000 | 10000 | 30000 | 60000
 export type DashboardView = 'card' | 'table'
 export type ChartTimezone = 'UTC' | 'Local' | 'America/New_York' | 'Europe/London' | 'Asia/Tokyo'
+export type LocaleCode = 'auto' | 'en-US' | 'de-DE' | 'fr-FR' | 'ja-JP' | 'es-ES' | 'ar-SA' | 'pt-BR'
 
 /** How often and over what window price data is fetched and judged stale. */
 export interface DataPreferences {
@@ -31,6 +32,7 @@ export interface AccessibilityPreferences {
 export interface PrivacyPreferences {
   analyticsOptOut?: boolean
   chartTimezone: ChartTimezone
+  formatLocale: LocaleCode
 }
 
 /**
