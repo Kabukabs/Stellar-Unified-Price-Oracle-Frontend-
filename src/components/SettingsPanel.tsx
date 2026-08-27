@@ -6,9 +6,12 @@ import {
   CHART_RANGE_OPTIONS,
   STALE_THRESHOLD_OPTIONS,
   CHART_TIMEZONE_OPTIONS,
+  FORMAT_LOCALE_OPTIONS,
 } from '../preferences/constants'
-import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, type SupportedLanguage } from '../i18n'
+import { SUPPORTED_LANGUAGES, LANGUAGE_LABELS, orderByRecentlyUsed, type SupportedLanguage } from '../i18n'
 import { clearAllData, getLocalStorageSize, writeRaw, STORAGE_KEYS } from '../utils/storage'
+import { loadSoundPreferences, saveSoundPreferences } from '../utils/soundPreferences'
+import { playAlertSound, unlockAudioContext } from '../utils/alertSound'
 
 interface SettingsPanelProps {
   onClose: () => void
@@ -59,6 +62,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
     usePreferences()
   const { t, i18n } = useTranslation()
   const [clearStatus, setClearStatus] = useState<'idle' | 'confirming' | 'clearing' | 'done'>('idle')
+  const [soundPrefs, setSoundPrefs] = useState(loadSoundPreferences)
 
   const storageSize = getLocalStorageSize()
 
@@ -77,6 +81,28 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
   const handleClearCancel = useCallback(() => {
     setClearStatus('idle')
   }, [])
+
+  const handleSoundEnabledChange = useCallback((enabled: boolean) => {
+    setSoundPrefs((prev) => {
+      const next = { ...prev, enabled }
+      saveSoundPreferences(next)
+      return next
+    })
+  }, [])
+
+  const handleSoundVolumeChange = useCallback((volume: number) => {
+    setSoundPrefs((prev) => {
+      const next = { ...prev, volume }
+      saveSoundPreferences(next)
+      return next
+    })
+  }, [])
+
+  const handleTestSound = useCallback(() => {
+    // A click is itself a user gesture, so this reliably unlocks playback.
+    unlockAudioContext()
+    playAlertSound(soundPrefs.volume)
+  }, [soundPrefs.volume])
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -101,21 +127,29 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
             <h3 id="language-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
               {t('settings.sections.language')}
             </h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                {t('settings.language.label')}
-              </label>
-              <select
-                value={i18n.language.split('-')[0]}
-                onChange={(e) => i18n.changeLanguage(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {LANGUAGE_LABELS[lang as SupportedLanguage]}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  {t('settings.language.label')}
+                </label>
+                <select
+                  value={i18n.language.split('-')[0]}
+                  onChange={(e) => i18n.changeLanguage(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang} value={lang}>
+                      {LANGUAGE_LABELS[lang as SupportedLanguage]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <AccessibilityToggle
+                label={t('settings.language.rtlOverride')}
+                description={t('settings.language.rtlOverrideDesc')}
+                checked={preferences.rtlEnabled}
+                onChange={(val) => updatePreference('rtlEnabled', val)}
+              />
             </div>
           </section>
 
@@ -202,6 +236,32 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
                   Timezone used for X-axis labels on price charts.
                 </p>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Number & Date Format
+                </label>
+                <select
+                  value={preferences.formatLocale}
+                  onChange={(e) =>
+                    updatePreference(
+                      'formatLocale',
+                      e.target.value as typeof preferences.formatLocale,
+                    )
+                  }
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  aria-label="Format locale for numbers and dates"
+                >
+                  {FORMAT_LOCALE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  How to format prices, numbers, and dates. "Auto" uses your language setting.
+                </p>
+              </div>
             </div>
           </section>
 
@@ -247,6 +307,51 @@ export function SettingsPanel({ onClose }: SettingsPanelProps): ReactElement {
                   writeRaw(STORAGE_KEYS.analyticsOptOut, !val ? '0' : '1')
                 }}
               />
+            </div>
+          </section>
+
+          {/* Alert sound (#308) */}
+          <section aria-labelledby="sound-settings-heading">
+            <h3 id="sound-settings-heading" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+              Alert Sound
+            </h3>
+            <div className="space-y-4">
+              <AccessibilityToggle
+                label="Play sound on alert"
+                description="Plays a short tone when a price alert fires. Requires interacting with the page first — browsers block audio until then."
+                checked={soundPrefs.enabled}
+                onChange={handleSoundEnabledChange}
+              />
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="alert-sound-volume" className="text-sm font-medium text-gray-300">
+                    Volume
+                  </label>
+                  <span className="text-xs text-gray-500">{Math.round(soundPrefs.volume * 100)}%</span>
+                </div>
+                <input
+                  id="alert-sound-volume"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={soundPrefs.volume}
+                  disabled={!soundPrefs.enabled}
+                  onChange={(e) => handleSoundVolumeChange(Number(e.target.value))}
+                  className="w-full accent-cyan-500 disabled:opacity-40"
+                  aria-label="Alert sound volume"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTestSound}
+                disabled={!soundPrefs.enabled}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-800 text-gray-200 hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Test sound
+              </button>
             </div>
           </section>
 

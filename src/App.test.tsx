@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { AppContent } from './App'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import type { PriceContextValue } from './context/PriceContext'
+import { WalletProvider } from './wallet/WalletContext'
 
 // Routing is orthogonal to the accessibility side-effects, and useAccessibility pulls in
 // PreferencesProvider (IndexedDB + useLocation). Stub it so the route tests stay focused
@@ -52,9 +53,13 @@ const priceContextValue = {
   wsStatus: 'connected',
   rateLimitStatus: 'ok',
   rateLimitRetryAfterMs: 0,
+  outboundQueued: 0,
+  pricesQueued: false,
+  requestsThrottled: false,
   refetchPrices: vi.fn(),
   subscribe: vi.fn(),
   unsubscribe: vi.fn(),
+  _emitPriceUpdate: vi.fn(),
 } as unknown as PriceContextValue
 
 // Routes are lazy-loaded behind RouteSuspense, which enforces a minimum skeleton time,
@@ -70,7 +75,9 @@ function renderRoute(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={makeQueryClient()}>
         <ErrorReporterProvider>
-          <AppContent />
+          <WalletProvider>
+            <AppContent />
+          </WalletProvider>
         </ErrorReporterProvider>
       </QueryClientProvider>
     </MemoryRouter>,

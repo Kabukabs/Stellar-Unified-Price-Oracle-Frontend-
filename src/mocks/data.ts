@@ -1,7 +1,7 @@
 import type { PriceData, PriceHistoryResponse, PriceProof } from '../types'
 import { VALID_PAIRS } from '../types'
-import { getStellarAssetForPair } from '../lib/stellarAssets'
-import { config } from '../config'
+import type { OnChainPriceRecord, OracleNetwork } from '../types/onchain'
+import { getContractRegistryEntry } from '../lib/contractRegistry'
 
 const SOURCES = ['chainlink', 'redstone', 'band', 'reflector'] as const
 
@@ -30,54 +30,37 @@ export function mockAllPrices(): PriceData[] {
   return VALID_PAIRS.map(mockPriceData)
 }
 
-const HEX_CHARS = '0123456789abcdef'
-
-function randomHex(byteLength: number): string {
-  let out = ''
-  for (let i = 0; i < byteLength * 2; i++) {
-    out += HEX_CHARS[Math.floor(Math.random() * HEX_CHARS.length)]
-  }
-  return out
+/** Off-chain base price for a feed's base asset code, e.g. `XLM` → 0.12. Mirrors {@link BASE_PRICES}. */
+const BASE_PRICES_BY_ASSET: Record<string, number> = {
+  XLM: 0.12,
+  BTC: 65000,
+  ETH: 3200,
+  USDC: 1.0,
 }
 
-/**
- * Mock on-chain proof for the Proof tab, gated behind {@link getStellarAssetForPair}:
- * only pairs with a canonical on-chain Stellar asset can have a Soroban oracle
- * record, so pairs like `BTC/USD` (aggregated off-chain, no canonical asset)
- * resolve to `null` here exactly as the real `/proof` endpoint would (see
- * docs/adr/0001-onchain-soroban-price-oracle.md and fetchPriceProof's 404 contract).
- */
-export function mockPriceProof(pair: string, timestamp?: number): PriceProof | null {
-  if (!getStellarAssetForPair(pair)) return null
+let mockLedger = 52_000_000
 
-  const base = BASE_PRICES[pair] ?? 1
-  const price = randomPrice(base)
-  const recordTimestamp = timestamp ?? Date.now()
-  const sources = SOURCES.slice(0, 3)
+/**
+ * Simulates the latest price a Soroban oracle contract has published on-chain.
+ *
+ * Deliberately drifts from the off-chain price by a few basis points and lags
+ * behind it by a random publish delay, so the divergence panel has something
+ * real to compare against. Throws whatever {@link getContractRegistryEntry}
+ * throws for an asset/network with no registered contract.
+ */
+export function mockOnChainPrice(network: OracleNetwork, asset: string): OnChainPriceRecord {
+  const entry = getContractRegistryEntry(network, asset)
+  const base = BASE_PRICES_BY_ASSET[entry.asset] ?? 1
+  const publishDelayMs = 15_000 + Math.random() * 4 * 60_000
+  mockLedger += 1 + Math.floor(Math.random() * 3)
 
   return {
-    record: {
-      assetPair: pair,
-      price,
-      priceScaled: String(Math.round(price * 1e7)),
-      priceDecimals: 7,
-      timestamp: recordTimestamp,
-      confidence: 0.92 + Math.random() * 0.08,
-      sources,
-      version: Math.floor(recordTimestamp / 10_000),
-    },
-    contributions: sources.map((source) => ({
-      source,
-      price: randomPrice(base),
-      timestamp: recordTimestamp - Math.floor(Math.random() * 2000),
-      signature: randomHex(64),
-      publicKey: randomHex(32),
-    })),
-    aggregateSignature: randomHex(64),
-    contractId: `C${randomHex(28).toUpperCase()}`,
-    ledgerSequence: 1_000_000 + Math.floor(Math.random() * 500_000),
-    transactionHash: randomHex(32),
-    network: config.stellarNetwork,
+    asset: entry.asset,
+    network: entry.network,
+    contractId: entry.contractId,
+    price: randomPrice(base),
+    publishedAt: Date.now() - publishDelayMs,
+    ledger: mockLedger,
   }
 }
 

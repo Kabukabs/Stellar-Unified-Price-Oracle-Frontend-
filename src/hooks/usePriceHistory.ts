@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchPriceHistory } from '../api/rest'
-import type { PriceHistoryEntry } from '../types'
+import { idbCache } from './useIndexedDB'
+import type { PriceHistoryEntry, PriceHistoryResponse } from '../types'
+
+// Cross-session cache TTL for the first page of history, per #321's endpoint
+// TTL tiers (history: 2 min). Pagination (loadMore) always hits the network.
+const HISTORY_CACHE_TTL_MS = 2 * 60 * 1000
 
 export interface PriceHistoryOptions {
   pageSize?: number
@@ -64,7 +69,18 @@ export function usePriceHistory(
       setError(null)
       offsetRef.current = 0
 
-      const res = await fetchPriceHistory(pair, pageSize, 0, undefined, undefined, controller.signal)
+      const cacheKey = `${pair}:${pageSize}`
+      const cached = await idbCache.get<PriceHistoryResponse>('history', cacheKey, HISTORY_CACHE_TTL_MS)
+
+      let res: PriceHistoryResponse
+      if (cached !== null) {
+        res = cached
+      } else {
+        res = await fetchPriceHistory(pair, pageSize, 0, undefined, undefined, controller.signal)
+        if (isMountedRef.current && !controller.signal.aborted) {
+          void idbCache.set('history', cacheKey, res)
+        }
+      }
 
       if (!isMountedRef.current || controller.signal.aborted) return
 

@@ -10,7 +10,9 @@ export default defineConfig({
     ? [['list'], ['html', { outputFolder: 'reports/playwright', open: 'never' }]]
     : 'list',
   use: {
-    baseURL: 'http://localhost:4173',
+    // Set by the preview-deployment workflow to point E2E runs at a live PR
+    // preview instead of a locally-built server (#378).
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4173',
     trace: 'on-first-retry',
   },
   // Visual-regression snapshot configuration
@@ -49,10 +51,13 @@ export default defineConfig({
       testIgnore: '**/visual-regression.spec.ts',
     },
   ],
-  webServer: {
-    command: 'npm run preview',
-    url: 'http://localhost:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // Skip spinning up a local server when testing against a remote preview URL.
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: 'npm run preview',
+        url: 'http://localhost:4173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 })

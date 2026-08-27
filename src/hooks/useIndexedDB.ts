@@ -7,10 +7,16 @@
  * - Observable queries (subscribe to key changes)
  * - Cache-first, network-first, and stale-while-revalidate strategies
  * - Background mutation queue for offline → online replay
+ *
+ * Migrations are automatically applied when opening the database via
+ * the migration system (src/utils/idbMigrations.ts).
  */
 
+import { createAppMigrationRunner, CURRENT_DB_VERSION } from '../utils/idbMigrationDefinitions'
+import type { MigrationRunner } from '../utils/idbMigrations'
+
 const DB_NAME = 'stellar-oracle'
-const DB_VERSION = 2
+const DB_VERSION = CURRENT_DB_VERSION
 const TTL_MS = 5 * 60 * 1000 // 5 minutes default
 const MAX_BYTES = 50 * 1024 * 1024 // 50 MB
 
@@ -63,21 +69,13 @@ const evictionMutex = new Mutex()
 
 // ---------- Schema Migrations ----------
 
-type MigrationFn = (db: IDBDatabase, transaction: IDBTransaction) => void
+let migrationRunner: MigrationRunner | null = null
 
-const migrations: Record<number, MigrationFn> = {
-  1: (db) => {
-    for (const store of ['prices', 'history', 'preferences'] as StoreName[]) {
-      if (!db.objectStoreNames.contains(store)) {
-        db.createObjectStore(store, { keyPath: 'key' })
-      }
-    }
-  },
-  2: (db) => {
-    if (!db.objectStoreNames.contains('pendingMutations')) {
-      db.createObjectStore('pendingMutations', { keyPath: 'id', autoIncrement: true })
-    }
-  },
+function getMigrationRunner(): MigrationRunner {
+  if (!migrationRunner) {
+    migrationRunner = createAppMigrationRunner()
+  }
+  return migrationRunner
 }
 
 // ---------- Database ----------
@@ -88,14 +86,17 @@ function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise
   dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = async () => {
       const db = req.result
       const transaction = req.transaction!
-      const currentVersion = db.version
-      for (let v = 1; v <= currentVersion; v++) {
-        if (migrations[v]) {
-          migrations[v](db, transaction)
-        }
+      try {
+        // Run migrations via the migration system
+        const runner = getMigrationRunner()
+        const currentVersion = await runner.getCurrentVersion(db)
+        await runner.run(db, currentVersion, DB_VERSION)
+      } catch (error) {
+        transaction.abort()
+        reject(error)
       }
     }
     req.onsuccess = () => resolve(req.result)

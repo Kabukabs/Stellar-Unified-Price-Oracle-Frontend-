@@ -35,36 +35,17 @@ export const HealthSchema = z.object({
   uptime: z.number(),
 })
 
-// ── On-chain price proof schema ──────────────────────────────────────────────
-// See src/types/onChainPrice.ts and docs/adr/0001-onchain-soroban-price-oracle.md.
-
+/**
+ * Strict Zod schema for {@link import('../types/onchain').OnChainPriceRecord}.
+ * All fields are required. Extra properties are stripped.
+ */
 export const OnChainPriceRecordSchema = z.object({
-  assetPair: z.string().min(1),
-  price: z.number().finite(),
-  priceScaled: z.string().min(1),
-  priceDecimals: z.number().int().min(0),
-  timestamp: z.number().int().min(0),
-  confidence: z.number().min(0).max(1),
-  sources: z.array(z.string().min(1)),
-  version: z.number().int().min(0),
-})
-
-export const SourceContributionSchema = z.object({
-  source: z.string().min(1),
-  price: z.number().finite(),
-  timestamp: z.number().int().min(0),
-  signature: z.string().min(1),
-  publicKey: z.string().min(1),
-})
-
-export const PriceProofSchema = z.object({
-  record: OnChainPriceRecordSchema,
-  contributions: z.array(SourceContributionSchema),
-  aggregateSignature: z.string().min(1),
+  asset: z.string().min(1),
+  network: z.enum(['mainnet', 'testnet', 'futurenet']),
   contractId: z.string().min(1),
-  ledgerSequence: z.number().int().min(0),
-  transactionHash: z.string().min(1),
-  network: z.enum(['testnet', 'mainnet']),
+  price: z.number().finite(),
+  publishedAt: z.number().int().min(0),
+  ledger: z.number().int().min(0),
 })
 
 // ── Alert schema (localStorage deserialization) ──────────────────────────────

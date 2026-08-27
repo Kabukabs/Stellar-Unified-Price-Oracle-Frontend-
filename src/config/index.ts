@@ -9,6 +9,7 @@ export const config = {
   apiUrl: env.VITE_API_URL,
   wsUrl: env.VITE_WS_URL,
   openApiSpecUrl: env.VITE_OPENAPI_SPEC_URL,
+  oracleNetwork: env.VITE_ORACLE_NETWORK,
   analyticsEndpoint: env.VITE_ANALYTICS_URL,
   useMock: env.VITE_USE_MOCK === 'true',
   logLevel: env.VITE_LOG_LEVEL,

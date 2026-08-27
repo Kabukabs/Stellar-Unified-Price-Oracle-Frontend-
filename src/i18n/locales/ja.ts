@@ -260,6 +260,17 @@ const ja = {
     offlineDetail: '再接続するまでデータが古くなる場合があります',
   },
 
+  pwa: {
+    installTitle: 'Stellar Oracle をインストール',
+    installDetail: 'このアプリをデバイスに追加すると、すばやくアクセスでき、オフラインでも利用できます。',
+    installAction: 'インストール',
+    installDismiss: '後で',
+    updateTitle: 'アップデートがあります',
+    updateDetail: '新しいバージョンの準備ができました。',
+    updateAction: '再読み込み',
+    updateDismiss: '後で',
+  },
+
   notFound: {
     heading: '404',
     message: 'ページが見つかりません',
@@ -294,6 +305,8 @@ const ja = {
     },
     language: {
       label: 'インターフェース言語',
+      rtlOverride: 'RTLレイアウトを強制',
+      rtlOverrideDesc: '言語を変えずにRTLレイアウトをテストするために方向を上書き',
     },
     actions: {
       undo: '元に戻す',

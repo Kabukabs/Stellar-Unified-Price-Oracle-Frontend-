@@ -40,6 +40,23 @@ vi.mock('./SettingsPanel', () => ({
   ),
 }))
 
+vi.mock('../wallet/WalletContext', () => ({
+  useWallet: vi.fn(() => ({
+    status: 'disconnected',
+    address: null,
+    network: null,
+    networkPassphrase: null,
+    balance: null,
+    balanceLoading: false,
+    error: null,
+    errorCode: null,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    refreshBalance: vi.fn(),
+    signTransaction: vi.fn(),
+  })),
+}))
+
 describe('Layout', () => {
   it('should have no accessibility violations', async () => {
     await checkAccessibility(

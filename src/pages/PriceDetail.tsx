@@ -6,6 +6,7 @@ import { usePriceHistory } from '../hooks/usePriceHistory'
 import { fetchPrice } from '../api/rest'
 import { PriceDetailSkeleton } from '../components/PriceDetailSkeleton'
 import { CsvImportZone } from '../components/CsvImportZone'
+import { OnChainComparisonPanel } from '../components/OnChainComparisonPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { VisibleSuspense } from '../components/VisibleSuspense'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
@@ -136,24 +137,90 @@ export function PriceDetail() {
             </span>
           </div>
 
-          {/* Tabs — Overview (off-chain aggregated feed) vs Proof (on-chain verification) */}
-          <div className="flex border-b border-gray-800 mb-6" role="tablist" aria-label="Price detail sections">
-            {(['overview', 'proof'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                  activeTab === tab
-                    ? 'border-cyan-500 text-cyan-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {t(`priceDetail.tabs.${tab}`)}
-              </button>
-            ))}
+          {/* Price block */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
+              {t('priceDetail.sections.currentPrice')}
+            </p>
+            <p className="text-5xl font-bold font-mono text-gray-100 mb-4">
+              ${formatPrice(price.price)}
+            </p>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-400">
+                {t('priceDetail.updated', { time: timeAgo(price.timestamp) })}
+              </span>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getConfidenceColor(price.confidence)}`}>
+                {t('priceDetail.confidence', { value: (price.confidence * 100).toFixed(1) })}
+              </span>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">{formatTimestamp(price.timestamp)}</p>
+          </div>
+
+          {/* Sources */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
+              {t('priceDetail.sections.oracleSources')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {price.sources.map((src) => (
+                <span
+                  key={src}
+                  className={`px-3 py-1 rounded text-sm font-medium border ${SOURCE_COLORS[src] ?? 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                >
+                  {src}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Stellar asset — resolved on-chain via @stellar/stellar-sdk */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
+            <StellarAssetPanel pair={price.assetPair} />
+          </div>
+
+          {/* Off-chain vs on-chain price comparison */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">On-Chain Comparison</p>
+            <OnChainComparisonPanel
+              pair={price.assetPair}
+              offChainPrice={price.price}
+              thresholdPercent={preferences.onChainDivergenceThresholdPercent}
+            />
+          </div>
+
+          {/* Paginated History chart */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+              {t('priceDetail.sections.priceHistory')}
+            </p>
+            {historyError ? (
+              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
+                {t('priceDetail.historyError', { message: historyError.message })}
+              </div>
+            ) : (
+              <ErrorBoundary boundaryId="price-chart" featureLabel="Price Chart">
+                <VisibleSuspense
+                  fallback={
+                    <div
+                      className="h-80 rounded-lg bg-gray-800/60 animate-pulse"
+                      role="status"
+                      aria-label="Loading price chart"
+                    />
+                  }
+                >
+                  <LazyPriceChart
+                    data={history}
+                    pair={decodedPair}
+                    loading={historyLoading && history.length === 0}
+                    loadingMore={loadingMore}
+                    hasMore={hasMore}
+                    onLoadMore={loadMore}
+                    timezone={preferences.chartTimezone}
+                  />
+                </VisibleSuspense>
+              </ErrorBoundary>
+            )}
           </div>
 
           {activeTab === 'proof' ? (

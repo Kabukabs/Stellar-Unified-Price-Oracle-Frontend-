@@ -12,6 +12,7 @@ import {
   preloadSettingsPanel,
 } from '../utils/chunks'
 import { QueuedRequestsBadge } from './QueuedRequestsBadge'
+import { SkipNavLink } from './SkipNavLink'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -55,11 +56,13 @@ function BottomTab({
       <span className="relative">
         {icon}
         {badge != null && badge > 0 && (
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-cyan-500 rounded-full border border-white dark:border-gray-950 animate-pulse" />
+          // Use -top-1 on both axes and rtl-badge-flip handles the inline-end flip
+          <span className="absolute -top-1 -right-1 rtl-badge-flip w-2.5 h-2.5 bg-cyan-500 rounded-full border border-white dark:border-gray-950 animate-pulse" />
         )}
       </span>
       <span className="text-[10px] font-medium leading-none">{label}</span>
       {isActive && (
+        // left-1/2 + -translate-x-1/2 is symmetric — fine in both directions
         <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-cyan-500 rounded-b-full" />
       )}
     </NavLink>
@@ -79,9 +82,14 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
 
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-200">
+      {/*
+       * Skip-to-content: use `focus:start-2` (inline-start logical) instead of
+       * `focus:left-2` so the link appears at the visual start in both LTR and RTL.
+       * Tailwind v4 supports `start-*` and `end-*` logical utilities.
+       */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:rounded-lg focus:outline-none"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:start-2 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:rounded-lg focus:outline-none"
       >
         Skip to main content
       </a>
@@ -120,11 +128,12 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
             </div>
           </div>
 
-          {/* Right actions */}
+          {/* Right actions — in RTL these will naturally appear on the left */}
           <div className="flex items-center gap-2">
             {/* Client-side outbound back-pressure (#330). Renders nothing unless
                 requests are queued or the server asked us to pause. */}
             <QueuedRequestsBadge />
+            <WalletButton />
             <button
               onClick={() => setSettingsOpen(true)}
               onMouseEnter={preloadSettingsPanel}
@@ -148,7 +157,12 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
               {activeCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-cyan-500 rounded-full animate-pulse border border-white dark:border-gray-900" />
+                /*
+                 * Badge dot: use `top-1.5 end-1.5` (logical inline-end) instead of
+                 * `top-1.5 right-1.5` so it appears at the visual trailing corner in
+                 * both LTR and RTL without extra CSS overrides.
+                 */
+                <span className="absolute top-1.5 end-1.5 w-2.5 h-2.5 bg-cyan-500 rounded-full animate-pulse border border-white dark:border-gray-900" />
               )}
             </button>
           </div>
@@ -172,9 +186,13 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
       </footer>
 
       {/* ── Mobile bottom navigation bar ──────────────────────────── */}
+      {/*
+       * `inset-x-0` = left:0 right:0, which is already correct for both
+       * directions (the bar spans the full width regardless of text direction).
+       */}
       <nav
         aria-label="Mobile navigation"
-        className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 flex items-stretch safe-area-inset-bottom"
+        className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 flex items-stretch safe-area-inset-bottom"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <BottomTab
@@ -214,7 +232,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
             {activeCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-cyan-500 rounded-full border border-white dark:border-gray-950 animate-pulse" />
+              <span className="absolute -top-1 -end-1 w-2.5 h-2.5 bg-cyan-500 rounded-full border border-white dark:border-gray-950 animate-pulse" />
             )}
           </span>
           <span className="text-[10px] font-medium leading-none">{t('dashboard.alerts.title')}</span>

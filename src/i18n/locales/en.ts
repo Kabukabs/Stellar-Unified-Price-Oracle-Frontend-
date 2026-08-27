@@ -321,6 +321,18 @@ const en = {
     offlineDetail: 'Data may be stale until you reconnect',
   },
 
+  // ── PWA install / update prompts (#361) ───────────────────────────────────
+  pwa: {
+    installTitle: 'Install Stellar Oracle',
+    installDetail: 'Add this app to your device for quick access and offline support.',
+    installAction: 'Install',
+    installDismiss: 'Not now',
+    updateTitle: 'Update available',
+    updateDetail: 'A new version of the app is ready.',
+    updateAction: 'Reload',
+    updateDismiss: 'Later',
+  },
+
   // ── NotFound page ─────────────────────────────────────────────────────────
   notFound: {
     heading: '404',
@@ -443,6 +455,8 @@ const en = {
     },
     language: {
       label: 'Interface Language',
+      rtlOverride: 'Force RTL Layout',
+      rtlOverrideDesc: 'Override direction to RTL for testing without switching language',
     },
     actions: {
       undo: 'Undo',
@@ -521,6 +535,24 @@ const en = {
   },
 
   // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
+
+  // ── Wallet connection (Freighter) ─────────────────────────────────────────
+  wallet: {
+    connect: 'Connect Wallet',
+    connecting: 'Connecting…',
+    disconnect: 'Disconnect',
+    installFreighter: 'Install Freighter',
+    network: 'Network',
+    address: 'Address',
+    balance: 'Balance',
+    balanceUnfunded: 'Not funded',
+    ariaConnected: 'Wallet connected: {{address}}',
+    gate: {
+      title: 'Wallet required',
+      description:
+        'Connect a Stellar wallet to use on-chain features like deploying and publishing to the oracle contract.',
+    },
+  },
 } as const
 
 export default en

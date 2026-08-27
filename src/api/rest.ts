@@ -1,13 +1,14 @@
 import { config } from '../config'
 import { showApiErrorToast } from '../context/ToastContext'
-import type { PriceData, PriceHistoryResponse, PriceProof, RateLimitInfo } from '../types'
+import type { PriceData, PriceHistoryResponse, RateLimitInfo } from '../types'
+import type { OnChainPriceRecord, OracleNetwork } from '../types/onchain'
 import { fetchWithRetry } from './retry'
 import {
   PriceDataSchema,
   PriceHistoryResponseSchema,
   BatchHistoryResponseSchema,
   HealthSchema,
-  PriceProofSchema,
+  OnChainPriceRecordSchema,
 } from './schemas'
 import { validate } from './validate'
 import { getApiVersionInfo, getAcceptVersionHeader } from './version'
@@ -502,4 +503,18 @@ export async function fetchBatchHistory(pairs: string[], signal?: AbortSignal): 
 export async function fetchHealth(): Promise<{ status: string; uptime: number }> {
   const raw = await request('/health')
   return validate(HealthSchema, raw)
+}
+
+/** Fetches the latest price a Soroban oracle contract has published on-chain for one asset. */
+export async function fetchOnChainPrice(
+  network: OracleNetwork,
+  asset: string,
+  signal?: AbortSignal,
+): Promise<OnChainPriceRecord> {
+  const raw = await request<OnChainPriceRecord>(
+    `/api/onchain/${network}/${encodeURIComponent(asset)}`,
+    undefined,
+    signal,
+  )
+  return validate(OnChainPriceRecordSchema, raw)
 }

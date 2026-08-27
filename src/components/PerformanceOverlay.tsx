@@ -105,6 +105,9 @@ export const PerformanceOverlay = memo(function PerformanceOverlay() {
   const fps = perf?.fps ?? 0
   const longTasks = perf?.longTasks.length ?? 0
   const avgWs = perf?.avgWsProcessingMs ?? null
+  const memoryMb = perf?.memoryUsedBytes !== undefined && perf?.memoryUsedBytes !== null
+    ? Math.round(perf.memoryUsedBytes / (1024 * 1024))
+    : null
 
   return (
     <aside
@@ -149,6 +152,19 @@ export const PerformanceOverlay = memo(function PerformanceOverlay() {
           <span className={`font-bold ${msColour(avgWs)}`}>{avgWs.toFixed(2)} ms</span>
         ) : (
           <span className="text-slate-500">no data</span>
+        )}
+      </div>
+
+      {/* Memory usage (#322) */}
+      <div className="flex items-center justify-between gap-4 border-b border-slate-700 py-2">
+        <span className="text-slate-400">JS heap</span>
+        {memoryMb !== null ? (
+          <span className={perf?.isMemoryWarning ? 'font-bold text-red-400' : 'font-bold text-emerald-400'}>
+            {memoryMb} MB
+            {perf?.isMemoryWarning && <span className="ml-1">⚠</span>}
+          </span>
+        ) : (
+          <span className="text-slate-500">unsupported</span>
         )}
       </div>
 

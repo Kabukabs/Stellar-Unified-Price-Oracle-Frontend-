@@ -28,5 +28,15 @@
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
       ]
     }
+  ],
+  "env": [
+    {
+      "key": "VITE_API_URL",
+      "value": "https://api.example.com/api"
+    },
+    {
+      "key": "VITE_WS_URL",
+      "value": "wss://api.example.com"
+    }
   ]
 }

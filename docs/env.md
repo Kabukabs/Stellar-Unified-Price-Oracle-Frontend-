@@ -35,6 +35,13 @@ Variables are validated at application start-up using Zod
 | `VITE_WS_URL`           | `string` (WebSocket URL) | `ws://localhost:3000` | **yes**  | WebSocket endpoint for real-time price updates. The dev server proxies `/ws` to this origin. Use `wss://` in production.                                                                   |
 | `VITE_OPENAPI_SPEC_URL` | `string` (URL)           | `""`                  | no       | URL of the backend OpenAPI spec. Only consumed by the `npm run generate:openapi` script to regenerate `src/api/openapi-types.ts`. Leave blank during normal operation.                     |
 
+### On-chain
+
+| Variable | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `VITE_ORACLE_NETWORK` | `"mainnet" \| "testnet" \| "futurenet"` | `"testnet"` | no | Soroban network the on-chain comparison panel (`PriceDetail`) reads from by default. See [docs/on-chain.md](./on-chain.md). |
+| `VITE_ORACLE_CONTRACT_OVERRIDES` | `string` (JSON) | `""` | no | Overrides entries in the built-in contract registry (`src/lib/contractRegistry.ts`) for local/test deployments, e.g. `{"testnet":{"XLM":"C...LOCAL"}}`. Malformed JSON is ignored with a console warning. |
+
 ### Analytics
 
 | Variable             | Type           | Default | Required | Description                                                                                                                                                     |

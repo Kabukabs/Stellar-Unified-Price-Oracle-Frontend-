@@ -1,8 +1,26 @@
 import { http, HttpResponse } from 'msw'
 import type { PathParams } from 'msw'
-import { mockAllPrices, mockPriceData, mockHistory, mockPriceProof } from './data'
+import { isOracleNetwork, UnknownAssetError, UnknownNetworkError } from '../lib/contractRegistry'
+import { mockAllPrices, mockPriceData, mockHistory, mockOnChainPrice } from './data'
 
 export const handlers = [
+  http.get<PathParams<'network' | 'asset'>>('/api/onchain/:network/:asset', ({ params }) => {
+    const network = params['network'] as string
+    const asset = decodeURIComponent(params['asset'] as string)
+
+    if (!isOracleNetwork(network)) {
+      return HttpResponse.json({ error: new UnknownNetworkError(network).message }, { status: 404 })
+    }
+    try {
+      return HttpResponse.json(mockOnChainPrice(network, asset))
+    } catch (err) {
+      if (err instanceof UnknownAssetError) {
+        return HttpResponse.json({ error: err.message }, { status: 404 })
+      }
+      throw err
+    }
+  }),
+
   http.get('/api/prices', () => HttpResponse.json(mockAllPrices())),
 
   http.get<PathParams<'pair'>>('/api/prices/:pair/history', ({ params }) => {
