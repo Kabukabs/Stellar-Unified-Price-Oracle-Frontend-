@@ -52,9 +52,13 @@ const priceContextValue = {
   wsStatus: 'connected',
   rateLimitStatus: 'ok',
   rateLimitRetryAfterMs: 0,
+  outboundQueued: 0,
+  pricesQueued: false,
+  requestsThrottled: false,
   refetchPrices: vi.fn(),
   subscribe: vi.fn(),
   unsubscribe: vi.fn(),
+  _emitPriceUpdate: vi.fn(),
 } as unknown as PriceContextValue
 
 // Routes are lazy-loaded behind RouteSuspense, which enforces a minimum skeleton time,
