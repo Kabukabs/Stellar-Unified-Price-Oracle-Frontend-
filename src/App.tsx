@@ -12,6 +12,7 @@ import { AlertsProvider } from './hooks/useAlerts'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
+import { WalletProvider } from './wallet/WalletContext'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics, trackPageview } from './hooks/useAnalytics'
@@ -119,10 +120,12 @@ export default function App(): ReactElement {
       <ErrorReporterProvider>
         <PreferencesProvider>
           <ToastProvider>
-            <PriceProvider>
-              <AppContent />
-              {import.meta.env.DEV && <PerformanceOverlay />}
-            </PriceProvider>
+            <WalletProvider>
+              <PriceProvider>
+                <AppContent />
+                {import.meta.env.DEV && <PerformanceOverlay />}
+              </PriceProvider>
+            </WalletProvider>
           </ToastProvider>
         </PreferencesProvider>
       </ErrorReporterProvider>

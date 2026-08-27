@@ -501,6 +501,24 @@ const en = {
   },
 
   // ── Touch gestures / Pull-to-refresh (#293) ───────────────────────────────
+
+  // ── Wallet connection (Freighter) ─────────────────────────────────────────
+  wallet: {
+    connect: 'Connect Wallet',
+    connecting: 'Connecting…',
+    disconnect: 'Disconnect',
+    installFreighter: 'Install Freighter',
+    network: 'Network',
+    address: 'Address',
+    balance: 'Balance',
+    balanceUnfunded: 'Not funded',
+    ariaConnected: 'Wallet connected: {{address}}',
+    gate: {
+      title: 'Wallet required',
+      description:
+        'Connect a Stellar wallet to use on-chain features like deploying and publishing to the oracle contract.',
+    },
+  },
 } as const
 
 export default en

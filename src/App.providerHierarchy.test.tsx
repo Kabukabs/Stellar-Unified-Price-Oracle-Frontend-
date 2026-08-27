@@ -8,6 +8,7 @@ import { PriceProvider } from './context/PriceContext'
 import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
+import { WalletProvider } from './wallet/WalletContext'
 
 /**
  * Regression guard for issue #157 ("mount missing context providers in App"),
@@ -95,9 +96,11 @@ function Wrapper({ children }: { children: ReactNode }) {
         <ErrorReporterProvider>
           <PreferencesProvider>
             <ToastProvider>
-              <PriceProvider>
-                {children}
-              </PriceProvider>
+              <WalletProvider>
+                <PriceProvider>
+                  {children}
+                </PriceProvider>
+              </WalletProvider>
             </ToastProvider>
           </PreferencesProvider>
         </ErrorReporterProvider>

@@ -12,6 +12,7 @@ import {
   preloadSettingsPanel,
 } from '../utils/chunks'
 import { QueuedRequestsBadge } from './QueuedRequestsBadge'
+import { WalletButton } from './WalletButton'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -125,6 +126,7 @@ export function Layout({ children }: { children: ReactNode }): ReactElement {
             {/* Client-side outbound back-pressure (#330). Renders nothing unless
                 requests are queued or the server asked us to pause. */}
             <QueuedRequestsBadge />
+            <WalletButton />
             <button
               onClick={() => setSettingsOpen(true)}
               onMouseEnter={preloadSettingsPanel}

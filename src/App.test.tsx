@@ -7,6 +7,7 @@ import type { ReactNode } from 'react'
 import { AppContent } from './App'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import type { PriceContextValue } from './context/PriceContext'
+import { WalletProvider } from './wallet/WalletContext'
 
 // Routing is orthogonal to the accessibility side-effects, and useAccessibility pulls in
 // PreferencesProvider (IndexedDB + useLocation). Stub it so the route tests stay focused
@@ -70,7 +71,9 @@ function renderRoute(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <QueryClientProvider client={makeQueryClient()}>
         <ErrorReporterProvider>
-          <AppContent />
+          <WalletProvider>
+            <AppContent />
+          </WalletProvider>
         </ErrorReporterProvider>
       </QueryClientProvider>
     </MemoryRouter>,
