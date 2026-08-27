@@ -36,6 +36,7 @@ const restModule = await import('./rest')
 const {
   fetchAllPrices,
   fetchPrice,
+  fetchPriceProof,
   fetchPricesBatched,
   fetchPriceHistory,
   fetchBatchHistory,
@@ -85,14 +86,24 @@ function errorResponse(status: number, text: string, headers?: Record<string, st
 // ---------------------------------------------------------------------------
 describe('fetchAllPrices', () => {
   it('fetches all prices without params', async () => {
-    mockFetch.mockResolvedValue(okResponse([{ assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] }]))
+    mockFetch.mockResolvedValue(
+      okResponse([
+        { assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] },
+      ]),
+    )
     const result = await fetchAllPrices()
-    expect(result).toEqual([{ assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] }])
+    expect(result).toEqual([
+      { assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] },
+    ])
     expect(mockFetch.mock.calls[0][0]).toBe('/api/prices')
   })
 
   it('fetches filtered prices with pairs param', async () => {
-    mockFetch.mockResolvedValue(okResponse([{ assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] }]))
+    mockFetch.mockResolvedValue(
+      okResponse([
+        { assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] },
+      ]),
+    )
     await fetchAllPrices(['BTC/USD'])
     expect(mockFetch.mock.calls[0][0]).toBe('/api/prices?pairs=BTC/USD')
   })
@@ -107,7 +118,7 @@ describe('fetchAllPrices', () => {
       const apiErr = err as InstanceType<typeof ApiError>
       expect(apiErr.code).toBe('NOT_FOUND')
       expect(apiErr.status).toBe(404)
-      expect(apiErr.message).toBe('Not Found')
+      expect(apiErr.message).toBe('404 Not Found: Not Found')
       expect(apiErr.name).toBe('ApiError')
     }
   })
@@ -185,15 +196,81 @@ describe('ApiError', () => {
 // ---------------------------------------------------------------------------
 describe('fetchPrice', () => {
   it('fetches a single price', async () => {
-    mockFetch.mockResolvedValue(okResponse({ assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] }))
+    mockFetch.mockResolvedValue(
+      okResponse({
+        assetPair: 'BTC/USD',
+        price: 50000,
+        timestamp: 1690000000000,
+        confidence: 0.95,
+        sources: ['chainlink'],
+      }),
+    )
     const result = await fetchPrice('BTC/USD')
-    expect(result).toEqual({ assetPair: 'BTC/USD', price: 50000, timestamp: 1690000000000, confidence: 0.95, sources: ['chainlink'] })
+    expect(result).toEqual({
+      assetPair: 'BTC/USD',
+      price: 50000,
+      timestamp: 1690000000000,
+      confidence: 0.95,
+      sources: ['chainlink'],
+    })
   })
 
   it('encodes the pair parameter', async () => {
-    mockFetch.mockResolvedValue(okResponse({ assetPair: 'ETH/BTC', price: 1, timestamp: 1690000000000, confidence: 0.5, sources: ['redstone'] }))
+    mockFetch.mockResolvedValue(
+      okResponse({ assetPair: 'ETH/BTC', price: 1, timestamp: 1690000000000, confidence: 0.5, sources: ['redstone'] }),
+    )
     await fetchPrice('ETH/BTC')
     expect(mockFetch.mock.calls[0][0]).toBe('/api/prices/ETH%2FBTC')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// fetchPriceProof
+// ---------------------------------------------------------------------------
+describe('fetchPriceProof', () => {
+  const mockProof = {
+    record: {
+      assetPair: 'XLM/USD',
+      price: 0.12,
+      priceScaled: '1200000',
+      priceDecimals: 7,
+      timestamp: 1690000000000,
+      confidence: 0.95,
+      sources: ['chainlink'],
+      version: 1,
+    },
+    contributions: [{ source: 'chainlink', price: 0.1199, timestamp: 1689999999000, signature: 'aa', publicKey: 'bb' }],
+    aggregateSignature: 'cc',
+    contractId: 'CABC',
+    ledgerSequence: 100,
+    transactionHash: 'dd',
+    network: 'testnet',
+  }
+
+  it('fetches a proof for a supported pair', async () => {
+    mockFetch.mockResolvedValue(okResponse(mockProof))
+    const result = await fetchPriceProof('XLM/USD')
+    expect(result).toEqual(mockProof)
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/prices/XLM%2FUSD/proof')
+  })
+
+  it('appends a timestamp query param when verifying a historical record', async () => {
+    mockFetch.mockResolvedValue(okResponse(mockProof))
+    await fetchPriceProof('XLM/USD', 1690000000000)
+    expect(mockFetch.mock.calls[0][0]).toBe('/api/prices/XLM%2FUSD/proof?timestamp=1690000000000')
+  })
+
+  it('resolves to null (not a thrown error) for a 404, and does not toast', async () => {
+    mockFetch.mockResolvedValue(errorResponse(404, 'Not Found'))
+    const result = await fetchPriceProof('BTC/USD')
+    expect(result).toBeNull()
+    expect(showApiErrorToast).not.toHaveBeenCalled()
+  })
+
+  it('throws ApiError and toasts for a non-404 failure', async () => {
+    mockFetch.mockResolvedValue(errorResponse(400, 'Bad Request'))
+    await expect(fetchPriceProof('XLM/USD')).rejects.toBeInstanceOf(ApiError)
+    expect(showApiErrorToast).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -329,9 +406,7 @@ describe('fetchPricesBatched coalescing', () => {
 
   it('resolves only the affected pair when the batch response is missing one', async () => {
     // Batch omits ETH/USD; the individual fallback for it succeeds.
-    mockFetch
-      .mockResolvedValueOnce(okResponse([btcPrice]))
-      .mockResolvedValueOnce(okResponse(ethPrice))
+    mockFetch.mockResolvedValueOnce(okResponse([btcPrice])).mockResolvedValueOnce(okResponse(ethPrice))
 
     const p1 = fetchPricesBatched('BTC/USD')
     const p2 = fetchPricesBatched('ETH/USD')
@@ -348,9 +423,7 @@ describe('fetchPricesBatched coalescing', () => {
   })
 
   it('falls back to individual requests for every pair when the whole batch fails', async () => {
-    mockFetch
-      .mockResolvedValueOnce(errorResponse(404, 'Not Found'))
-      .mockResolvedValueOnce(okResponse(btcPrice))
+    mockFetch.mockResolvedValueOnce(errorResponse(404, 'Not Found')).mockResolvedValueOnce(okResponse(btcPrice))
 
     const p1 = fetchPricesBatched('BTC/USD')
 

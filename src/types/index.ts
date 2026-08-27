@@ -15,6 +15,10 @@ export type {
 
 export { isPriceData } from './price'
 
+// On-chain price / proof types — see src/types/onChainPrice.ts
+export type { OnChainPriceRecord, SourceContribution, PriceProof } from './onChainPrice'
+export { onChainRecordToPriceData, isSourceContribution, isPriceProof } from './onChainPrice'
+
 // ---------------------------------------------------------------------------
 // Alert types
 // ---------------------------------------------------------------------------
@@ -115,7 +119,18 @@ export interface AlertsContextType {
    * Rate-limited to {@link RATE_LIMIT_CONFIGS}.alertCreate (5 per minute).
    * Returns the new Alert when allowed, or `null` when throttled.
    */
-  addAlert: (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => Alert | null
+  addAlert: (
+    alert: Omit<
+      Alert,
+      | 'id'
+      | 'createdAt'
+      | 'lastTriggeredAt'
+      | 'fireCount'
+      | 'snoozedUntil'
+      | 'percentageBaselinePrice'
+      | 'percentageBaselineTimestamp'
+    >,
+  ) => Alert | null
   updateAlert: (id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => void
   removeAlert: (id: string) => void
   getAlertsForPair: (assetPair: string) => Alert[]
@@ -154,12 +169,7 @@ export interface RateLimitInfo {
  * Route parameters like `/prices/:pair` are validated against this list
  * to prevent invalid or malicious inputs from reaching API calls.
  */
-export const VALID_PAIRS: readonly string[] = [
-  'XLM/USD',
-  'BTC/USD',
-  'ETH/USD',
-  'USDC/USD',
-]
+export const VALID_PAIRS: readonly string[] = ['XLM/USD', 'BTC/USD', 'ETH/USD', 'USDC/USD']
 
 /**
  * Checks whether a decoded pair name (e.g. `"BTC/USD"`) is a known valid

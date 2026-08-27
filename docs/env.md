@@ -29,29 +29,35 @@ Variables are validated at application start-up using Zod
 
 ### API
 
-| Variable | Type | Default | Required | Description |
-|---|---|---|---|---|
-| `VITE_API_URL` | `string` (URL) | `/api` | **yes** | Base URL of the Aggregator REST API.  The Vite dev server proxies `/api/*` to this origin.  In production, set this to the deployed API URL (e.g. `https://api.stellar-oracle.example.com`). |
-| `VITE_WS_URL` | `string` (WebSocket URL) | `ws://localhost:3000` | **yes** | WebSocket endpoint for real-time price updates.  The dev server proxies `/ws` to this origin.  Use `wss://` in production. |
-| `VITE_OPENAPI_SPEC_URL` | `string` (URL) | `""` | no | URL of the backend OpenAPI spec.  Only consumed by the `npm run generate:openapi` script to regenerate `src/api/openapi-types.ts`.  Leave blank during normal operation. |
+| Variable                | Type                     | Default               | Required | Description                                                                                                                                                                                |
+| ----------------------- | ------------------------ | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `VITE_API_URL`          | `string` (URL)           | `/api`                | **yes**  | Base URL of the Aggregator REST API. The Vite dev server proxies `/api/*` to this origin. In production, set this to the deployed API URL (e.g. `https://api.stellar-oracle.example.com`). |
+| `VITE_WS_URL`           | `string` (WebSocket URL) | `ws://localhost:3000` | **yes**  | WebSocket endpoint for real-time price updates. The dev server proxies `/ws` to this origin. Use `wss://` in production.                                                                   |
+| `VITE_OPENAPI_SPEC_URL` | `string` (URL)           | `""`                  | no       | URL of the backend OpenAPI spec. Only consumed by the `npm run generate:openapi` script to regenerate `src/api/openapi-types.ts`. Leave blank during normal operation.                     |
 
 ### Analytics
 
-| Variable | Type | Default | Required | Description |
-|---|---|---|---|---|
-| `VITE_ANALYTICS_URL` | `string` (URL) | `""` | no | Endpoint to which Web Vitals and custom analytics events are sent.  Leave blank to disable analytics entirely.  Example: `https://analytics.example.com/collect`. |
+| Variable             | Type           | Default | Required | Description                                                                                                                                                     |
+| -------------------- | -------------- | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_ANALYTICS_URL` | `string` (URL) | `""`    | no       | Endpoint to which Web Vitals and custom analytics events are sent. Leave blank to disable analytics entirely. Example: `https://analytics.example.com/collect`. |
 
 ### Features
 
-| Variable | Type | Default | Required | Description |
-|---|---|---|---|---|
-| `VITE_USE_MOCK` | `"true" \| "false"` | `"false"` | no | Set to `"true"` to enable the MSW (Mock Service Worker) in the browser, routing all API and WebSocket traffic to in-process mock handlers.  Automatically enabled during `vitest` runs.  Useful for demos and design work without a running backend. |
+| Variable        | Type                | Default   | Required | Description                                                                                                                                                                                                                                        |
+| --------------- | ------------------- | --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_USE_MOCK` | `"true" \| "false"` | `"false"` | no       | Set to `"true"` to enable the MSW (Mock Service Worker) in the browser, routing all API and WebSocket traffic to in-process mock handlers. Automatically enabled during `vitest` runs. Useful for demos and design work without a running backend. |
 
 ### Debug
 
-| Variable | Type | Default | Required | Description |
-|---|---|---|---|---|
-| `VITE_LOG_LEVEL` | `"debug" \| "info" \| "warn" \| "error"` | `"warn"` | no | Controls the minimum log severity emitted by the app.  Set to `"debug"` locally to see verbose output.  Defaults to `"warn"` in production to reduce noise. |
+| Variable         | Type                                     | Default  | Required | Description                                                                                                                                               |
+| ---------------- | ---------------------------------------- | -------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_LOG_LEVEL` | `"debug" \| "info" \| "warn" \| "error"` | `"warn"` | no       | Controls the minimum log severity emitted by the app. Set to `"debug"` locally to see verbose output. Defaults to `"warn"` in production to reduce noise. |
+
+### Stellar network
+
+| Variable               | Type                     | Default     | Required | Description                                                                                                                                                                                                         |
+| ---------------------- | ------------------------ | ----------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_STELLAR_NETWORK` | `"testnet" \| "mainnet"` | `"testnet"` | no       | Which Stellar network the on-chain oracle contract is read from and the price Proof tab's explorer links point at. See [docs/adr/0001-onchain-soroban-price-oracle.md](./adr/0001-onchain-soroban-price-oracle.md). |
 
 ---
 
@@ -60,11 +66,11 @@ Variables are validated at application start-up using Zod
 These are used in CI workflows only and are never exposed to the browser bundle.
 Store them as repository secrets in GitHub.
 
-| Variable | Where used | Description |
-|---|---|---|
-| `SENTRY_AUTH_TOKEN` | `ci.yml` | Sentry API token with `project:releases` scope, used to upload source maps. |
-| `SENTRY_ORG` | `ci.yml` | Sentry organisation slug. |
-| `SENTRY_PROJECT` | `ci.yml` | Sentry project slug. |
+| Variable            | Where used | Description                                                                 |
+| ------------------- | ---------- | --------------------------------------------------------------------------- |
+| `SENTRY_AUTH_TOKEN` | `ci.yml`   | Sentry API token with `project:releases` scope, used to upload source maps. |
+| `SENTRY_ORG`        | `ci.yml`   | Sentry organisation slug.                                                   |
+| `SENTRY_PROJECT`    | `ci.yml`   | Sentry project slug.                                                        |
 
 See [docs/source-maps.md](./source-maps.md) for details on the Sentry integration.
 

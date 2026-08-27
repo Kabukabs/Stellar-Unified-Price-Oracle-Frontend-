@@ -189,7 +189,8 @@ const en = {
       cooldown5min: '5 minutes',
       cooldown15min: '15 minutes',
       cooldown1hr: '1 hour',
-      cooldownDesc: 'Minimum time between re-fires, to avoid notification spam when the price oscillates around your threshold.',
+      cooldownDesc:
+        'Minimum time between re-fires, to avoid notification spam when the price oscillates around your threshold.',
     },
     actions: {
       delete: 'Delete Alert',
@@ -299,16 +300,11 @@ const en = {
     ariaLabel: 'WebSocket {{status}}',
     rateLimitedAriaLabel: 'API rate limited',
     tooltips: {
-      connected:
-        'WebSocket is connected. Price updates are streaming in real time.',
-      connecting:
-        'Establishing a WebSocket connection to the price feed server.',
-      reconnecting:
-        'The WebSocket connection was lost. Attempting to reconnect automatically.',
-      disconnected:
-        'WebSocket is offline. Prices are updated via REST polling only.',
-      rateLimited:
-        'The API is temporarily rate limited. Requests will resume after the retry window expires.',
+      connected: 'WebSocket is connected. Price updates are streaming in real time.',
+      connecting: 'Establishing a WebSocket connection to the price feed server.',
+      reconnecting: 'The WebSocket connection was lost. Attempting to reconnect automatically.',
+      disconnected: 'WebSocket is offline. Prices are updated via REST polling only.',
+      rateLimited: 'The API is temporarily rate limited. Requests will resume after the retry window expires.',
     },
   },
 
@@ -349,6 +345,34 @@ const en = {
     emptyState: {
       title: 'No price data available',
       detail: 'No price data available for this pair.',
+    },
+    tabs: {
+      overview: 'Overview',
+      proof: 'Proof',
+    },
+    proof: {
+      loadingLabel: 'Loading on-chain proof',
+      historicalSelectorLabel: 'Verify record',
+      latestOption: 'Latest',
+      unsupported: {
+        title: 'On-chain proof unavailable',
+        detail:
+          'This asset pair has no canonical on-chain Stellar representation yet, so there is no Soroban oracle record to verify. See the on-chain oracle roadmap for what it takes to bring a feed on-chain.',
+      },
+      error: 'Failed to load on-chain proof: {{message}}',
+      retry: 'Retry',
+      aggregateSection: 'Aggregate Commitment',
+      aggregateSignature: 'Aggregate signature',
+      contractId: 'Contract',
+      transaction: 'Transaction',
+      ledger: 'Ledger #{{sequence}}',
+      viewOnExplorer: 'View on explorer',
+      contributionsSection: 'Source Contributions',
+      contributionsCount: '{{count}} sources contributed to this record',
+      copy: 'Copy',
+      copyProofPayload: 'Copy proof payload',
+      copied: 'Copied to clipboard',
+      copyFailed: 'Failed to copy to clipboard',
     },
   },
 
@@ -407,8 +431,7 @@ const en = {
     },
     accessibility: {
       reducedMotion: 'Reduced Motion',
-      reducedMotionDesc:
-        'Disables animations and transitions for motion-sensitive users',
+      reducedMotionDesc: 'Disables animations and transitions for motion-sensitive users',
       highContrast: 'High Contrast',
       highContrastDesc: 'Increases color contrast ratios for low-vision users',
       largeText: 'Large Text',
@@ -416,8 +439,7 @@ const en = {
     },
     privacy: {
       enableAnalytics: 'Enable Analytics',
-      enableAnalyticsDesc:
-        'Allow privacy-focused analytics for feature usage (can be opted out).',
+      enableAnalyticsDesc: 'Allow privacy-focused analytics for feature usage (can be opted out).',
     },
     language: {
       label: 'Interface Language',
@@ -437,8 +459,7 @@ const en = {
   // ── ApiDocs page ──────────────────────────────────────────────────────────
   apiDocs: {
     title: 'API Documentation',
-    subtitle:
-      'REST and WebSocket endpoints exposed by the Stellar Unified Price Oracle Aggregator.',
+    subtitle: 'REST and WebSocket endpoints exposed by the Stellar Unified Price Oracle Aggregator.',
     openSpec: 'Open OpenAPI Spec',
     baseUrl: 'Base URL:',
     ws: 'WS:',
@@ -455,8 +476,7 @@ const en = {
     redstone:
       'RedStone is a modular oracle that streams signed price feeds on demand, reducing gas costs by storing data off-chain.',
     band: 'Band Protocol aggregates real-world data from multiple sources and makes it available on-chain via delegated validators.',
-    reflector:
-      'Reflector is a Stellar-native oracle that publishes asset prices directly on the Stellar network.',
+    reflector: 'Reflector is a Stellar-native oracle that publishes asset prices directly on the Stellar network.',
     defaultTooltip: '{{source}} contributed a price feed to this aggregated value.',
   },
 

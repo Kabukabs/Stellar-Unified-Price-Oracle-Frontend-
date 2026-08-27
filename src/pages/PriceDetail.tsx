@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useSwr } from '../hooks/useSwr'
@@ -9,28 +9,14 @@ import { CsvImportZone } from '../components/CsvImportZone'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { VisibleSuspense } from '../components/VisibleSuspense'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
-import { LazyPriceChart, LazyPriceHistoryTable } from '../utils/chunks'
+import { SOURCE_COLORS, getConfidenceColor } from '../utils/sourceColors'
+import { LazyPriceChart, LazyPriceHistoryTable, LazyPriceProofPanel } from '../utils/chunks'
 import { isValidAssetPair } from '../types'
 import { usePreferences } from '../preferences/PreferencesContext'
 import { getStellarAssetForPair, shortenAccount } from '../lib/stellarAssets'
 import type { CsvRow } from '../components/CsvImportZone'
 
-const SOURCE_COLORS: Record<string, string> = {
-  chainlink: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  redstone: 'bg-red-500/20 text-red-400 border-red-500/30',
-  band: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  reflector: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-}
-
-function getConfidenceColor(confidence: number): string {
-  if (confidence > 0.9) {
-    return 'bg-green-500/20 text-green-400 border-green-500/30'
-  }
-  if (confidence > 0.8) {
-    return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-  }
-  return 'bg-red-500/20 text-red-400 border-red-500/30'
-}
+type DetailTab = 'overview' | 'proof'
 
 /** Canonical on-chain Stellar asset for the feed, resolved via @stellar/stellar-sdk. */
 function StellarAssetPanel({ pair }: { pair: string }) {
@@ -39,8 +25,8 @@ function StellarAssetPanel({ pair }: { pair: string }) {
   if (!asset) {
     return (
       <p className="text-sm text-gray-400">
-        This feed aggregates an off-chain asset with no canonical on-chain Stellar representation — the
-        Soroban oracle roadmap documents how feeds like this get on-chain.
+        This feed aggregates an off-chain asset with no canonical on-chain Stellar representation — the Soroban oracle
+        roadmap documents how feeds like this get on-chain.
       </p>
     )
   }
@@ -85,6 +71,7 @@ export function PriceDetail() {
   const { t } = useTranslation()
   const { preferences } = usePreferences()
   const [importedData, setImportedData] = useState<CsvRow[] | null>(null)
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview')
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
 
@@ -93,16 +80,24 @@ export function PriceDetail() {
 
   // Always call hooks at the top level (Rules of Hooks), but use `enabled`
   // and `null` pair to prevent network requests for invalid input.
-  const { data: price, loading: priceLoading, error: priceError } = useSwr(
-    `price:${decodedPair}`,
-    () => fetchPrice(decodedPair),
-    { staleTime: 5000, retryCount: 2, enabled: !isInvalidPair && decodedPair !== '' },
-  )
+  const {
+    data: price,
+    loading: priceLoading,
+    error: priceError,
+  } = useSwr(`price:${decodedPair}`, () => fetchPrice(decodedPair), {
+    staleTime: 5000,
+    retryCount: 2,
+    enabled: !isInvalidPair && decodedPair !== '',
+  })
 
-  const { history, loading: historyLoading, loadingMore, hasMore, error: historyError, loadMore } = usePriceHistory(
-    isInvalidPair || !decodedPair ? null : decodedPair,
-    { pageSize: 100 },
-  )
+  const {
+    history,
+    loading: historyLoading,
+    loadingMore,
+    hasMore,
+    error: historyError,
+    loadMore,
+  } = usePriceHistory(isInvalidPair || !decodedPair ? null : decodedPair, { pageSize: 100 })
 
   const loading = priceLoading || (historyLoading && history.length === 0)
   const showEmptyState = !loading && !priceError && !price
@@ -123,8 +118,7 @@ export function PriceDetail() {
 
       {isInvalidPair ? (
         <div className="p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
-          Unknown asset pair:{' '}
-          <span className="font-mono text-red-300">{decodedPair}</span>
+          Unknown asset pair: <span className="font-mono text-red-300">{decodedPair}</span>
         </div>
       ) : loading ? (
         <PriceDetailSkeleton />
@@ -142,124 +136,175 @@ export function PriceDetail() {
             </span>
           </div>
 
-          {/* Price block */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-              {t('priceDetail.sections.currentPrice')}
-            </p>
-            <p className="text-5xl font-bold font-mono text-gray-100 mb-4">
-              ${formatPrice(price.price)}
-            </p>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">
-                {t('priceDetail.updated', { time: timeAgo(price.timestamp) })}
-              </span>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getConfidenceColor(price.confidence)}`}>
-                {t('priceDetail.confidence', { value: (price.confidence * 100).toFixed(1) })}
-              </span>
-            </div>
-            <p className="text-xs text-gray-600 mt-1">{formatTimestamp(price.timestamp)}</p>
+          {/* Tabs — Overview (off-chain aggregated feed) vs Proof (on-chain verification) */}
+          <div className="flex border-b border-gray-800 mb-6" role="tablist" aria-label="Price detail sections">
+            {(['overview', 'proof'] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  activeTab === tab
+                    ? 'border-cyan-500 text-cyan-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {t(`priceDetail.tabs.${tab}`)}
+              </button>
+            ))}
           </div>
 
-          {/* Sources */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
-              {t('priceDetail.sections.oracleSources')}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {price.sources.map((src) => (
-                <span
-                  key={src}
-                  className={`px-3 py-1 rounded text-sm font-medium border ${SOURCE_COLORS[src] ?? 'bg-gray-800 text-gray-400 border-gray-700'}`}
-                >
-                  {src}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Stellar asset — resolved on-chain via @stellar/stellar-sdk */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
-            <StellarAssetPanel pair={price.assetPair} />
-          </div>
-
-          {/* Paginated History chart */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
-              {t('priceDetail.sections.priceHistory')}
-            </p>
-            {historyError ? (
-              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
-                {t('priceDetail.historyError', { message: historyError.message })}
-              </div>
-            ) : (
-              <ErrorBoundary boundaryId="price-chart" featureLabel="Price Chart">
-                <VisibleSuspense
-                  fallback={
-                    <div
-                      className="h-80 rounded-lg bg-gray-800/60 animate-pulse"
-                      role="status"
-                      aria-label="Loading price chart"
-                    />
-                  }
-                >
-                  <LazyPriceChart
-                    data={history}
-                    pair={decodedPair}
-                    loading={historyLoading && history.length === 0}
-                    loadingMore={loadingMore}
-                    hasMore={hasMore}
-                    onLoadMore={loadMore}
-                    timezone={preferences.chartTimezone}
-                  />
-                </VisibleSuspense>
-              </ErrorBoundary>
-            )}
-          </div>
-
-          {/* Price history table */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Table)</p>
-            {historyError ? (
-              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
-                Failed to load price history: {historyError.message}
-              </div>
-            ) : (
-              <VisibleSuspense
+          {activeTab === 'proof' ? (
+            <ErrorBoundary boundaryId="price-proof" featureLabel="Price Proof">
+              <Suspense
                 fallback={
                   <div
-                    className="h-48 rounded-lg bg-gray-800/60 animate-pulse"
+                    className="h-40 rounded-lg bg-gray-800/60 animate-pulse"
                     role="status"
-                    aria-label="Loading price history table"
+                    aria-label={t('priceDetail.proof.loadingLabel')}
                   />
                 }
               >
-                <LazyPriceHistoryTable data={history} />
-              </VisibleSuspense>
-            )}
-          </div>
+                <LazyPriceProofPanel
+                  pair={price.assetPair}
+                  latestTimestamp={price.timestamp}
+                  historyTimestamps={history.map((h) => h.timestamp)}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          ) : (
+            <>
+              {/* Price block */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
+                  {t('priceDetail.sections.currentPrice')}
+                </p>
+                <p className="text-5xl font-bold font-mono text-gray-100 mb-4">${formatPrice(price.price)}</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">{t('priceDetail.updated', { time: timeAgo(price.timestamp) })}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-xs font-medium border ${getConfidenceColor(price.confidence)}`}
+                  >
+                    {t('priceDetail.confidence', { value: (price.confidence * 100).toFixed(1) })}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">{formatTimestamp(price.timestamp)}</p>
+              </div>
 
-          {/* CSV import */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
-              {t('priceDetail.sections.importData')}
-            </p>
-            <CsvImportZone
-              hasImport={importedData !== null}
-              onImport={setImportedData}
-              onClear={() => setImportedData(null)}
-            />
-          </div>
+              {/* Sources */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">
+                  {t('priceDetail.sections.oracleSources')}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {price.sources.map((src) => (
+                    <span
+                      key={src}
+                      className={`px-3 py-1 rounded text-sm font-medium border ${SOURCE_COLORS[src] ?? 'bg-gray-800 text-gray-400 border-gray-700'}`}
+                    >
+                      {src}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Stellar asset — resolved on-chain via @stellar/stellar-sdk */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
+                <StellarAssetPanel pair={price.assetPair} />
+              </div>
+
+              {/* Paginated History chart */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+                  {t('priceDetail.sections.priceHistory')}
+                </p>
+                {historyError ? (
+                  <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
+                    {t('priceDetail.historyError', { message: historyError.message })}
+                  </div>
+                ) : (
+                  <ErrorBoundary
+                    boundaryId="price-chart"
+                    featureLabel="Price Chart"
+                    fallback={
+                      <div
+                        role="alert"
+                        aria-label="Chart rendering failed"
+                        className="flex flex-col items-center justify-center h-80 rounded-lg border border-red-800 bg-red-900/20 text-center gap-2 p-6"
+                      >
+                        <p className="text-base font-semibold text-gray-100">Chart failed to load</p>
+                        <p className="text-sm text-gray-400">
+                          The price history chart encountered an error. Price data is still available above.
+                        </p>
+                      </div>
+                    }
+                  >
+                    <VisibleSuspense
+                      fallback={
+                        <div
+                          className="h-80 rounded-lg bg-gray-800/60 animate-pulse"
+                          role="status"
+                          aria-label="Loading price chart"
+                        />
+                      }
+                    >
+                      <LazyPriceChart
+                        data={history}
+                        pair={decodedPair}
+                        loading={historyLoading && history.length === 0}
+                        loadingMore={loadingMore}
+                        hasMore={hasMore}
+                        onLoadMore={loadMore}
+                        timezone={preferences.chartTimezone}
+                      />
+                    </VisibleSuspense>
+                  </ErrorBoundary>
+                )}
+              </div>
+
+              {/* Price history table */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Price History (Table)</p>
+                {historyError ? (
+                  <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400" role="alert">
+                    Failed to load price history: {historyError.message}
+                  </div>
+                ) : (
+                  <VisibleSuspense
+                    fallback={
+                      <div
+                        className="h-48 rounded-lg bg-gray-800/60 animate-pulse"
+                        role="status"
+                        aria-label="Loading price history table"
+                      />
+                    }
+                  >
+                    <LazyPriceHistoryTable data={history} />
+                  </VisibleSuspense>
+                )}
+              </div>
+
+              {/* CSV import */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+                  {t('priceDetail.sections.importData')}
+                </p>
+                <CsvImportZone
+                  hasImport={importedData !== null}
+                  onImport={setImportedData}
+                  onClear={() => setImportedData(null)}
+                />
+              </div>
+            </>
+          )}
         </div>
       ) : showEmptyState ? (
         <div className="p-8 border border-gray-800 bg-gray-900/70 rounded-xl text-center" role="status">
-          <h2 className="text-xl font-semibold text-gray-100 mb-2">
-            {t('priceDetail.emptyState.title')}
-          </h2>
-          <p className="text-sm text-gray-400">
-            {t('priceDetail.emptyState.detail')}
-          </p>
+          <h2 className="text-xl font-semibold text-gray-100 mb-2">{t('priceDetail.emptyState.title')}</h2>
+          <p className="text-sm text-gray-400">{t('priceDetail.emptyState.detail')}</p>
         </div>
       ) : null}
     </div>

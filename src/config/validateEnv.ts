@@ -8,15 +8,9 @@ import { z } from 'zod'
  */
 const envSchema = z.object({
   // ── API ────────────────────────────────────────────────────────────────────
-  VITE_API_URL: z
-    .string()
-    .min(1, 'VITE_API_URL must not be empty')
-    .default('/api'),
+  VITE_API_URL: z.string().min(1, 'VITE_API_URL must not be empty').default('/api'),
 
-  VITE_WS_URL: z
-    .string()
-    .min(1, 'VITE_WS_URL must not be empty')
-    .default('ws://localhost:3000'),
+  VITE_WS_URL: z.string().min(1, 'VITE_WS_URL must not be empty').default('ws://localhost:3000'),
 
   VITE_OPENAPI_SPEC_URL: z.string().default(''),
 
@@ -24,14 +18,15 @@ const envSchema = z.object({
   VITE_ANALYTICS_URL: z.string().default(''),
 
   // ── Features ───────────────────────────────────────────────────────────────
-  VITE_USE_MOCK: z
-    .enum(['true', 'false'])
-    .default('false'),
+  VITE_USE_MOCK: z.enum(['true', 'false']).default('false'),
 
   // ── Debug ──────────────────────────────────────────────────────────────────
-  VITE_LOG_LEVEL: z
-    .enum(['debug', 'info', 'warn', 'error'])
-    .default('warn'),
+  VITE_LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('warn'),
+
+  // ── Stellar network ────────────────────────────────────────────────────────
+  // Which Stellar network the on-chain oracle contract (and explorer links for
+  // the price Proof tab) resolve against. See docs/adr/0001-onchain-soroban-price-oracle.md.
+  VITE_STELLAR_NETWORK: z.enum(['testnet', 'mainnet']).default('testnet'),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -48,9 +43,7 @@ export function validateEnv(env: Record<string, string | boolean | undefined> = 
   const result = envSchema.safeParse(env)
 
   if (!result.success) {
-    const message = result.error.issues
-      .map((i) => `  ${i.path.join('.')}: ${i.message}`)
-      .join('\n')
+    const message = result.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n')
 
     const full = `Environment validation failed:\n${message}`
 
@@ -81,9 +74,7 @@ export const REQUIRED_ENV_VARS = ['VITE_API_URL', 'VITE_WS_URL'] as const
 /**
  * @deprecated Use validateEnv() instead.
  */
-export function getMissingRequiredEnvVars(
-  env: Record<string, string | boolean | undefined>,
-): string[] {
+export function getMissingRequiredEnvVars(env: Record<string, string | boolean | undefined>): string[] {
   return REQUIRED_ENV_VARS.filter((name) => {
     const value = env[name]
     return typeof value !== 'string' || value.trim() === ''
