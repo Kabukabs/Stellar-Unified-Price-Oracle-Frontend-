@@ -1,0 +1,59 @@
+name: Release Notes
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-notes:
+    name: Generate changelog and draft release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Categorized changelog for just this tag, generated from Conventional
+      # Commits per cliff.toml (mirrors the commit types commitlint enforces).
+      - name: Generate release notes
+        id: changelog
+        uses: orhun/git-cliff-action@v3
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+
+      # Credits every commit author in this tag's range, so the release
+      # notes don't rely on the changelog template alone for attribution.
+      - name: List contributors for this release
+        id: contributors
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || echo "")
+          RANGE="${PREV_TAG:+$PREV_TAG..}${{ github.ref_name }}"
+          {
+            echo "list<<CONTRIBUTORS_EOF"
+            git log "$RANGE" --format='- %an' | sort -u
+            echo "CONTRIBUTORS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Created as a draft, not published — a maintainer reviews the
+      # generated notes and hits "Publish release" once satisfied.
+      - name: Create draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: true
+          body: |
+            ${{ steps.changelog.outputs.content }}
+
+            ### Contributors
+
+            ${{ steps.contributors.outputs.list }}
