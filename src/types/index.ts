@@ -69,6 +69,7 @@ import type {
   LogicOperator as _LogicOperator,
   EscalationStep as _EscalationStep,
 } from './alerts'
+import type { NotificationChannelId as _NotificationChannelId } from './notifications'
 
 export interface Alert {
   id: string
@@ -125,6 +126,15 @@ export interface Alert {
   /** Runtime progress through `escalationPolicy` for the current breach; null between breaches. */
   escalationState: _EscalationRuntimeState | null
 
+  // ── Per-alert channel routing (#492) ──────────────────────────────────────
+  /**
+   * Channels this alert specifically routes to. `null` (or an empty array) means
+   * "use the global default set" — every channel that is enabled in the
+   * notification config. When set, only the listed channels are used (still
+   * intersected with currently-enabled global channels at dispatch time).
+   */
+  channels: _NotificationChannelId[] | null
+
   // ── State fields ──────────────────────────────────────────────────────────
   active: boolean
   createdAt: number
@@ -154,6 +164,10 @@ export interface AlertFormData {
   // ── Escalation policy (#487) ──────────────────────────────────────────────
   escalationEnabled: boolean
   escalationSteps: _EscalationStep[]
+
+  // ── Per-alert channel routing (#492) ──────────────────────────────────────
+  /** Explicitly-chosen channels; empty array means "use the global defaults". */
+  channels: _NotificationChannelId[]
 }
 
 /** A single record of a fired alert, kept for the alert history log (#309). */
@@ -197,7 +211,8 @@ export interface AlertsContextType {
       | 'percentageBaselinePrice'
       | 'percentageBaselineTimestamp'
       | 'escalationState'
-    >,
+      | 'channels'
+    > & { channels?: Alert['channels'] },
   ) => Alert | null
   updateAlert: (id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => void
   removeAlert: (id: string) => void

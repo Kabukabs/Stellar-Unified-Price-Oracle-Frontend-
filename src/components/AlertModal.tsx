@@ -68,15 +68,17 @@ import type {
   AlertPercentageDirection,
   AlertPercentageRelativeTo,
   AlertCondition,
+  NotificationChannelId,
 } from '../types'
 import { validateEscalationPolicy } from '../types/alerts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { buildConditionGroupFromFormData } from '../utils/alertEvaluator'
+import { loadNotifConfig, getEnabledChannels } from '../services/notificationConfig'
+import type { AlertPreset } from '../data/alertPresets'
+import { presetStorage, type CustomAlertPreset } from '../services/presetStorage'
 import { ConditionBuilder } from './ConditionBuilder'
 import { EscalationPolicyBuilder } from './EscalationPolicyBuilder'
 import { AlertPresetPicker } from './AlertPresetPicker'
-import type { AlertPreset } from '../data/alertPresets'
-import { presetStorage, type CustomAlertPreset } from '../services/presetStorage'
 
 interface AlertModalProps {
   isOpen: boolean
@@ -94,6 +96,63 @@ interface AlertModalProps {
 }
 
 type ValidationErrors = Partial<Record<keyof AlertFormData, string>>
+
+/**
+ * #492 – Per-alert channel routing picker.
+ *
+ * Lets the user override the global channel defaults for one alert. Only the
+ * channels that are currently configured+enabled globally are offered (a channel
+ * that isn't configured can't be routed to). An empty selection means "use the
+ * global defaults", which is the default and the natural deselection exit.
+ */
+function ChannelRoutingSelect({ value, onChange }: { value: NotificationChannelId[]; onChange: (ch: NotificationChannelId[]) => void }): ReactElement {
+  const { t } = useTranslation()
+  const available = getEnabledChannels(loadNotifConfig()).filter((c) => c !== 'inApp')
+
+  const toggle = (channel: NotificationChannelId) => {
+    onChange(value.includes(channel) ? value.filter((c) => c !== channel) : [...value, channel])
+  }
+
+  return (
+    <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+      <div className="flex items-center justify-between mb-2">
+        <span className="block text-sm font-medium text-gray-300">{t('alertModal.channels.title')}</span>
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          {t('alertModal.channels.useGlobal')}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-3">{t('alertModal.channels.description')}</p>
+      {available.length === 0 ? (
+        <p className="text-xs text-amber-400/80">{t('alertModal.channels.noneConfigured')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {available.map((channel) => {
+            const active = value.includes(channel)
+            return (
+              <button
+                key={channel}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggle(channel)}
+                className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                  active
+                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {t(`alertModal.escalation.channel_${channel}`)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, alert, currentPrice, defaultAssetPair, rateLimited = false, cooldownSec = 0 }: AlertModalProps): ReactElement | null {
   const { t } = useTranslation()
@@ -155,6 +214,8 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     conditionsLogic: 'AND',
     escalationEnabled: false,
     escalationSteps: [],
+    // #492 – empty means "use the global channel defaults".
+    channels: [],
   })
 
   const [form, setForm] = useState<AlertFormData>(emptyForm)
@@ -187,6 +248,8 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           // #487
           escalationEnabled: alert.escalationPolicy?.enabled ?? false,
           escalationSteps: alert.escalationPolicy?.steps ?? [],
+          // #492
+          channels: alert.channels ?? [],
         })
       } else {
         setForm(emptyForm())
@@ -713,6 +776,12 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
             enabled={form.escalationEnabled}
             steps={form.escalationSteps}
             onChange={(escalationEnabled, escalationSteps) => setForm((prev) => ({ ...prev, escalationEnabled, escalationSteps }))}
+          />
+
+          {/* Per-alert channel routing (#492) */}
+          <ChannelRoutingSelect
+            value={form.channels}
+            onChange={(channels) => setForm((prev) => ({ ...prev, channels }))}
           />
 
           <div className="flex gap-3">

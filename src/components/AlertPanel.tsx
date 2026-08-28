@@ -40,10 +40,29 @@ import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice } from '../utils/format'
 import type { Alert, AlertSnoozeDuration } from '../types'
-import { AlertHistoryLog } from './AlertHistoryLog'
-import { AlertAnalyticsStrip } from './AlertAnalyticsStrip'
 import { computeAlertStats, alertStatsToExportRow } from '../utils/alertAnalytics'
 import { toCsv, downloadFile } from '../utils/export'
+import { AlertHistoryLog } from './AlertHistoryLog'
+import { AlertAnalyticsStrip } from './AlertAnalyticsStrip'
+
+/** #492 – Renders an alert's per-alert routing override, or nothing when unset. */
+function RoutingBadge({ alert }: { alert: Alert }): ReactElement | null {
+  const { t } = useTranslation()
+  const routed = alert.channels ?? []
+  if (!routed || routed.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {routed.map((c) => (
+        <span
+          key={c}
+          className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"
+        >
+          {t(`alertModal.escalation.channel_${c}`)}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 /**
  * #487 — Compact escalation progress indicator: one dot per step, filled once
@@ -256,6 +275,7 @@ export function AlertPanel(): ReactElement | null {
                           <span className="font-mono">{getConditionText(alert)}</span>
                         </p>
                         <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
+                        <RoutingBadge alert={alert} />
                         <div className="flex gap-2 flex-wrap mt-3">
                           <button
                             onClick={() => {
@@ -373,6 +393,8 @@ export function AlertPanel(): ReactElement | null {
                             {getConditionText(alert)}
                           </div>
                           <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
+                          <EscalationProgress alert={alert} />
+                          <RoutingBadge alert={alert} />
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button

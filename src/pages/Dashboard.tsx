@@ -204,6 +204,8 @@ export function Dashboard() {
         conditionGroup: buildConditionGroupFromFormData(data),
         // #487 – multi-tier escalation schedule, when the user enabled one.
         escalationPolicy: data.escalationEnabled ? { enabled: true, steps: data.escalationSteps } : null,
+        // #492 – per-alert channel routing override; empty array means "use global defaults" and is stored as null.
+        channels: data.channels.length > 0 ? data.channels : null,
       })
       setModalOpen(false)
     },

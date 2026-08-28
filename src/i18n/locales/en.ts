@@ -243,6 +243,13 @@ const en = {
       error_invalidDelay: 'Step {{step}}: delay must be a non-negative number of minutes',
       error_outOfOrder: 'Step {{step}}: delay must not be earlier than the previous step',
     },
+    // ── Per-alert channel routing (#492) ──────────────────────────────────
+    channels: {
+      title: 'Notify via',
+      description: 'Choose where this alert is delivered. Leave empty to use the channels configured in your notification settings.',
+      useGlobal: 'Use global defaults',
+      noneConfigured: 'No channels configured — set up channels in Notification Settings first.',
+    },
     // ── Preset library (#486) ──────────────────────────────────────────────
     presets: {
       title: 'Start from a preset',

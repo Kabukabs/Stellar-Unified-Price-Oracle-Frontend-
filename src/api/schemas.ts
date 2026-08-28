@@ -126,6 +126,9 @@ export const AlertSchema = z.object({
   escalationPolicy: EscalationPolicySchema.nullable().default(null),
   escalationState: EscalationRuntimeStateSchema.nullable().default(null),
 
+  // Per-alert channel routing (#492) — null/absent means "use global defaults".
+  channels: z.array(NotificationChannelIdSchema).nullable().default(null),
+
   // State fields
   active: z.boolean(),
   createdAt: z.number(),
