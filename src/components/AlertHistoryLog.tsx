@@ -109,7 +109,15 @@ export function AlertHistoryLog(): ReactElement {
           {filtered.map((entry) => (
             <li key={entry.id} className="bg-gray-800/50 border border-gray-700 rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
-                <span className="font-semibold text-white text-sm">{entry.assetPair}</span>
+                <span className="font-semibold text-white text-sm flex items-center gap-1.5">
+                  {entry.assetPair}
+                  {/* #487 — distinguish escalation-step firings from the initial trigger */}
+                  {entry.escalation && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                      {t('alertPanel.escalation.historyBadge', { channel: t(`alertModal.escalation.channel_${entry.escalation.channel}`) })}
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs text-gray-500">{formatTimestamp(entry.triggeredAt)}</span>
               </div>
               <div className="flex items-center justify-between text-xs">

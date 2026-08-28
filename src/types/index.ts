@@ -19,6 +19,17 @@ export { isPriceData } from './price'
 export type { OnChainPriceRecord, SourceContribution, PriceProof } from './onChainPrice'
 export { onChainRecordToPriceData, isSourceContribution, isPriceProof } from './onChainPrice'
 
+// Notification channel types (#488) — see src/types/notifications.ts
+export type {
+  NotificationChannelId,
+  TelegramChannelConfig,
+  DiscordChannelConfig,
+  BotSecrets,
+  BotNotificationPayload,
+  BotDispatchResult,
+} from './notifications'
+export { EMPTY_BOT_SECRETS } from './notifications'
+
 // ---------------------------------------------------------------------------
 // Alert types
 // ---------------------------------------------------------------------------
@@ -34,6 +45,30 @@ export type AlertPercentageRelativeTo = 'open' | 'previousClose' | 'movingAverag
 
 /** Snooze duration options */
 export type AlertSnoozeDuration = '15min' | '1hr' | '4hr' | '24hr' | 'tomorrow'
+
+// Compound conditions (#485) and escalation policies (#487) — see src/types/alerts.ts
+export type {
+  ConditionField,
+  ConditionOperator,
+  LogicOperator,
+  AlertCondition,
+  ConditionGroup,
+  PriceEvaluationState,
+  EscalationStep,
+  EscalationPolicy,
+  EscalationRuntimeState,
+  EscalationValidationError,
+} from './alerts'
+export { isConditionGroup, migrateLegacyAlertConditions, validateEscalationPolicy, nextConditionId, singleConditionGroup } from './alerts'
+
+import type {
+  ConditionGroup as _ConditionGroup,
+  EscalationPolicy as _EscalationPolicy,
+  EscalationRuntimeState as _EscalationRuntimeState,
+  AlertCondition as _AlertCondition,
+  LogicOperator as _LogicOperator,
+  EscalationStep as _EscalationStep,
+} from './alerts'
 
 export interface Alert {
   id: string
@@ -73,6 +108,23 @@ export interface Alert {
   /** Minimum minutes between re-fires of a persistent alert, to prevent notification spam while price oscillates around the threshold. */
   cooldownMinutes: number
 
+  // ── Compound conditions (#485) ────────────────────────────────────────────
+  /**
+   * The AND/OR condition group this alert evaluates against. Populated for every
+   * alert — new alerts get one built from the form on save; legacy alerts loaded
+   * from storage without one are transparently migrated via
+   * {@link migrateLegacyAlertConditions} the first time they're read. Kept alongside
+   * (not instead of) the legacy threshold/percentage fields above, which remain the
+   * source of truth for the simple-mode UI.
+   */
+  conditionGroup: _ConditionGroup | null
+
+  // ── Escalation policy (#487) ──────────────────────────────────────────────
+  /** Ordered notification schedule fired at increasing delays while a breach persists. */
+  escalationPolicy: _EscalationPolicy | null
+  /** Runtime progress through `escalationPolicy` for the current breach; null between breaches. */
+  escalationState: _EscalationRuntimeState | null
+
   // ── State fields ──────────────────────────────────────────────────────────
   active: boolean
   createdAt: number
@@ -92,6 +144,16 @@ export interface AlertFormData {
   percentageRelativeTo: AlertPercentageRelativeTo
   // Cooldown (#310)
   cooldownMinutes: string
+
+  // ── Compound condition builder (#485) ─────────────────────────────────────
+  /** Extra conditions layered on top of the primary threshold/percentage field above. */
+  extraConditions: _AlertCondition[]
+  /** How `extraConditions` combine with the primary condition and with each other. */
+  conditionsLogic: _LogicOperator
+
+  // ── Escalation policy (#487) ──────────────────────────────────────────────
+  escalationEnabled: boolean
+  escalationSteps: _EscalationStep[]
 }
 
 /** A single record of a fired alert, kept for the alert history log (#309). */
@@ -110,6 +172,11 @@ export interface AlertHistoryEntry {
   percentageThreshold: number | null
   percentageWindow: AlertTimeWindow | null
   percentageDirection: AlertPercentageDirection | null
+  /**
+   * Present when this entry records an escalation step firing (#487) rather than
+   * the alert's initial trigger — lets `AlertHistoryLog` distinguish and label them.
+   */
+  escalation?: { stepId: string; channel: _EscalationStep['channel']; delayMinutes: number } | null
 }
 
 export interface AlertsContextType {
@@ -129,6 +196,7 @@ export interface AlertsContextType {
       | 'snoozedUntil'
       | 'percentageBaselinePrice'
       | 'percentageBaselineTimestamp'
+      | 'escalationState'
     >,
   ) => Alert | null
   updateAlert: (id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => void

@@ -1,26 +1,35 @@
 import { useState, useCallback, useEffect, createContext, useContext, ReactNode } from 'react'
-import type { Alert, AlertHistoryEntry, AlertsContextType, AlertSnoozeDuration } from '../types'
+import type { Alert, AlertHistoryEntry, AlertsContextType, AlertSnoozeDuration, EscalationStep, PriceEvaluationState } from '../types'
+import { migrateLegacyAlertConditions } from '../types/alerts'
 import { usePriceContext } from '../context/PriceContext'
 import { AlertsArraySchema } from '../api/schemas'
 import { createBroadcastChannel } from '../utils/broadcastChannel'
-import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
+import { readJson, readRaw, writeJson, STORAGE_KEYS } from '../utils/storage'
 import { playAlertSound, unlockAudioContext } from '../utils/alertSound'
 import { loadSoundPreferences } from '../utils/soundPreferences'
+import { evaluateCompoundCondition } from '../utils/alertEvaluator'
+import {
+  loadAlertHistory,
+  saveAlertHistory,
+  buildTriggerHistoryEntry,
+  buildEscalationHistoryEntry,
+  appendHistoryEntries,
+} from '../services/alertHistory'
+import { loadBotSecrets, sendTelegramMessage, sendDiscordMessage } from '../services/botNotifications'
 import { useRateLimit } from './useRateLimit'
-
-/** Cap on the fired-alert history log (#309), oldest entries dropped first. */
-const HISTORY_LIMIT = 500
 
 const alertsChannel = createBroadcastChannel<Alert[]>('kiro-alerts')
 const alertsHistoryChannel = createBroadcastChannel<AlertHistoryEntry[]>('kiro-alerts-history')
 
 // ---------------------------------------------------------------------------
-// #315 – Notification channel types (mirrors NotificationChannelsModal)
+// #315 / #488 – Notification channel config (mirrors NotificationChannelsModal)
 // ---------------------------------------------------------------------------
 interface NotifConfig {
   email: { address: string; enabled: boolean }
   webPush: { enabled: boolean }
   webhook: { url: string; enabled: boolean }
+  telegram: { chatId: string; enabled: boolean }
+  discord: { channelId: string; enabled: boolean }
 }
 
 /** Load the persisted (secret-free) notification config. */
@@ -29,63 +38,122 @@ function loadNotifConfig(): NotifConfig {
     email: { address: '', enabled: false },
     webPush: { enabled: false },
     webhook: { url: '', enabled: false },
+    telegram: { chatId: '', enabled: false },
+    discord: { channelId: '', enabled: false },
   })
 }
 
-/**
- * #315 – Fire all enabled notification channels for a triggered alert.
- * Browser push is fired in-process; email/webhook are best-effort fetch calls
- * (the backend or a serverless function should handle delivery — here we POST
- * the payload to the configured URL so the wiring is complete end-to-end).
- */
-async function dispatchNotifications(alert: Alert, currentPrice: number): Promise<void> {
-  const cfg = loadNotifConfig()
-  const body = alert.percentageMode
+function alertMessage(alert: Alert, currentPrice: number): string {
+  return alert.percentageMode
     ? `${alert.assetPair} moved ${alert.percentageThreshold ?? 0}% in ${alert.percentageWindow ?? '1hr'}! Current: $${currentPrice.toFixed(4)}`
     : `${alert.assetPair} crossed your threshold! Current price: $${currentPrice.toFixed(4)}`
+}
 
-  // Web Push – browser Notification API
+// ── Per-channel dispatchers (#315, extended with Telegram/Discord for #488) ────
+
+function dispatchWebPushChannel(cfg: NotifConfig, body: string): void {
   if (cfg.webPush.enabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     new Notification('Price Alert Triggered', { body })
   }
+}
 
-  // Email – POST to a backend endpoint if one is configured
-  if (cfg.email.enabled && cfg.email.address) {
-    try {
-      await fetch('/api/notifications/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: cfg.email.address,
-          subject: 'Price Alert Triggered',
-          message: body,
-          assetPair: alert.assetPair,
-          price: currentPrice,
-        }),
-      })
-    } catch {
-      // Best-effort; don't let a network error break the alert system
-    }
+async function dispatchEmailChannel(cfg: NotifConfig, alert: Alert, currentPrice: number, body: string): Promise<void> {
+  if (!cfg.email.enabled || !cfg.email.address) return
+  try {
+    await fetch('/api/notifications/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: cfg.email.address, subject: 'Price Alert Triggered', message: body, assetPair: alert.assetPair, price: currentPrice }),
+    })
+  } catch {
+    // Best-effort; don't let a network error break the alert system
   }
+}
 
-  // Webhook – POST alert payload to configured URL
-  if (cfg.webhook.enabled && cfg.webhook.url) {
-    try {
-      await fetch(cfg.webhook.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'alert_triggered',
-          assetPair: alert.assetPair,
-          price: currentPrice,
-          message: body,
-          alertId: alert.id,
-          timestamp: Date.now(),
-        }),
-      })
-    } catch {
-      // Best-effort
-    }
+async function dispatchWebhookChannel(cfg: NotifConfig, alert: Alert, currentPrice: number, body: string): Promise<void> {
+  if (!cfg.webhook.enabled || !cfg.webhook.url) return
+  try {
+    await fetch(cfg.webhook.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'alert_triggered', assetPair: alert.assetPair, price: currentPrice, message: body, alertId: alert.id, timestamp: Date.now() }),
+    })
+  } catch {
+    // Best-effort
+  }
+}
+
+async function dispatchTelegramChannel(
+  cfg: NotifConfig,
+  alert: Alert,
+  currentPrice: number,
+  body: string,
+  escalation?: { stepId: string; delayMinutes: number },
+): Promise<void> {
+  if (!cfg.telegram.enabled || !cfg.telegram.chatId) return
+  const { telegramBotToken } = loadBotSecrets()
+  await sendTelegramMessage(
+    { chatId: cfg.telegram.chatId, enabled: cfg.telegram.enabled },
+    telegramBotToken,
+    { assetPair: alert.assetPair, price: currentPrice, message: body, timestamp: Date.now(), escalation },
+  )
+}
+
+async function dispatchDiscordChannel(
+  cfg: NotifConfig,
+  alert: Alert,
+  currentPrice: number,
+  body: string,
+  escalation?: { stepId: string; delayMinutes: number },
+): Promise<void> {
+  if (!cfg.discord.enabled) return
+  const { discordWebhookUrl } = loadBotSecrets()
+  await sendDiscordMessage(
+    { channelId: cfg.discord.channelId, enabled: cfg.discord.enabled },
+    discordWebhookUrl,
+    { assetPair: alert.assetPair, price: currentPrice, message: body, timestamp: Date.now(), escalation },
+  )
+}
+
+/**
+ * #315/#488 – Fire all enabled notification channels for a triggered alert
+ * (its initial fire or a persistent re-fire — not an individual escalation step,
+ * see {@link dispatchEscalationStep}).
+ */
+async function dispatchNotifications(alert: Alert, currentPrice: number): Promise<void> {
+  const cfg = loadNotifConfig()
+  const body = alertMessage(alert, currentPrice)
+  dispatchWebPushChannel(cfg, body)
+  await Promise.all([
+    dispatchEmailChannel(cfg, alert, currentPrice, body),
+    dispatchWebhookChannel(cfg, alert, currentPrice, body),
+    dispatchTelegramChannel(cfg, alert, currentPrice, body),
+    dispatchDiscordChannel(cfg, alert, currentPrice, body),
+  ])
+}
+
+/**
+ * #487/#488 – Fire exactly one escalation step's channel. `inApp` is a no-op here:
+ * the base trigger above already covers the in-app sound/notification, so an
+ * `inApp` step exists purely to appear first in the escalation timeline/UI without
+ * duplicating that side effect.
+ */
+async function dispatchEscalationStep(alert: Alert, step: EscalationStep, currentPrice: number): Promise<void> {
+  if (step.channel === 'inApp') return
+  const cfg = loadNotifConfig()
+  const body = alertMessage(alert, currentPrice)
+  const escalation = { stepId: step.id, delayMinutes: step.delayMinutes }
+  switch (step.channel) {
+    case 'email':
+      return dispatchEmailChannel(cfg, alert, currentPrice, body)
+    case 'webhook':
+      return dispatchWebhookChannel(cfg, alert, currentPrice, body)
+    case 'webPush':
+      return dispatchWebPushChannel(cfg, body)
+    case 'telegram':
+      return dispatchTelegramChannel(cfg, alert, currentPrice, body, escalation)
+    case 'discord':
+      return dispatchDiscordChannel(cfg, alert, currentPrice, body, escalation)
   }
 }
 
@@ -123,7 +191,7 @@ function windowMs(window: string): number {
 
 function loadAlerts(): Alert[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.alerts)
+    const raw = readRaw(STORAGE_KEYS.alerts)
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     const result = AlertsArraySchema.safeParse(parsed)
@@ -131,38 +199,19 @@ function loadAlerts(): Alert[] {
       console.warn('[useAlerts] Invalid alerts in localStorage, resetting:', result.error.issues)
       return []
     }
-    // Zod fills in defaults for new fields on legacy data
-    return result.data as Alert[]
+    // Zod fills in defaults for new fields on legacy data. #485 – transparently
+    // migrate any alert that predates compound conditions into a ConditionGroup,
+    // so the evaluation loop below has one code path regardless of an alert's age.
+    return (result.data as Alert[]).map((alert) =>
+      alert.conditionGroup ? alert : { ...alert, conditionGroup: migrateLegacyAlertConditions(alert) },
+    )
   } catch {
     return []
   }
-  // Zod fills in defaults for new fields on legacy data
-  return result.data as Alert[]
 }
 
 function saveAlerts(alerts: Alert[]): void {
   writeJson(STORAGE_KEYS.alerts, alerts)
-}
-
-/** Loads the fired-alert history log (#309), tolerating legacy/invalid data. */
-function loadHistory(): AlertHistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.alertHistory)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    const result = AlertHistoryArraySchema.safeParse(parsed)
-    if (!result.success) {
-      console.warn('[useAlerts] Invalid alert history in localStorage, resetting:', result.error.issues)
-      return []
-    }
-    return result.data as AlertHistoryEntry[]
-  } catch {
-    return []
-  }
-}
-
-function saveHistory(history: AlertHistoryEntry[]): void {
-  writeJson(STORAGE_KEYS.alertHistory, history)
 }
 
 const AlertsContext = createContext<AlertsContextType | null>(null)
@@ -174,16 +223,18 @@ const AlertsContext = createContext<AlertsContextType | null>(null)
  * {@link usePriceContext}. Handles:
  *  - Absolute threshold alerts (upper/lower)
  *  - Percentage-based movement alerts (#307)
+ *  - Compound AND/OR condition groups, with transparent legacy migration (#485)
  *  - One-time vs persistent alerts with fire counts (#312)
  *  - Alert snooze with auto-unsnooze (#313)
  *  - Cooldown between re-fires of a persistent alert (#310)
- *  - A capped history log of fired alerts (#309)
+ *  - Multi-tier escalation policies while a breach stays active (#487)
+ *  - A capped history log of fired alerts and escalation steps (#309, #487)
  *
  * Must be rendered inside `PriceProvider`.
  */
 export function AlertsProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>(loadAlerts)
-  const [history, setHistory] = useState<AlertHistoryEntry[]>(loadHistory)
+  const [history, setHistory] = useState<AlertHistoryEntry[]>(loadAlertHistory)
   const [isPanelOpen, setIsPanelOpen] = useState(false)
 
   const { livePrices } = usePriceContext()
@@ -225,14 +276,12 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
       if (!livePriceData) return alert
 
       const currentPrice = livePriceData.data.price
-      let triggered = false
       let updatedAlert = { ...alert }
+      let triggered = false
 
       if (alert.percentageMode) {
         // ── Percentage-based alert evaluation (#307) ──────────────────────
-        const threshold = alert.percentageThreshold ?? 0
         const window = alert.percentageWindow ?? '1hr'
-        const direction = alert.percentageDirection ?? 'either'
         const windowDuration = windowMs(window)
 
         // Initialise or refresh baseline if it's expired
@@ -243,34 +292,57 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         ) {
           // Set new baseline; don't trigger on the same tick as baseline reset
           changed = true
-          updatedAlert = {
+          return {
             ...updatedAlert,
             percentageBaselinePrice: currentPrice,
             percentageBaselineTimestamp: now,
             lastTriggeredAt: null,
           }
-          return updatedAlert
         }
 
         const baseline = alert.percentageBaselinePrice
         const pctChange = baseline !== 0 ? ((currentPrice - baseline) / baseline) * 100 : 0
-        const absPctChange = Math.abs(pctChange)
 
-        if (direction === 'up' && pctChange >= threshold) triggered = true
-        else if (direction === 'down' && pctChange <= -threshold) triggered = true
-        else if (direction === 'either' && absPctChange >= threshold) triggered = true
+        // #485 – compound evaluation against the alert's (possibly legacy-migrated) condition group
+        const group = updatedAlert.conditionGroup ?? migrateLegacyAlertConditions(updatedAlert)
+        const state: PriceEvaluationState = { price: currentPrice, percentageChange: { [window]: pctChange } }
+        triggered = evaluateCompoundCondition(group, state)
       } else {
-        // ── Absolute threshold evaluation ─────────────────────────────────
-        if (alert.upperThreshold !== null && currentPrice >= alert.upperThreshold) {
-          triggered = true
-        } else if (alert.lowerThreshold !== null && currentPrice <= alert.lowerThreshold) {
-          triggered = true
-        }
+        // ── Absolute threshold evaluation, via the compound evaluator (#485) ─
+        const group = updatedAlert.conditionGroup ?? migrateLegacyAlertConditions(updatedAlert)
+        const state: PriceEvaluationState = { price: currentPrice }
+        triggered = evaluateCompoundCondition(group, state)
       }
 
       // Minimum time between re-fires of a persistent alert (#310) — prevents
       // notification spam when the price oscillates around the threshold.
       const cooldownMs = Math.max(0, alert.cooldownMinutes ?? 5) * 60_000
+
+      // ── Escalation policy (#487) ──────────────────────────────────────────
+      // Runs whenever the condition is currently true, independent of the
+      // triggerOnce/cooldown gate below, so later tiers keep firing while a
+      // persistent breach continues even between re-fires of the base alert.
+      if (triggered && updatedAlert.escalationPolicy?.enabled) {
+        let escalationState = updatedAlert.escalationState ?? { breachStartedAt: now, firedStepIds: [] }
+        if (updatedAlert.escalationState === null) changed = true
+
+        const elapsedMinutes = (now - escalationState.breachStartedAt) / 60_000
+        let firedStepIds = escalationState.firedStepIds
+        for (const step of updatedAlert.escalationPolicy.steps) {
+          if (elapsedMinutes >= step.delayMinutes && !firedStepIds.includes(step.id)) {
+            changed = true
+            firedStepIds = [...firedStepIds, step.id]
+            firedEntries.push(buildEscalationHistoryEntry(updatedAlert, step, currentPrice, now))
+            void dispatchEscalationStep(updatedAlert, step, currentPrice)
+          }
+        }
+        escalationState = { ...escalationState, firedStepIds }
+        updatedAlert = { ...updatedAlert, escalationState }
+      } else if (!triggered && updatedAlert.escalationState !== null) {
+        // Breach ended — reset so the next breach restarts the escalation sequence.
+        changed = true
+        updatedAlert = { ...updatedAlert, escalationState: null }
+      }
 
       if (triggered) {
         // One-time alerts: only ever fire once.
@@ -283,8 +355,8 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
           changed = true
           const newFireCount = (updatedAlert.fireCount ?? 0) + 1
 
-          // #315 – Dispatch to all enabled notification channels (push, email, webhook)
-          void dispatchNotifications(alert, currentPrice)
+          // #315/#488 – Dispatch to all enabled notification channels
+          void dispatchNotifications(updatedAlert, currentPrice)
 
           // #308 – Play an alert sound, respecting the mute/volume preference.
           // No-ops silently if the user hasn't interacted with the page yet
@@ -294,20 +366,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
             playAlertSound(soundPrefs.volume)
           }
 
-          firedEntries.push({
-            id: crypto.randomUUID(),
-            alertId: alert.id,
-            assetPair: alert.assetPair,
-            triggeredAt: now,
-            price: currentPrice,
-            triggerOnce: alert.triggerOnce,
-            percentageMode: alert.percentageMode,
-            upperThreshold: alert.upperThreshold,
-            lowerThreshold: alert.lowerThreshold,
-            percentageThreshold: alert.percentageThreshold,
-            percentageWindow: alert.percentageWindow,
-            percentageDirection: alert.percentageDirection,
-          })
+          firedEntries.push(buildTriggerHistoryEntry(updatedAlert, currentPrice, now))
 
           return {
             ...updatedAlert,
@@ -333,8 +392,8 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
       setAlerts(newAlerts)
     }
     if (firedEntries.length > 0) {
-      // Newest first, capped to HISTORY_LIMIT (#309)
-      setHistory((prev) => [...firedEntries.reverse(), ...prev].slice(0, HISTORY_LIMIT))
+      // Newest first, capped (#309)
+      setHistory((prev) => appendHistoryEntries(prev, firedEntries))
     }
   }, [livePrices, alerts])
 
@@ -368,7 +427,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   }, [alerts])
 
   useEffect(() => {
-    saveHistory(history)
+    saveAlertHistory(history)
     // Broadcast history change to other tabs
     alertsHistoryChannel.broadcast('alerts-history-update', history)
   }, [history])
@@ -394,13 +453,14 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addAlert = useCallback(
-    (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp'>) => {
+    (alert: Omit<Alert, 'id' | 'createdAt' | 'lastTriggeredAt' | 'fireCount' | 'snoozedUntil' | 'percentageBaselinePrice' | 'percentageBaselineTimestamp' | 'escalationState'>) => {
       // Rate-limit alert creation: max 5 per minute.
       if (!alertRateLimit.consume()) {
         return null
       }
       const newAlert: Alert = {
         ...alert,
+        conditionGroup: alert.conditionGroup ?? migrateLegacyAlertConditions(alert),
         id: crypto.randomUUID(),
         createdAt: Date.now(),
         lastTriggeredAt: null,
@@ -408,6 +468,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
         snoozedUntil: null,
         percentageBaselinePrice: null,
         percentageBaselineTimestamp: null,
+        escalationState: null,
       }
       setAlerts((prev) => [...prev, newAlert])
       return newAlert
@@ -463,7 +524,7 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     setAlerts((prev) =>
       prev.map((a) =>
         a.id === id
-          ? { ...a, active: true, lastTriggeredAt: null, fireCount: 0, snoozedUntil: null }
+          ? { ...a, active: true, lastTriggeredAt: null, fireCount: 0, snoozedUntil: null, escalationState: null }
           : a,
       ),
     )

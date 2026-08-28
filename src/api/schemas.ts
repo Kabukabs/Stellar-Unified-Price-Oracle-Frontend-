@@ -48,6 +48,47 @@ export const OnChainPriceRecordSchema = z.object({
   ledger: z.number().int().min(0),
 })
 
+// ── Compound condition / escalation schemas (#485, #487) ─────────────────────
+
+const AlertConditionSchema = z.object({
+  id: z.string(),
+  field: z.enum(['price', 'percentageChange']),
+  operator: z.enum(['gt', 'gte', 'lt', 'lte', 'eq']),
+  value: z.number().finite(),
+  window: z.enum(['5min', '15min', '1hr', '24hr']).optional(),
+})
+
+/** Recursive AND/OR condition group — a node is either a leaf condition or a nested group. */
+const ConditionGroupSchema: z.ZodType<{
+  id: string
+  logic: 'AND' | 'OR'
+  conditions: Array<z.infer<typeof AlertConditionSchema> | { id: string; logic: 'AND' | 'OR'; conditions: unknown[] }>
+}> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    logic: z.enum(['AND', 'OR']),
+    conditions: z.array(z.union([AlertConditionSchema, ConditionGroupSchema])),
+  }),
+)
+
+const NotificationChannelIdSchema = z.enum(['inApp', 'email', 'webPush', 'webhook', 'telegram', 'discord'])
+
+const EscalationStepSchema = z.object({
+  id: z.string(),
+  channel: NotificationChannelIdSchema,
+  delayMinutes: z.number().min(0),
+})
+
+const EscalationPolicySchema = z.object({
+  enabled: z.boolean(),
+  steps: z.array(EscalationStepSchema),
+})
+
+const EscalationRuntimeStateSchema = z.object({
+  breachStartedAt: z.number(),
+  firedStepIds: z.array(z.string()),
+})
+
 // ── Alert schema (localStorage deserialization) ──────────────────────────────
 
 export const AlertSchema = z.object({
@@ -77,6 +118,14 @@ export const AlertSchema = z.object({
   // Cooldown (#310) — minutes between re-fires of a persistent alert
   cooldownMinutes: z.number().min(0).default(5),
 
+  // Compound conditions (#485) — absent on legacy records, filled in by
+  // `migrateLegacyAlertConditions` the first time useAlerts loads them.
+  conditionGroup: ConditionGroupSchema.nullable().default(null),
+
+  // Escalation policy (#487)
+  escalationPolicy: EscalationPolicySchema.nullable().default(null),
+  escalationState: EscalationRuntimeStateSchema.nullable().default(null),
+
   // State fields
   active: z.boolean(),
   createdAt: z.number(),
@@ -100,6 +149,11 @@ export const AlertHistoryEntrySchema = z.object({
   percentageThreshold: z.number().nullable().default(null),
   percentageWindow: z.enum(['5min', '15min', '1hr', '24hr']).nullable().default(null),
   percentageDirection: z.enum(['up', 'down', 'either']).nullable().default(null),
+  // Escalation step metadata (#487) — present only on escalation-fired entries.
+  escalation: z
+    .object({ stepId: z.string(), channel: NotificationChannelIdSchema, delayMinutes: z.number() })
+    .nullable()
+    .optional(),
 })
 
 export const AlertHistoryArraySchema = z.array(AlertHistoryEntrySchema)

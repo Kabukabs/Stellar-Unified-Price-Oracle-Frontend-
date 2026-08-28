@@ -32,6 +32,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { PairSearchBar } from '../components/PairSearchBar'
 import { LazyPriceTable, preloadPriceTable } from '../utils/chunks'
 import type { AlertFormData, LivePriceEntry, PriceData } from '../types'
+import { buildConditionGroupFromFormData } from '../utils/alertEvaluator'
 
 const SKELETON_COUNT = 8
 
@@ -198,6 +199,11 @@ export function Dashboard() {
         percentageDirection: data.percentageMode ? data.percentageDirection : null,
         percentageRelativeTo: data.percentageMode ? data.percentageRelativeTo : null,
         cooldownMinutes: data.cooldownMinutes ? Number.parseInt(data.cooldownMinutes, 10) : 5,
+        // #485 – compound AND/OR condition group built from the primary
+        // threshold/percentage field(s) plus any extra conditions the user added.
+        conditionGroup: buildConditionGroupFromFormData(data),
+        // #487 – multi-tier escalation schedule, when the user enabled one.
+        escalationPolicy: data.escalationEnabled ? { enabled: true, steps: data.escalationSteps } : null,
       })
       setModalOpen(false)
     },
