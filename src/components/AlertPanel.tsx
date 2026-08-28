@@ -35,12 +35,15 @@
  * - The snooze dropdown uses standard `<button>` elements inside a `<div>`.
  * - Tab switching buttons carry `role="tab"` and `aria-selected` attributes.
  */
-import { useState, type ReactElement } from 'react'
+import { useState, useCallback, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice } from '../utils/format'
 import type { Alert, AlertSnoozeDuration } from '../types'
 import { AlertHistoryLog } from './AlertHistoryLog'
+import { AlertAnalyticsStrip } from './AlertAnalyticsStrip'
+import { computeAlertStats, alertStatsToExportRow } from '../utils/alertAnalytics'
+import { toCsv, downloadFile } from '../utils/export'
 
 /**
  * #487 — Compact escalation progress indicator: one dot per step, filled once
@@ -78,10 +81,18 @@ const SNOOZE_DURATIONS: { value: AlertSnoozeDuration; labelKey: string }[] = [
 ]
 
 export function AlertPanel(): ReactElement | null {
-  const { alerts, removeAlert, updateAlert, markAsRead, isPanelOpen, togglePanel, snoozeAlert, unsnoozeAlert, reEnableAlert } = useAlerts()
+  const { alerts, alertHistory, removeAlert, updateAlert, markAsRead, isPanelOpen, togglePanel, snoozeAlert, unsnoozeAlert, reEnableAlert } = useAlerts()
   const { t } = useTranslation()
   const [snoozeOpenId, setSnoozeOpenId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'alerts' | 'history'>('alerts')
+
+  const handleExportAnalytics = useCallback(() => {
+    const HEADERS = ['alertId', 'fireCount', 'avgTimeToFire', 'maxTimeToFire', 'hitRatePerDay', 'thresholdHint']
+    const rows = alerts.map((a) => alertStatsToExportRow(computeAlertStats(a, alertHistory)))
+    const csv = toCsv(rows, HEADERS)
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    downloadFile(csv, `alert-analytics_${ts}.csv`, 'text/csv')
+  }, [alerts, alertHistory])
 
   if (!isPanelOpen) return null
 
@@ -190,7 +201,23 @@ export function AlertPanel(): ReactElement | null {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {activeTab === 'history' ? (
-            <AlertHistoryLog />
+            <>
+              {alerts.length > 0 && (
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={handleExportAnalytics}
+                    className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 px-3 py-1.5 rounded-lg transition-colors"
+                    title="Download alert effectiveness statistics as CSV"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Export Analytics
+                  </button>
+                </div>
+              )}
+              <AlertHistoryLog />
+            </>
           ) : alerts.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <svg className="w-12 h-12 mx-auto mb-3 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,8 +255,8 @@ export function AlertPanel(): ReactElement | null {
                           {t('alertPanel.triggered.priceCrossed')}{' '}
                           <span className="font-mono">{getConditionText(alert)}</span>
                         </p>
-                        <EscalationProgress alert={alert} />
-                        <div className="flex gap-2 flex-wrap mt-2">
+                        <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
+                        <div className="flex gap-2 flex-wrap mt-3">
                           <button
                             onClick={() => {
                               markAsRead(alert.id)
@@ -345,7 +372,7 @@ export function AlertPanel(): ReactElement | null {
                           <div className="text-xs text-gray-400 font-mono">
                             {getConditionText(alert)}
                           </div>
-                          <EscalationProgress alert={alert} />
+                          <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -395,6 +422,7 @@ export function AlertPanel(): ReactElement | null {
                               {t('alertPanel.fired.at', { time: new Date(alert.lastTriggeredAt).toLocaleString() })}
                             </div>
                           )}
+                          <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
                         </div>
                         <div className="flex items-center gap-1">
                           {/* Re-enable button (#312) */}
@@ -442,6 +470,7 @@ export function AlertPanel(): ReactElement | null {
                           <div className="text-xs text-gray-500 font-mono">
                             {getConditionText(alert)}
                           </div>
+                          <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
                         </div>
                         <div className="flex items-center gap-1">
                           <button
