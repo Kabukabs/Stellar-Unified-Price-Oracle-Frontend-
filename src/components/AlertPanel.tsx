@@ -91,6 +91,24 @@ function EscalationProgress({ alert }: { alert: Alert }): ReactElement | null {
   )
 }
 
+/** #491 – Retest status marker reflecting the alert's current retest state phase. */
+function RetestBadge({ alert }: { alert: Alert }): ReactElement | null {
+  const { t } = useTranslation()
+  const phase = alert.retestState?.phase
+  if (!phase || phase === 'idle') return null
+  const style =
+    phase === 'inBreach'
+      ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+      : phase === 'exited'
+        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+        : 'bg-gray-800 text-gray-300 border-gray-700'
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${style}`}>
+      {phase === 'inBreach' ? t('alertPanel.retest.inBreach') : phase === 'exited' ? t('alertPanel.retest.exited') : t('alertPanel.retest.idle')}
+    </span>
+  )
+}
+
 const SNOOZE_DURATIONS: { value: AlertSnoozeDuration; labelKey: string }[] = [
   { value: '15min', labelKey: 'alertPanel.snooze.15min' },
   { value: '1hr', labelKey: 'alertPanel.snooze.1hr' },
@@ -388,6 +406,8 @@ export function AlertPanel(): ReactElement | null {
                             {alert.fireCount > 0 && (
                               <span className="text-[10px] text-gray-500">×{alert.fireCount}</span>
                             )}
+                            {/* Retest state marker (#491) */}
+                            <RetestBadge alert={alert} />
                           </div>
                           <div className="text-xs text-gray-400 font-mono">
                             {getConditionText(alert)}

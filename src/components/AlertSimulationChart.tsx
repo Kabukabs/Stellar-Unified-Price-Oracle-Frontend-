@@ -2,16 +2,16 @@
  * @file AlertSimulationChart (#490)
  *
  * Renders the result of `simulateAlert` as a compact mini-chart whose line is the
- * replayed synthetic series, with markers at every point where the alert's
- * condition evaluated true. Uses the same recharts primitives as `PriceChart`.
+ * replayed synthetic series, with a reference marker at every point where the
+ * alert's condition evaluated true. Uses the same recharts primitives as
+ * `PriceChart`.
  *
  * Intentionally read-only and stateless — it only ever receives the already-computed
  * simulation output and is shown inside `AlertModal` as a visual preview. It never
  * writes to alert state or history.
  */
 import { memo, useMemo, type ReactElement } from 'react'
-import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { TooltipProps } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatPriceShort } from '../utils/format'
 import type { SimulatedPoint } from '../utils/alertSimulation'
 
@@ -22,38 +22,31 @@ interface Props {
 interface Row {
   idx: number
   price: number
-  fired: number | null
 }
 
-function SimTooltip({ active, payload }: TooltipProps<number, string>): ReactElement | null {
+// Manual tooltip prop shape (matches the MultiPairOverlayChart pattern rather than
+// extending recharts' TooltipProps, which this recharts version types differently).
+interface SimTooltipProps {
+  active?: boolean
+  payload?: Array<{ value?: number | string }>
+  label?: string | number
+}
+
+function SimTooltip({ active, payload }: SimTooltipProps): ReactElement | null {
   if (!active || !payload || payload.length === 0) return null
-  const row = payload[0]?.payload as Row | undefined
+  const row = payload.find((p) => typeof p.value === 'number')
   if (!row) return null
+  const value = typeof row.value === 'number' ? row.value : 0
   return (
     <div className="bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs shadow-lg">
-      <span className="text-gray-400">#{row.idx}</span>{' '}
-      <span className="text-white font-mono">${formatPriceShort(row.price)}</span>
-      {row.fired !== null && (
-        <span className={row.fired !== null && row.fired > 0 ? 'ml-1.5 text-green-400' : 'ml-1.5 text-gray-500'}>
-          {row.fired !== null && row.fired > 0 ? '● fired' : '· not fired'}
-        </span>
-      )}
+      <span className="text-white font-mono">${formatPriceShort(value)}</span>
     </div>
   )
 }
 
 export const AlertSimulationChart = memo(function AlertSimulationChart({ points }: Props): ReactElement {
-  const rows = useMemo<Row[]>(
-    () =>
-      points.map((p) => ({
-        idx: p.index,
-        price: p.price,
-        fired: p.fired ? 1 : null,
-      })),
-    [points],
-  )
-
-  const firedCount = useMemo(() => points.filter((p) => p.fired).length, [points])
+  const rows = useMemo<Row[]>(() => points.map((p) => ({ idx: p.index, price: p.price })), [points])
+  const fired = useMemo(() => points.filter((p) => p.fired), [points])
 
   return (
     <div>
@@ -83,44 +76,34 @@ export const AlertSimulationChart = memo(function AlertSimulationChart({ points 
               domain={['auto', 'auto']}
             />
             <Tooltip content={<SimTooltip />} />
-            <ReferenceLine y={0} stroke="transparent" />
             <Area
               type="monotone"
               dataKey="price"
               stroke="#22d3ee"
               strokeWidth={1.5}
               fill="url(#simGradient)"
-              dot={(props: { cx: number; cy: number; index: number; payload: Row }) => {
-                const { cx, cy, payload: row, index } = props
-                const show = row.fired !== null && row.fired > 0
-                return (
-                  <g>
-                    <line
-                      x1={cx}
-                      y1={cy}
-                      x2={cx}
-                      y2="110"
-                      stroke={show ? '#22d3ee' : 'transparent'}
-                      strokeDasharray="3 2"
-                      strokeOpacity={0.35}
-                    />
-                    {show && (
-                      <circle cx={cx} cy={cy} r={3} fill="#22d3ee" stroke="#e0f2fe" strokeWidth={1}>
-                        <title>{`Step ${index}: fired at $${row.price}`}</title>
-                      </circle>
-                    )}
-                  </g>
-                )
-              }}
+              dot={false}
               activeDot={{ r: 4 }}
               isAnimationActive={false}
             />
+            {/* Fire markers — one reference dot per simulated firing point. */}
+            {fired.map((p) => (
+              <ReferenceDot
+                key={p.index}
+                x={p.index}
+                y={p.price}
+                r={3}
+                fill="#22d3ee"
+                stroke="#e0f2fe"
+                strokeWidth={1}
+              />
+            ))}
           </AreaChart>
         </ResponsiveContainer>
       </div>
       <p className="text-xs text-blue-300 mt-1">
-        {firedCount > 0
-          ? `Simulated fire: alert triggers at ${firedCount} point${firedCount === 1 ? '' : 's'} in this replay.`
+        {fired.length > 0
+          ? `Simulated fire: alert triggers at ${fired.length} point${fired.length === 1 ? '' : 's'} in this replay.`
           : 'No simulated fire — the current settings would not trigger on this replay.'}
       </p>
     </div>

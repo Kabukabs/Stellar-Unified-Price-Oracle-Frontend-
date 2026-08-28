@@ -243,6 +243,11 @@ const en = {
       error_invalidDelay: 'Step {{step}}: delay must be a non-negative number of minutes',
       error_outOfOrder: 'Step {{step}}: delay must not be earlier than the previous step',
     },
+    // ── Price-level retest detection (#491) ──────────────────────────────
+    retest: {
+      title: 'Notify on retest',
+      description: 'Also fire if the price re-enters this breached level after it exits.',
+    },
     // ── Alert simulation (#490) ──────────────────────────────────────────
     simulate: {
       title: 'Test alert',
@@ -353,6 +358,13 @@ const en = {
       label: 'Escalation:',
       progress: '{{fired}} of {{total}} steps fired',
       historyBadge: 'Escalation · {{channel}}',
+    },
+    // ── Price-level retest detection (#491) ───────────────────────────────
+    retest: {
+      inBreach: 'In breach',
+      exited: 'Exited',
+      idle: 'Monitoring',
+      historyBadge: 'Retest',
     },
   },
 

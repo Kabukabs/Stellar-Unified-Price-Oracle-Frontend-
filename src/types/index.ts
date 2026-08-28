@@ -61,6 +61,7 @@ export type {
 } from './alerts'
 export { isConditionGroup, migrateLegacyAlertConditions, validateEscalationPolicy, nextConditionId, singleConditionGroup } from './alerts'
 
+import type { RetestState as _RetestState } from '../utils/retestDetector'
 import type {
   ConditionGroup as _ConditionGroup,
   EscalationPolicy as _EscalationPolicy,
@@ -135,6 +136,15 @@ export interface Alert {
    */
   channels: _NotificationChannelId[] | null
 
+  // ── Price-level retest detection (#491) ──────────────────────────────────
+  /**
+   * When true the alert additionally fires on `retest` events — re-entry to the
+   * breached zone after the condition exited. Off by default.
+   */
+  retestMode: boolean
+  /** Runtime retest state-machine progress; `null` when retest tracking is idle. */
+  retestState: _RetestState | null
+
   // ── State fields ──────────────────────────────────────────────────────────
   active: boolean
   createdAt: number
@@ -168,6 +178,10 @@ export interface AlertFormData {
   // ── Per-alert channel routing (#492) ──────────────────────────────────────
   /** Explicitly-chosen channels; empty array means "use the global defaults". */
   channels: _NotificationChannelId[]
+
+  // ── Price-level retest detection (#491) ──────────────────────────────────
+  /** Whether the alert fires on re-entry to the breached zone (retest). */
+  retestMode: boolean
 }
 
 /** A single record of a fired alert, kept for the alert history log (#309). */
@@ -191,6 +205,8 @@ export interface AlertHistoryEntry {
    * the alert's initial trigger — lets `AlertHistoryLog` distinguish and label them.
    */
   escalation?: { stepId: string; channel: _EscalationStep['channel']; delayMinutes: number } | null
+  /** Present when this entry records a retest-triggered fire (#491). */
+  retest?: { kind: 'breach' | 'exit' | 'retest'; cycle: number } | null
 }
 
 export interface AlertsContextType {
@@ -212,6 +228,7 @@ export interface AlertsContextType {
       | 'percentageBaselineTimestamp'
       | 'escalationState'
       | 'channels'
+      | 'retestState'
     > & { channels?: Alert['channels'] },
   ) => Alert | null
   updateAlert: (id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => void

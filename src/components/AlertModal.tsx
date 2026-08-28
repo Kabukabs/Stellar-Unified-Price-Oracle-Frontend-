@@ -257,6 +257,8 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     escalationSteps: [],
     // #492 – empty means "use the global channel defaults".
     channels: [],
+    // #491 – retest mode off by default.
+    retestMode: false,
   })
 
   const [form, setForm] = useState<AlertFormData>(emptyForm)
@@ -293,6 +295,8 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           escalationSteps: alert.escalationPolicy?.steps ?? [],
           // #492
           channels: alert.channels ?? [],
+          // #491
+          retestMode: alert.retestMode,
         })
       } else {
         setForm(emptyForm())
@@ -833,6 +837,20 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
             steps={form.escalationSteps}
             onChange={(escalationEnabled, escalationSteps) => setForm((prev) => ({ ...prev, escalationEnabled, escalationSteps }))}
           />
+
+          {/* Price-level retest detection (#491) */}
+          <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.retestMode}
+                onChange={(e) => setAndValidate('retestMode', e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500/50"
+              />
+              <span className="text-sm font-medium text-gray-300">{t('alertModal.retest.title')}</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1.5">{t('alertModal.retest.description')}</p>
+          </div>
 
           {/* Per-alert channel routing (#492) */}
           <ChannelRoutingSelect
