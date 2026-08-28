@@ -39,8 +39,35 @@ import { useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice } from '../utils/format'
-import type { AlertSnoozeDuration } from '../types'
+import type { Alert, AlertSnoozeDuration } from '../types'
 import { AlertHistoryLog } from './AlertHistoryLog'
+
+/**
+ * #487 — Compact escalation progress indicator: one dot per step, filled once
+ * fired. Shown on any alert with an enabled escalation policy so the user can see
+ * at a glance how far a breach has escalated.
+ */
+function EscalationProgress({ alert }: { alert: Alert }): ReactElement | null {
+  const { t } = useTranslation()
+  const policy = alert.escalationPolicy
+  if (!policy?.enabled || policy.steps.length === 0) return null
+  const firedCount = alert.escalationState?.firedStepIds.length ?? 0
+
+  return (
+    <div className="flex items-center gap-1.5 mt-1.5" title={t('alertPanel.escalation.progress', { fired: firedCount, total: policy.steps.length })}>
+      <span className="text-[10px] text-gray-500">{t('alertPanel.escalation.label')}</span>
+      <div className="flex items-center gap-1" role="img" aria-label={t('alertPanel.escalation.progress', { fired: firedCount, total: policy.steps.length })}>
+        {policy.steps.map((step, index) => (
+          <span
+            key={step.id}
+            className={`w-2 h-2 rounded-full ${index < firedCount ? 'bg-amber-400' : 'bg-gray-700'}`}
+            aria-hidden="true"
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 const SNOOZE_DURATIONS: { value: AlertSnoozeDuration; labelKey: string }[] = [
   { value: '15min', labelKey: 'alertPanel.snooze.15min' },
@@ -197,11 +224,12 @@ export function AlertPanel(): ReactElement | null {
                           </div>
                           <span className="text-xs text-gray-400">{t('alertPanel.triggered.justNow')}</span>
                         </div>
-                        <p className="text-sm text-gray-300 mb-3">
+                        <p className="text-sm text-gray-300 mb-1">
                           {t('alertPanel.triggered.priceCrossed')}{' '}
                           <span className="font-mono">{getConditionText(alert)}</span>
                         </p>
-                        <div className="flex gap-2 flex-wrap">
+                        <EscalationProgress alert={alert} />
+                        <div className="flex gap-2 flex-wrap mt-2">
                           <button
                             onClick={() => {
                               markAsRead(alert.id)
@@ -317,6 +345,7 @@ export function AlertPanel(): ReactElement | null {
                           <div className="text-xs text-gray-400 font-mono">
                             {getConditionText(alert)}
                           </div>
+                          <EscalationProgress alert={alert} />
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button

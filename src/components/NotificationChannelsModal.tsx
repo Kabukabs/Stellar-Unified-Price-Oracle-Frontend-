@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
+import { loadBotSecrets, saveBotSecrets, sendTelegramMessage, sendDiscordMessage } from '../services/botNotifications'
 
 interface NotificationConfig {
   email: { address: string; enabled: boolean }
   webPush: { enabled: boolean }
   webhook: { url: string; secret: string; enabled: boolean }
+  // #488 — Telegram/Discord routing config. Bot tokens and the Discord webhook URL
+  // are NOT part of this shape; they live in sessionStorage via botNotifications.ts.
+  telegram: { chatId: string; enabled: boolean }
+  discord: { channelId: string; enabled: boolean }
 }
 
 /**
- * What actually reaches `localStorage`: everything except the webhook signing secret.
+ * What actually reaches `localStorage`: everything except the webhook signing secret
+ * and the bot credentials (#488).
  *
- * The secret is password-equivalent — anything that can read `localStorage` could
- * forge signed webhook deliveries with it. It is held in component state for the
- * session only, so the user re-enters it after a reload. See `utils/storage.ts`.
+ * These are password-equivalent — anything that can read `localStorage` could forge
+ * signed webhook deliveries or send messages as the bot. They are held in component
+ * state / `sessionStorage` for the session only, so the user re-enters them after a
+ * reload. See `utils/storage.ts` and `services/botNotifications.ts`.
  */
 type PersistedNotificationConfig = Omit<NotificationConfig, 'webhook'> & {
   webhook: Omit<NotificationConfig['webhook'], 'secret'>
@@ -23,6 +30,8 @@ const DEFAULT_CONFIG: NotificationConfig = {
   email: { address: '', enabled: false },
   webPush: { enabled: false },
   webhook: { url: '', secret: '', enabled: false },
+  telegram: { chatId: '', enabled: false },
+  discord: { channelId: '', enabled: false },
 }
 
 function loadConfig(): NotificationConfig {
@@ -33,6 +42,8 @@ function loadConfig(): NotificationConfig {
     // Spread first, then force `secret` empty so a value written by an older build
     // cannot survive into state.
     webhook: { ...DEFAULT_CONFIG.webhook, ...parsed.webhook, secret: '' },
+    telegram: { ...DEFAULT_CONFIG.telegram, ...parsed.telegram },
+    discord: { ...DEFAULT_CONFIG.discord, ...parsed.discord },
   }
 
   // Older builds persisted the secret. Rewrite the record without it on first read
@@ -50,11 +61,13 @@ function saveConfig(config: NotificationConfig): void {
     email: config.email,
     webPush: config.webPush,
     webhook,
+    telegram: config.telegram,
+    discord: config.discord,
   }
   writeJson(STORAGE_KEYS.notificationChannels, persisted)
 }
 
-type TabId = 'email' | 'webpush' | 'webhook'
+type TabId = 'email' | 'webpush' | 'webhook' | 'telegram' | 'discord'
 
 interface Props {
   isOpen: boolean
@@ -72,6 +85,9 @@ function StatusDot({ active }: { active: boolean }) {
 
 export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElement | null {
   const [config, setConfig] = useState<NotificationConfig>(loadConfig)
+  // #488 — bot credentials, session-only (never localStorage). Loaded fresh each
+  // time the modal opens so a value saved earlier this session still shows up.
+  const [botSecrets, setBotSecrets] = useState(loadBotSecrets)
   const [activeTab, setActiveTab] = useState<TabId>('email')
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default')
   const [testStatus, setTestStatus] = useState<string | null>(null)
@@ -93,8 +109,9 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
 
   const save = useCallback(() => {
     saveConfig(config)
+    saveBotSecrets(botSecrets) // #488 — sessionStorage only, see the file-level doc comment
     onClose()
-  }, [config, onClose])
+  }, [config, botSecrets, onClose])
 
   const requestPushPermission = useCallback(async () => {
     if (!('Notification' in window)) return
@@ -139,9 +156,31 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
         } catch {
           setTestStatus('Webhook request failed — check URL and CORS settings')
         }
+      } else if (tab === 'telegram') {
+        if (!botSecrets.telegramBotToken) {
+          setTestStatus('Enter a bot token first')
+          return
+        }
+        const result = await sendTelegramMessage(
+          { chatId: config.telegram.chatId, enabled: true },
+          botSecrets.telegramBotToken,
+          { assetPair: 'BTC/USD', price: 0, message: 'Test message from Stellar Price Oracle', timestamp: Date.now() },
+        )
+        setTestStatus(result.ok ? 'Telegram test message sent' : (result.error ?? 'Telegram test failed'))
+      } else if (tab === 'discord') {
+        if (!botSecrets.discordWebhookUrl) {
+          setTestStatus('Enter a webhook URL first')
+          return
+        }
+        const result = await sendDiscordMessage(
+          { channelId: config.discord.channelId, enabled: true },
+          botSecrets.discordWebhookUrl,
+          { assetPair: 'BTC/USD', price: 0, message: 'Test message from Stellar Price Oracle', timestamp: Date.now() },
+        )
+        setTestStatus(result.ok ? 'Discord test message sent' : (result.error ?? 'Discord test failed'))
       }
     },
-    [config.email.address, config.webhook.url, config.webhook.secret, pushPermission],
+    [config.email.address, config.webhook.url, config.webhook.secret, config.telegram.chatId, config.discord.channelId, botSecrets, pushPermission],
   )
 
   const handleKeyDown = useCallback(
@@ -158,6 +197,8 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
     { id: 'email', label: 'Email' },
     { id: 'webpush', label: 'Web Push' },
     { id: 'webhook', label: 'Webhook' },
+    { id: 'telegram', label: 'Telegram' },
+    { id: 'discord', label: 'Discord' },
   ]
 
   return (
@@ -374,6 +415,122 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
             >
               Send test request
+            </button>
+          </div>
+        )}
+
+        {/* #488 — Telegram bot channel */}
+        {activeTab === 'telegram' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <StatusDot active={!!config.telegram.chatId && !!botSecrets.telegramBotToken && config.telegram.enabled} />
+              <span className="text-sm text-gray-400">
+                {config.telegram.chatId && botSecrets.telegramBotToken && config.telegram.enabled ? 'Configured' : 'Not configured'}
+              </span>
+            </div>
+            <div>
+              <label htmlFor="notif-telegram-token" className="block text-sm text-gray-400 mb-1.5">
+                Bot Token
+              </label>
+              <input
+                id="notif-telegram-token"
+                type="password"
+                value={botSecrets.telegramBotToken}
+                onChange={(e) => setBotSecrets((s) => ({ ...s, telegramBotToken: e.target.value }))}
+                placeholder="123456:ABC-DEF..."
+                aria-describedby="notif-telegram-token-help"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+              <p id="notif-telegram-token-help" className="mt-1.5 text-xs text-gray-500">
+                From @BotFather. Not saved to this browser — re-enter it after a reload.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="notif-telegram-chatid" className="block text-sm text-gray-400 mb-1.5">
+                Chat ID
+              </label>
+              <input
+                id="notif-telegram-chatid"
+                type="text"
+                value={config.telegram.chatId}
+                onChange={(e) => setConfig((c) => ({ ...c, telegram: { ...c.telegram, chatId: e.target.value } }))}
+                placeholder="e.g. 123456789"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.telegram.enabled}
+                onChange={(e) => setConfig((c) => ({ ...c, telegram: { ...c.telegram, enabled: e.target.checked } }))}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500"
+              />
+              <span className="text-sm text-gray-300">Enable Telegram notifications</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleTest('telegram')}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+            >
+              Send test message
+            </button>
+          </div>
+        )}
+
+        {/* #488 — Discord bot channel */}
+        {activeTab === 'discord' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <StatusDot active={!!botSecrets.discordWebhookUrl && config.discord.enabled} />
+              <span className="text-sm text-gray-400">
+                {botSecrets.discordWebhookUrl && config.discord.enabled ? 'Configured' : 'Not configured'}
+              </span>
+            </div>
+            <div>
+              <label htmlFor="notif-discord-webhook" className="block text-sm text-gray-400 mb-1.5">
+                Webhook URL
+              </label>
+              <input
+                id="notif-discord-webhook"
+                type="password"
+                value={botSecrets.discordWebhookUrl}
+                onChange={(e) => setBotSecrets((s) => ({ ...s, discordWebhookUrl: e.target.value }))}
+                placeholder="https://discord.com/api/webhooks/..."
+                aria-describedby="notif-discord-webhook-help"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+              <p id="notif-discord-webhook-help" className="mt-1.5 text-xs text-gray-500">
+                Anyone with this URL can post as the bot. Not saved to this browser — re-enter it after a reload.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="notif-discord-channelid" className="block text-sm text-gray-400 mb-1.5">
+                Channel ID <span className="text-gray-600">(for reference)</span>
+              </label>
+              <input
+                id="notif-discord-channelid"
+                type="text"
+                value={config.discord.channelId}
+                onChange={(e) => setConfig((c) => ({ ...c, discord: { ...c.discord, channelId: e.target.value } }))}
+                placeholder="e.g. 123456789012345678"
+                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+              />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.discord.enabled}
+                onChange={(e) => setConfig((c) => ({ ...c, discord: { ...c.discord, enabled: e.target.checked } }))}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500"
+              />
+              <span className="text-sm text-gray-300">Enable Discord notifications</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleTest('discord')}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+            >
+              Send test message
             </button>
           </div>
         )}

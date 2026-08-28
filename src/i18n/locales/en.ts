@@ -206,6 +206,53 @@ const en = {
       upperGreaterThanLower: 'Must be greater than lower threshold',
       lowerLessThanUpper: 'Must be less than upper threshold',
     },
+    // ── Compound AND/OR condition builder (#485) ──────────────────────────
+    conditions: {
+      title: 'Additional Conditions',
+      description: 'Layer extra conditions on top of the field above, combined with AND/OR.',
+      add: '+ Add condition',
+      logicLabel: 'Combine conditions with',
+      and: 'AND',
+      or: 'OR',
+      operatorLabel: 'Operator for condition {{index}}',
+      valueLabel: 'Value for condition {{index}}',
+      windowLabel: 'Time window for condition {{index}}',
+      remove: 'Remove condition {{index}}',
+      priceUnit: 'USD',
+      operator_gt: '>',
+      operator_gte: '≥',
+      operator_lt: '<',
+      operator_lte: '≤',
+      operator_eq: '=',
+    },
+    // ── Escalation policy builder (#487) ──────────────────────────────────
+    escalation: {
+      enable: 'Enable escalation policy',
+      description: 'Notify additional channels at increasing delays while the breach stays active.',
+      addStep: '+ Add step',
+      channelLabel: 'Channel for step {{step}}',
+      delayLabel: 'Delay in minutes for step {{step}}',
+      removeStep: 'Remove step {{step}}',
+      minutesSuffix: 'min',
+      channel_inApp: 'In-App',
+      channel_email: 'Email',
+      channel_webPush: 'Web Push',
+      channel_webhook: 'Webhook',
+      channel_telegram: 'Telegram',
+      channel_discord: 'Discord',
+      error_invalidDelay: 'Step {{step}}: delay must be a non-negative number of minutes',
+      error_outOfOrder: 'Step {{step}}: delay must not be earlier than the previous step',
+    },
+    // ── Preset library (#486) ──────────────────────────────────────────────
+    presets: {
+      title: 'Start from a preset',
+      myPresets: 'My Presets',
+      deleteCustom: 'Delete preset {{name}}',
+      nameLabel: 'Preset name',
+      descriptionLabel: 'Description (optional)',
+      save: 'Save Preset',
+      saveCurrentAsPreset: '+ Save current settings as a preset',
+    },
   },
 
   // ── AlertPanel ────────────────────────────────────────────────────────────
@@ -286,6 +333,31 @@ const en = {
       count_one: '{{count}} fired alert',
       count_other: '{{count}} fired alerts',
       priceAt: 'Price: ${{price}}',
+    },
+    // ── Escalation progress (#487) ────────────────────────────────────────
+    escalation: {
+      label: 'Escalation:',
+      progress: '{{fired}} of {{total}} steps fired',
+      historyBadge: 'Escalation · {{channel}}',
+    },
+  },
+
+  // ── Alert preset library (#486) ─────────────────────────────────────────
+  alertPresets: {
+    whaleMove: {
+      name: 'Whale Move',
+      description: 'A large price swing in either direction over a short window.',
+      useCase: 'Catch sudden moves from a large holder before the broader market reacts.',
+    },
+    breakout: {
+      name: 'Breakout',
+      description: 'Momentum confirmed across two windows: a strong 1-hour move still accelerating in the last 15 minutes.',
+      useCase: 'Spot a move that is more than noise — the trend is confirmed, not just starting.',
+    },
+    pegBreak: {
+      name: 'Stablecoin Peg Break',
+      description: 'Price drifts more than 1% away from its $1.00 peg in either direction.',
+      useCase: 'Get an early warning if a stablecoin you hold or rely on is losing its peg.',
     },
   },
 

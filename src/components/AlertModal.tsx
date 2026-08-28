@@ -61,8 +61,22 @@
  */
 import { useState, useEffect, useRef, useCallback, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Alert, AlertFormData, AlertTimeWindow, AlertPercentageDirection, AlertPercentageRelativeTo } from '../types'
+import type {
+  Alert,
+  AlertFormData,
+  AlertTimeWindow,
+  AlertPercentageDirection,
+  AlertPercentageRelativeTo,
+  AlertCondition,
+} from '../types'
+import { validateEscalationPolicy } from '../types/alerts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
+import { buildConditionGroupFromFormData } from '../utils/alertEvaluator'
+import { ConditionBuilder } from './ConditionBuilder'
+import { EscalationPolicyBuilder } from './EscalationPolicyBuilder'
+import { AlertPresetPicker } from './AlertPresetPicker'
+import type { AlertPreset } from '../data/alertPresets'
+import { presetStorage, type CustomAlertPreset } from '../services/presetStorage'
 
 interface AlertModalProps {
   isOpen: boolean
@@ -126,7 +140,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     return errors
   }
 
-  const [form, setForm] = useState<AlertFormData>({
+  const emptyForm = (): AlertFormData => ({
     assetPair: '',
     upperThreshold: '',
     lowerThreshold: '',
@@ -137,7 +151,13 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     percentageDirection: 'either',
     percentageRelativeTo: 'open',
     cooldownMinutes: '5',
+    extraConditions: [],
+    conditionsLogic: 'AND',
+    escalationEnabled: false,
+    escalationSteps: [],
   })
+
+  const [form, setForm] = useState<AlertFormData>(emptyForm)
   const [errors, setErrors] = useState<ValidationErrors>({})
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
@@ -158,20 +178,18 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           percentageDirection: alert.percentageDirection ?? 'either',
           percentageRelativeTo: alert.percentageRelativeTo ?? 'open',
           cooldownMinutes: String(alert.cooldownMinutes ?? 5),
+          // #485 – the condition builder starts empty on edit; the alert's saved
+          // conditionGroup may be an arbitrary tree that doesn't decompose back into
+          // "primary + extras" cleanly, so editing only re-derives the primary field
+          // above. Any extras added here are combined with it fresh on save.
+          extraConditions: [],
+          conditionsLogic: 'AND',
+          // #487
+          escalationEnabled: alert.escalationPolicy?.enabled ?? false,
+          escalationSteps: alert.escalationPolicy?.steps ?? [],
         })
       } else {
-        setForm({
-          assetPair: defaultAssetPair ?? '',
-          upperThreshold: '',
-          lowerThreshold: '',
-          triggerOnce: false,
-          percentageMode: false,
-          percentageThreshold: '',
-          percentageWindow: '1hr',
-          percentageDirection: 'either',
-          percentageRelativeTo: 'open',
-          cooldownMinutes: '5',
-        })
+        setForm(emptyForm())
       }
       setErrors({})
 
@@ -202,12 +220,118 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
       e.preventDefault()
       const validationErrors = validate(form)
       setErrors(validationErrors)
-      if (Object.keys(validationErrors).length === 0) {
+      // #487 – an invalid escalation policy (e.g. out-of-order delays) blocks save;
+      // EscalationPolicyBuilder already renders the specific errors inline.
+      const escalationInvalid = form.escalationEnabled && validateEscalationPolicy(form.escalationSteps).length > 0
+      if (Object.keys(validationErrors).length === 0 && !escalationInvalid) {
         onSave(form)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [form, onSave],
+  )
+
+  /**
+   * #486 – Projects a preset's (possibly multi-condition) group onto the form.
+   *
+   * A group of exactly two opposite-signed conditions on the same field/window,
+   * combined with OR, is exactly what the simple "direction: either" primary field
+   * already expresses — so that shape maps back with zero extras. Anything else
+   * (e.g. an AND-combined confirmation across two windows, like "Breakout") keeps
+   * its first condition as the primary field and carries the rest over as extra
+   * conditions verbatim, each with its own operator/value/window untouched.
+   */
+  function projectConditionGroupOntoForm(
+    group: AlertPreset['template']['conditionGroup'],
+    percentageMode: boolean,
+    prev: AlertFormData,
+  ): Partial<AlertFormData> {
+    const conditions = group.conditions.filter((c): c is AlertCondition => 'field' in c)
+    const gte = conditions.find((c) => c.operator === 'gte')
+    const lte = conditions.find((c) => c.operator === 'lte')
+    const isEitherPair =
+      conditions.length === 2 &&
+      group.logic === 'OR' &&
+      gte !== undefined &&
+      lte !== undefined &&
+      gte.field === lte.field &&
+      gte.window === lte.window
+
+    if (isEitherPair) {
+      const magnitude = Math.abs(gte.value)
+      return percentageMode
+        ? {
+            percentageThreshold: String(magnitude),
+            percentageDirection: 'either',
+            percentageWindow: gte.window ?? '1hr',
+            extraConditions: [],
+            conditionsLogic: group.logic,
+          }
+        : { upperThreshold: String(gte.value), lowerThreshold: String(lte.value), extraConditions: [], conditionsLogic: group.logic }
+    }
+
+    const primary = conditions[0]
+    const extras = conditions.slice(1)
+    if (!primary) return { extraConditions: extras, conditionsLogic: group.logic }
+
+    return percentageMode
+      ? {
+          percentageThreshold: String(Math.abs(primary.value)),
+          percentageDirection: primary.operator === 'lte' ? 'down' : 'up',
+          percentageWindow: primary.window ?? '1hr',
+          extraConditions: extras,
+          conditionsLogic: group.logic,
+        }
+      : {
+          upperThreshold: primary.operator === 'lte' ? prev.upperThreshold : String(primary.value),
+          lowerThreshold: primary.operator === 'lte' ? String(primary.value) : prev.lowerThreshold,
+          extraConditions: extras,
+          conditionsLogic: group.logic,
+        }
+  }
+
+  const applyPreset = useCallback((preset: AlertPreset) => {
+    const { template } = preset
+    setForm((prev) => ({
+      ...prev,
+      assetPair: prev.assetPair || template.suggestedAssetPair,
+      percentageMode: template.percentageMode,
+      triggerOnce: template.triggerOnce,
+      cooldownMinutes: String(template.cooldownMinutes),
+      escalationEnabled: template.escalationPolicy?.enabled ?? false,
+      escalationSteps: template.escalationPolicy?.steps ?? [],
+      ...projectConditionGroupOntoForm(template.conditionGroup, template.percentageMode, prev),
+    }))
+  }, [])
+
+  const applyCustomPreset = useCallback((preset: CustomAlertPreset) => {
+    setForm((prev) => ({
+      ...prev,
+      assetPair: prev.assetPair || preset.suggestedAssetPair,
+      percentageMode: preset.percentageMode,
+      triggerOnce: preset.triggerOnce,
+      cooldownMinutes: String(preset.cooldownMinutes),
+      escalationEnabled: preset.escalationPolicy?.enabled ?? false,
+      escalationSteps: preset.escalationPolicy?.steps ?? [],
+      ...projectConditionGroupOntoForm(preset.conditionGroup, preset.percentageMode, prev),
+    }))
+  }, [])
+
+  // #486 – save the form's current configuration as a reusable custom preset.
+  const saveCurrentAsPreset = useCallback(
+    async (name: string, description: string) => {
+      await presetStorage.create({
+        name,
+        description,
+        suggestedAssetPair: form.assetPair,
+        percentageMode: form.percentageMode,
+        conditionGroup: buildConditionGroupFromFormData(form),
+        triggerOnce: form.triggerOnce,
+        cooldownMinutes: form.cooldownMinutes ? Number.parseInt(form.cooldownMinutes, 10) : 5,
+        escalationPolicy: form.escalationEnabled ? { enabled: true, steps: form.escalationSteps } : null,
+      })
+    },
+    [form],
   )
 
   const setSuggestion = useCallback(
@@ -289,6 +413,16 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
         )}
 
         <form onSubmit={handleSubmit} noValidate>
+          {/* Preset library (#486) — only offered when creating a new alert, since an
+              existing alert's fields are already configured. */}
+          {!alert && (
+            <AlertPresetPicker
+              onSelectPreset={applyPreset}
+              onSelectCustom={applyCustomPreset}
+              onSaveCurrent={saveCurrentAsPreset}
+            />
+          )}
+
           {/* Asset Pair */}
           <div className="mb-4">
             <label htmlFor="alert-asset-pair" className="block text-sm font-medium text-gray-400 mb-1.5">
@@ -510,6 +644,14 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
             </>
           )}
 
+          {/* Additional AND/OR conditions (#485) */}
+          <ConditionBuilder
+            conditions={form.extraConditions}
+            logic={form.conditionsLogic}
+            percentageMode={form.percentageMode}
+            onChange={(extraConditions, conditionsLogic) => setForm((prev) => ({ ...prev, extraConditions, conditionsLogic }))}
+          />
+
           {/* Alert Type: One-time vs Persistent (#312) */}
           <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
             <span className="block text-sm font-medium text-gray-300 mb-2">{t('alertModal.fields.alertType')}</span>
@@ -565,6 +707,13 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
               </div>
             )}
           </div>
+
+          {/* Escalation policy (#487) */}
+          <EscalationPolicyBuilder
+            enabled={form.escalationEnabled}
+            steps={form.escalationSteps}
+            onChange={(escalationEnabled, escalationSteps) => setForm((prev) => ({ ...prev, escalationEnabled, escalationSteps }))}
+          />
 
           <div className="flex gap-3">
             {onDelete && alert && (
