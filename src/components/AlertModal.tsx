@@ -73,9 +73,11 @@ import type {
 import { validateEscalationPolicy } from '../types/alerts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { buildConditionGroupFromFormData } from '../utils/alertEvaluator'
+import { simulateAlert, type SimulatedPoint } from '../utils/alertSimulation'
 import { loadNotifConfig, getEnabledChannels } from '../services/notificationConfig'
 import type { AlertPreset } from '../data/alertPresets'
 import { presetStorage, type CustomAlertPreset } from '../services/presetStorage'
+import { AlertSimulationChart } from './AlertSimulationChart'
 import { ConditionBuilder } from './ConditionBuilder'
 import { EscalationPolicyBuilder } from './EscalationPolicyBuilder'
 import { AlertPresetPicker } from './AlertPresetPicker'
@@ -153,6 +155,45 @@ function ChannelRoutingSelect({ value, onChange }: { value: NotificationChannelI
     </div>
   )
 }
+/**
+ * #490 – "Test alert" simulation UI.
+ *
+ * Runs the current form through {@link simulateAlert} (same evaluation path as
+ * live) and renders the mini-chart with fire markers. Purely local state — the
+ * result is discarded when the modal closes and never touches alert history.
+ */
+function AlertSimulationSection({
+  simResult,
+  onRun,
+  disabled,
+}: {
+  simResult: SimulatedPoint[] | null
+  onRun: () => void
+  disabled: boolean
+}): ReactElement {
+  const { t } = useTranslation()
+  return (
+    <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+      <div className="flex items-center justify-between mb-2">
+        <span className="block text-sm font-medium text-gray-300">{t('alertModal.simulate.title')}</span>
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={disabled}
+          className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('alertModal.simulate.run')}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-2">{t('alertModal.simulate.description')}</p>
+      {simResult ? (
+        <AlertSimulationChart points={simResult} />
+      ) : (
+        <p className="text-xs text-gray-500 italic">{t('alertModal.simulate.idle')}</p>
+      )}
+    </div>
+  )
+}
 
 export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, alert, currentPrice, defaultAssetPair, rateLimited = false, cooldownSec = 0 }: AlertModalProps): ReactElement | null {
   const { t } = useTranslation()
@@ -220,6 +261,8 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
 
   const [form, setForm] = useState<AlertFormData>(emptyForm)
   const [errors, setErrors] = useState<ValidationErrors>({})
+  // #490 – cached result of the "Test alert" simulation for the current form.
+  const [simResult, setSimResult] = useState<SimulatedPoint[] | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
   const { containerRef, handleKeyDown: trapKeyDown } = useFocusTrap()
@@ -255,6 +298,7 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
         setForm(emptyForm())
       }
       setErrors({})
+      setSimResult(null)
 
       requestAnimationFrame(() => {
         dialogRef.current?.focus()
@@ -406,6 +450,18 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     },
     [currentPrice, setAndValidate],
   )
+
+  const handleTestAlert = useCallback(() => {
+    // Run against a base price derived from the form when no live price is
+    // available, so the simulation is usable even while editing a new alert.
+    const base =
+      currentPrice !== undefined && currentPrice > 0
+        ? currentPrice
+        : Number.parseFloat(form.upperThreshold) ||
+          Number.parseFloat(form.lowerThreshold) ||
+          100
+    setSimResult(simulateAlert(form, base))
+  }, [form, currentPrice])
 
   if (!isOpen) return null
 
@@ -782,6 +838,17 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           <ChannelRoutingSelect
             value={form.channels}
             onChange={(channels) => setForm((prev) => ({ ...prev, channels }))}
+          />
+
+          {/* Alert simulation (#490) */}
+          <AlertSimulationSection
+            simResult={simResult}
+            onRun={handleTestAlert}
+            disabled={
+              form.percentageMode
+                ? !form.percentageThreshold.trim()
+                : !form.upperThreshold.trim() && !form.lowerThreshold.trim()
+            }
           />
 
           <div className="flex gap-3">

@@ -243,6 +243,13 @@ const en = {
       error_invalidDelay: 'Step {{step}}: delay must be a non-negative number of minutes',
       error_outOfOrder: 'Step {{step}}: delay must not be earlier than the previous step',
     },
+    // ── Alert simulation (#490) ──────────────────────────────────────────
+    simulate: {
+      title: 'Test alert',
+      run: 'Run simulation',
+      description: 'Replays a synthetic price series through the same evaluation logic used live, marking exactly where this alert would fire.',
+      idle: 'Run a simulation to see how this alert behaves without touching your live configuration.',
+    },
     // ── Per-alert channel routing (#492) ──────────────────────────────────
     channels: {
       title: 'Notify via',
