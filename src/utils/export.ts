@@ -1,4 +1,4 @@
-import type { AlertHistoryEntry, PriceData, PriceHistoryEntry } from '../types'
+import type { AlertHistoryEntry, PriceData, PriceHistoryEntry, SourceHealth } from '../types'
 import { EXPORT_COLUMNS, sanitizeColumns } from './exportColumns'
 
 function isoTs(ts: number): string {
@@ -430,4 +430,150 @@ export function historyToXlsx(pair: string, history: PriceHistoryEntry[]): Uint8
     'Sources': h.sources.join(';'),
   }))
   return buildXlsx([{ name: pair, headers, rows }])
+}
+
+// ── Source Reliability Leaderboard helpers (#481) ─────────────────────────────
+
+/**
+ * Computed reliability metrics for a single oracle source over a given time
+ * window. Produced by {@link computeSourceMetrics} and consumed by
+ * {@link ReliabilityLeaderboard} and {@link exportLeaderboardCsv}.
+ */
+export interface SourceReliabilityMetric {
+  /** Oracle source identifier (e.g. 'chainlink'). */
+  source: string
+  /**
+   * Percentage (0–100) of history entries within the time window where this
+   * source was present in the `sources` array.
+   */
+  uptimePercent: number
+  /**
+   * Average measured latency in milliseconds as reported by {@link SourceHealth},
+   * or `null` when no latency data is available.
+   */
+  meanLatencyMs: number | null
+  /**
+   * Milliseconds since {@link SourceHealth.lastUpdate}. A value of 0 is used
+   * when `lastUpdate` is null (i.e. source has never reported).
+   */
+  stalenessMs: number
+  /**
+   * Direction of the uptime change comparing the current window against the
+   * previous window of the same length.
+   * - `'up'`   — uptime improved by > 1 pp
+   * - `'down'` — uptime fell by > 1 pp
+   * - `'stable'` — change is within ±1 pp or no prior-window data exists
+   */
+  trend: 'up' | 'down' | 'stable'
+}
+
+/**
+ * Compute {@link SourceReliabilityMetric} for every source in `sourceHealths`.
+ *
+ * Uptime is derived from `priceHistory`: for each asset pair, we count how many
+ * history entries in the window include the source. We then divide by the total
+ * entries across all pairs for that source.
+ *
+ * Trend compares the current window's uptime against the preceding window of
+ * equal duration (`windowMs`).
+ *
+ * @param sourceHealths  Live health records from the aggregator API.
+ * @param priceHistory   Historical entries keyed by asset pair.
+ * @param windowMs       Length of the analysis window in milliseconds.
+ */
+export function computeSourceMetrics(
+  sourceHealths: SourceHealth[],
+  priceHistory: Record<string, PriceHistoryEntry[]>,
+  windowMs: number,
+): SourceReliabilityMetric[] {
+  const now = Date.now()
+  const windowStart = now - windowMs
+  const prevWindowStart = windowStart - windowMs
+
+  // Flatten all history entries once so we iterate them only twice
+  const allEntries = Object.values(priceHistory).flat()
+
+  const currentEntries = allEntries.filter((e) => e.timestamp >= windowStart)
+  const prevEntries = allEntries.filter(
+    (e) => e.timestamp >= prevWindowStart && e.timestamp < windowStart,
+  )
+
+  const metrics: SourceReliabilityMetric[] = sourceHealths.map((sh) => {
+    const src = sh.source as string
+
+    // Uptime in current window
+    const uptimePercent =
+      currentEntries.length > 0
+        ? (currentEntries.filter((e) => e.sources.includes(src)).length /
+            currentEntries.length) *
+          100
+        : 0
+
+    // Uptime in previous window (for trend)
+    const prevUptimePercent =
+      prevEntries.length > 0
+        ? (prevEntries.filter((e) => e.sources.includes(src)).length /
+            prevEntries.length) *
+          100
+        : null
+
+    // Trend: threshold of 1 percentage point to avoid noise
+    let trend: SourceReliabilityMetric['trend'] = 'stable'
+    if (prevUptimePercent !== null) {
+      const delta = uptimePercent - prevUptimePercent
+      if (delta > 1) trend = 'up'
+      else if (delta < -1) trend = 'down'
+    }
+
+    // Staleness
+    const stalenessMs = sh.lastUpdate !== null ? Math.max(0, now - sh.lastUpdate) : 0
+
+    return {
+      source: src,
+      uptimePercent,
+      meanLatencyMs: sh.latency,
+      stalenessMs,
+      trend,
+    }
+  })
+
+  // Sort descending by uptime, then ascending by staleness as tiebreaker
+  metrics.sort((a, b) => {
+    const diff = b.uptimePercent - a.uptimePercent
+    if (diff !== 0) return diff
+    return a.stalenessMs - b.stalenessMs
+  })
+
+  return metrics
+}
+
+/**
+ * Triggers a browser CSV download for the reliability leaderboard.
+ *
+ * Filename: `reliability-leaderboard_<ISO-timestamp>.csv`
+ *
+ * @param metrics  Array produced by {@link computeSourceMetrics}.
+ */
+export function exportLeaderboardCsv(metrics: SourceReliabilityMetric[]): void {
+  const headers = [
+    'rank',
+    'source',
+    'uptimePercent',
+    'meanLatencyMs',
+    'stalenessMs',
+    'trend',
+  ]
+
+  const rows: Array<Record<string, unknown>> = metrics.map((m, i) => ({
+    rank: i + 1,
+    source: m.source,
+    uptimePercent: parseFloat(m.uptimePercent.toFixed(2)),
+    meanLatencyMs: m.meanLatencyMs ?? '',
+    stalenessMs: m.stalenessMs,
+    trend: m.trend,
+  }))
+
+  const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
+  const filename = `reliability-leaderboard_${ts}.csv`
+  downloadFile(toCsv(rows, headers), filename, 'text/csv')
 }
