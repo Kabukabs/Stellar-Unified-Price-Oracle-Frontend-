@@ -1,4 +1,4 @@
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useSwr } from '../hooks/useSwr'
@@ -9,13 +9,15 @@ import { CsvImportZone } from '../components/CsvImportZone'
 import { OnChainComparisonPanel } from '../components/OnChainComparisonPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { VisibleSuspense } from '../components/VisibleSuspense'
+import { MultiPairOverlayChart } from '../components/MultiPairOverlayChart'
 import { formatPrice, timeAgo, formatTimestamp } from '../utils/format'
 import { SOURCE_COLORS, getConfidenceColor } from '../utils/sourceColors'
 import { LazyPriceChart, LazyPriceHistoryTable, LazyPriceProofPanel } from '../utils/chunks'
-import { isValidAssetPair } from '../types'
+import { isValidAssetPair, VALID_PAIRS } from '../types'
 import { usePreferences } from '../preferences/PreferencesContext'
 import { getStellarAssetForPair, shortenAccount } from '../lib/stellarAssets'
 import type { CsvRow } from '../components/CsvImportZone'
+import type { ExportRow } from '../components/MultiPairOverlayChart'
 
 type DetailTab = 'overview' | 'proof'
 
@@ -72,7 +74,30 @@ export function PriceDetail() {
   const { t } = useTranslation()
   const { preferences } = usePreferences()
   const [importedData, setImportedData] = useState<CsvRow[] | null>(null)
-  const [activeTab, setActiveTab] = useState<DetailTab>('overview')
+  const [activeTab, _setActiveTab] = useState<DetailTab>('overview')
+
+  // Benchmark state — persisted to localStorage
+  const [benchmarkPair, setBenchmarkPair] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem('supo:benchmarkPair') ?? null
+    } catch {
+      return null
+    }
+  })
+  const [normalizedMode, setNormalizedMode] = useState(false)
+
+  // Persist benchmarkPair to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      if (benchmarkPair === null) {
+        window.localStorage.removeItem('supo:benchmarkPair')
+      } else {
+        window.localStorage.setItem('supo:benchmarkPair', benchmarkPair)
+      }
+    } catch {
+      // localStorage unavailable — continue silently
+    }
+  }, [benchmarkPair])
 
   const decodedPair = pair ? decodeURIComponent(pair) : ''
 
@@ -99,6 +124,12 @@ export function PriceDetail() {
     error: historyError,
     loadMore,
   } = usePriceHistory(isInvalidPair || !decodedPair ? null : decodedPair, { pageSize: 100 })
+
+  // Benchmark pair history — fetched only when a benchmark pair is selected
+  const {
+    history: benchmarkHistory,
+    loading: benchmarkHistoryLoading,
+  } = usePriceHistory(benchmarkPair, { pageSize: 100 })
 
   const loading = priceLoading || (historyLoading && history.length === 0)
   const showEmptyState = !loading && !priceError && !price
@@ -177,6 +208,94 @@ export function PriceDetail() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
             <StellarAssetPanel pair={price.assetPair} />
+          </div>
+
+          {/* Benchmark comparison section */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Benchmark comparison</p>
+            <div className="flex flex-wrap items-center gap-4 mb-4">
+              {/* Benchmark pair picker */}
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="benchmark-pair-select"
+                  className="text-sm text-gray-400 whitespace-nowrap"
+                >
+                  Compare with
+                </label>
+                <select
+                  id="benchmark-pair-select"
+                  value={benchmarkPair ?? ''}
+                  onChange={(e) => setBenchmarkPair(e.target.value === '' ? null : e.target.value)}
+                  className="bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+                  aria-label="Select benchmark pair"
+                >
+                  <option value="">— None —</option>
+                  {VALID_PAIRS.filter((p) => p !== decodedPair).map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Normalized view toggle — only relevant when a benchmark is active */}
+              {benchmarkPair !== null && (
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={normalizedMode}
+                    onChange={(e) => setNormalizedMode(e.target.checked)}
+                    className="w-4 h-4 rounded bg-gray-800 border-gray-600 text-cyan-500 focus:ring-cyan-500/50 cursor-pointer"
+                    aria-label="Normalized view (% change)"
+                  />
+                  <span className="text-sm text-gray-400">Normalized view (% change)</span>
+                </label>
+              )}
+            </div>
+
+            {/* Multi-pair overlay chart shown when a benchmark is selected */}
+            {benchmarkPair !== null && (
+              benchmarkHistoryLoading && benchmarkHistory.length === 0 ? (
+                <div
+                  className="h-80 rounded-lg bg-gray-800/60 animate-pulse"
+                  role="status"
+                  aria-label="Loading benchmark chart"
+                />
+              ) : (
+                <MultiPairOverlayChart
+                  pairs={[decodedPair, benchmarkPair]}
+                  history={{
+                    [decodedPair]: history,
+                    [benchmarkPair]: benchmarkHistory,
+                  }}
+                  benchmarkPair={benchmarkPair}
+                  normalizedMode={normalizedMode}
+                  onExport={(rows: ExportRow[]) => {
+                    // Build CSV and trigger download
+                    if (rows.length === 0) return
+                    const pairsInExport = Object.keys(rows[0]).filter((k) => k !== 'timestamp')
+                    const header = ['timestamp', ...pairsInExport].join(',')
+                    const lines = rows.map((row) =>
+                      [row.timestamp, ...pairsInExport.map((p) => row[p] ?? '')].join(','),
+                    )
+                    const csv = [header, ...lines].join('\n')
+                    const blob = new Blob([csv], { type: 'text/csv' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `benchmark_${decodedPair.replace('/', '-')}_vs_${benchmarkPair.replace('/', '-')}.csv`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                />
+              )
+            )}
+
+            {benchmarkPair === null && (
+              <p className="text-sm text-gray-500">
+                Select a pair above to compare it against {decodedPair} on the same chart.
+              </p>
+            )}
           </div>
 
           {/* Off-chain vs on-chain price comparison */}
@@ -281,6 +400,87 @@ export function PriceDetail() {
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
                 <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Stellar Asset</p>
                 <StellarAssetPanel pair={price.assetPair} />
+              </div>
+
+              {/* Benchmark comparison section */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Benchmark comparison</p>
+                <div className="flex flex-wrap items-center gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <label
+                      htmlFor="benchmark-pair-select-tab"
+                      className="text-sm text-gray-400 whitespace-nowrap"
+                    >
+                      Compare with
+                    </label>
+                    <select
+                      id="benchmark-pair-select-tab"
+                      value={benchmarkPair ?? ''}
+                      onChange={(e) => setBenchmarkPair(e.target.value === '' ? null : e.target.value)}
+                      className="bg-gray-800 border border-gray-700 text-gray-100 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 cursor-pointer"
+                      aria-label="Select benchmark pair"
+                    >
+                      <option value="">— None —</option>
+                      {VALID_PAIRS.filter((p) => p !== decodedPair).map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {benchmarkPair !== null && (
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={normalizedMode}
+                        onChange={(e) => setNormalizedMode(e.target.checked)}
+                        className="w-4 h-4 rounded bg-gray-800 border-gray-600 text-cyan-500 focus:ring-cyan-500/50 cursor-pointer"
+                        aria-label="Normalized view (% change)"
+                      />
+                      <span className="text-sm text-gray-400">Normalized view (% change)</span>
+                    </label>
+                  )}
+                </div>
+                {benchmarkPair !== null && (
+                  benchmarkHistoryLoading && benchmarkHistory.length === 0 ? (
+                    <div
+                      className="h-80 rounded-lg bg-gray-800/60 animate-pulse"
+                      role="status"
+                      aria-label="Loading benchmark chart"
+                    />
+                  ) : (
+                    <MultiPairOverlayChart
+                      pairs={[decodedPair, benchmarkPair]}
+                      history={{
+                        [decodedPair]: history,
+                        [benchmarkPair]: benchmarkHistory,
+                      }}
+                      benchmarkPair={benchmarkPair}
+                      normalizedMode={normalizedMode}
+                      onExport={(rows: ExportRow[]) => {
+                        if (rows.length === 0) return
+                        const pairsInExport = Object.keys(rows[0]).filter((k) => k !== 'timestamp')
+                        const header = ['timestamp', ...pairsInExport].join(',')
+                        const lines = rows.map((row) =>
+                          [row.timestamp, ...pairsInExport.map((p) => row[p] ?? '')].join(','),
+                        )
+                        const csv = [header, ...lines].join('\n')
+                        const blob = new Blob([csv], { type: 'text/csv' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `benchmark_${decodedPair.replace('/', '-')}_vs_${benchmarkPair.replace('/', '-')}.csv`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                    />
+                  )
+                )}
+                {benchmarkPair === null && (
+                  <p className="text-sm text-gray-500">
+                    Select a pair above to compare it against {decodedPair} on the same chart.
+                  </p>
+                )}
               </div>
 
               {/* Paginated History chart */}
