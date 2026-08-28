@@ -9,6 +9,8 @@ export type {
   SourceHealth,
   WsSubscribeMessage,
   WsUnsubscribeMessage,
+  WsHelloMessage,
+  WsWelcomeMessage,
   WsPriceUpdate,
   WsMessage,
 } from './price'

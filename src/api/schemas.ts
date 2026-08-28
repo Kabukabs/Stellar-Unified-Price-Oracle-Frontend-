@@ -192,11 +192,17 @@ export const WsPriceUpdateSchema = z.object({
   seq: z.number().optional(),
 })
 
+/** Server handshake response confirming the WS protocol version (#472). */
+export const WsWelcomeMessageSchema = z.object({
+  type: z.literal('welcome'),
+  protocolVersion: z.number().int().min(0),
+})
+
 /**
  * Discriminated union of all known WebSocket message types.
  * Add new variants here as the server protocol evolves.
  */
-export const WsMessageSchema = z.discriminatedUnion('type', [WsPriceUpdateSchema])
+export const WsMessageSchema = z.discriminatedUnion('type', [WsPriceUpdateSchema, WsWelcomeMessageSchema])
 
 // ── Type inference from schemas ──────────────────────────────────────────────
 

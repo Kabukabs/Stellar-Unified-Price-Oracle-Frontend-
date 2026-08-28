@@ -2,6 +2,7 @@ import { config } from '../config'
 import type { WsMessage, WsSubscribeMessage, WsUnsubscribeMessage } from '../types'
 import { wsAnalytics } from '../utils/wsAnalytics'
 import { recordWsMessageTiming } from '../utils/performanceMonitor'
+import { WS_PROTOCOL_VERSION } from './version'
 import { rateLimitManager } from './rateLimit'
 import { WsMessageSchema } from './schemas'
 
@@ -32,6 +33,10 @@ export interface ConnectionDiagnostics {
   lastConnectedAt: number | null
   /** Total number of disconnections since the client was created. */
   totalDisconnections: number
+  /** Negotiated WS protocol version (#472), or `null` before/without a handshake. */
+  protocolVersion?: number | null
+  /** True when the server speaks a newer protocol than this client supports (#472). */
+  protocolUpgradeRequired?: boolean
 }
 
 const supportsDecompression = typeof DecompressionStream !== 'undefined'
@@ -131,6 +136,9 @@ export class WebSocketClient {
   private _retryCount = 0
   private _lastConnectedAt: number | null = null
   private _totalDisconnections = 0
+  // #472 – negotiated WS protocol version, or null before the handshake.
+  private _protocolVersion: number | null = null
+  private _protocolUpgradeRequired = false
 
   private _status: ConnectionStatus = 'disconnected'
   get status(): ConnectionStatus {
@@ -142,6 +150,8 @@ export class WebSocketClient {
       retryCount: this._retryCount,
       lastConnectedAt: this._lastConnectedAt,
       totalDisconnections: this._totalDisconnections,
+      protocolVersion: this._protocolVersion,
+      protocolUpgradeRequired: this._protocolUpgradeRequired,
     }
   }
 
@@ -192,6 +202,19 @@ export class WebSocketClient {
     }
   }
 
+  /** #472 – Process the server's `welcome` handshake and negotiate the protocol version. */
+  private handleWelcome(serverVersion: number): void {
+    this._protocolVersion = serverVersion
+    this._protocolUpgradeRequired = serverVersion > WS_PROTOCOL_VERSION
+    wsAnalytics.recordProtocolVersion(serverVersion, this._protocolUpgradeRequired)
+    if (this._protocolUpgradeRequired) {
+      console.warn(
+        `[WebSocket] Server speaks WS protocol v${serverVersion}, but this client supports v${WS_PROTOCOL_VERSION}. ` +
+          'Downgrading to the supported feature set — please update the client for full compatibility.',
+      )
+    }
+  }
+
   // ── Public API ──────────────────────────────────────────────────────────────
 
   /** Opens the WebSocket connection. Appends `?compress=1` when the browser supports `DecompressionStream`. */
@@ -211,6 +234,12 @@ export class WebSocketClient {
       this._retryCount = 0
       this._lastConnectedAt = Date.now()
       this.setStatus('connected')
+
+      // #472 – perform the protocol handshake. Reset any previously-negotiated
+      // version so a fresh session re-negotiates from scratch.
+      this._protocolVersion = null
+      this._protocolUpgradeRequired = false
+      this.sendRaw(JSON.stringify({ type: 'hello', protocolVersion: WS_PROTOCOL_VERSION }))
 
       // Re-subscribe to all previously tracked pairs.
       // This covers any subscribe() calls that arrived while disconnected,
@@ -271,6 +300,14 @@ export class WebSocketClient {
         }
 
         const msg: WsMessage = parsed.data
+
+        // #472 – handle the handshake reply here rather than forwarding it to
+        // application handlers (which only care about price updates).
+        if (msg.type === 'welcome') {
+          this.handleWelcome(msg.protocolVersion)
+          return
+        }
+
         messageHandlersRef.forEach((h) => h(msg))
 
         // Record end-to-end processing time for this message
