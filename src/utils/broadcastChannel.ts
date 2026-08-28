@@ -23,6 +23,7 @@ export type BroadcastMessageType =
   | 'preferences-update'
   | 'alerts-update'
   | 'alerts-history-update'
+  | 'watchlists-update'
 
 export interface BroadcastMessage<T = unknown> {
   type: BroadcastMessageType

@@ -132,3 +132,33 @@ export interface ResampleOutput {
   pair: string
   history: PriceHistoryEntry[]
 }
+
+// ── Technical indicators ──────────────────────────────────────────────────────
+
+export type IndicatorType = 'sma' | 'ema' | 'rsi'
+
+export interface IndicatorConfig {
+  type: IndicatorType
+  period: number
+  enabled: boolean
+}
+
+export interface ComputeIndicatorsInput {
+  taskId: string
+  pair: string
+  history: PriceHistoryEntry[]
+  indicators: IndicatorConfig[]
+}
+
+export interface IndicatorSeries {
+  type: IndicatorType
+  period: number
+  /** Parallel to the input history array. null for points before the indicator has enough data. */
+  values: (number | null)[]
+}
+
+export interface ComputeIndicatorsOutput {
+  taskId: string
+  pair: string
+  series: IndicatorSeries[]
+}
