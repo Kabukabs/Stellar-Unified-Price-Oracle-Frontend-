@@ -16,6 +16,9 @@ import type {
   ResampleInput,
   ResampleOutput,
   WorkerProgress,
+  ComputeIndicatorsInput,
+  ComputeIndicatorsOutput,
+  IndicatorSeries,
 } from './types'
 
 /** Interval bucket sizes in milliseconds. */
@@ -151,6 +154,51 @@ function lttb(data: PriceHistoryEntry[], targetPoints: number): PriceHistoryEntr
   return sampled
 }
 
+function computeSMA(prices: number[], period: number): (number | null)[] {
+  return prices.map((_, i) => {
+    if (i < period - 1) return null
+    let sum = 0
+    for (let j = i - period + 1; j <= i; j++) sum += prices[j]
+    return sum / period
+  })
+}
+
+function computeEMA(prices: number[], period: number): (number | null)[] {
+  const k = 2 / (period + 1)
+  const result: (number | null)[] = new Array(prices.length).fill(null)
+  if (prices.length < period) return result
+  // Seed with first SMA
+  let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period
+  result[period - 1] = ema
+  for (let i = period; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k)
+    result[i] = ema
+  }
+  return result
+}
+
+function computeRSI(prices: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = new Array(prices.length).fill(null)
+  if (prices.length < period + 1) return result
+  let gains = 0
+  let losses = 0
+  for (let i = 1; i <= period; i++) {
+    const diff = prices[i] - prices[i - 1]
+    if (diff > 0) gains += diff
+    else losses -= diff
+  }
+  let avgGain = gains / period
+  let avgLoss = losses / period
+  result[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)
+  for (let i = period + 1; i < prices.length; i++) {
+    const diff = prices[i] - prices[i - 1]
+    avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period
+    avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period
+    result[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss)
+  }
+  return result
+}
+
 export class ChartAggregationWorker {
   /**
    * Aggregates price history into OHLC candles for the given interval.
@@ -187,6 +235,38 @@ export class ChartAggregationWorker {
     onProgress?.({ taskId, processed: history.length, total: history.length, message: 'done' })
 
     return { taskId, pair, history: sampled }
+  }
+
+  /**
+   * Computes one or more technical indicators (SMA, EMA, RSI) over a price
+   * history. Each indicator series is parallel to the input history array,
+   * with null values for points before the indicator has enough data.
+   */
+  computeIndicators(
+    input: ComputeIndicatorsInput,
+    onProgress?: (progress: WorkerProgress) => void,
+  ): ComputeIndicatorsOutput {
+    const { taskId, pair, history, indicators } = input
+    onProgress?.({ taskId, processed: 0, total: indicators.length, message: 'computing indicators…' })
+
+    const prices = history.map((h) => h.price)
+    const series: IndicatorSeries[] = []
+
+    for (const cfg of indicators) {
+      if (!cfg.enabled) continue
+      let values: (number | null)[]
+      if (cfg.type === 'sma') {
+        values = computeSMA(prices, cfg.period)
+      } else if (cfg.type === 'ema') {
+        values = computeEMA(prices, cfg.period)
+      } else {
+        values = computeRSI(prices, cfg.period)
+      }
+      series.push({ type: cfg.type, period: cfg.period, values })
+    }
+
+    onProgress?.({ taskId, processed: indicators.length, total: indicators.length, message: 'done' })
+    return { taskId, pair, series }
   }
 }
 
