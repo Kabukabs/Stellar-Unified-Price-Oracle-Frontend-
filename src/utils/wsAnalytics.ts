@@ -15,6 +15,10 @@ export interface WsAnalyticsSummary {
   totalErrors: number
   disconnectRate: number
   avgLatencyMs: number | null
+  /** Negotiated WS protocol version (#472) or `null` before the handshake. */
+  protocolVersion: number | null
+  /** True when the server is newer than this client supports (#472). */
+  protocolUpgradeRequired: boolean
   events: WsEvent[]
 }
 
@@ -25,6 +29,8 @@ const events: WsEvent[] = []
 const listeners = new Set<Listener>()
 let connectTime: number | null = null
 let latencySamples: number[] = []
+let protocolVersion: number | null = null
+let protocolUpgradeRequired = false
 
 function summarise(): WsAnalyticsSummary {
   const counts = { connect: 0, disconnect: 0, reconnect: 0, error: 0 }
@@ -48,6 +54,8 @@ function summarise(): WsAnalyticsSummary {
     totalErrors: counts.error,
     disconnectRate,
     avgLatencyMs: avg,
+    protocolVersion,
+    protocolUpgradeRequired,
     events: [...events],
   }
 }
@@ -78,6 +86,12 @@ export const wsAnalytics = {
   recordLatency(ms: number) {
     latencySamples = [...latencySamples.slice(-99), ms]
     push({ type: 'latency', timestamp: Date.now(), latencyMs: ms })
+  },
+  recordProtocolVersion(version: number, upgradeRequired: boolean) {
+    protocolVersion = version
+    protocolUpgradeRequired = upgradeRequired
+    const s = summarise()
+    listeners.forEach((l) => l(s))
   },
   subscribe(listener: Listener): () => void {
     listeners.add(listener)

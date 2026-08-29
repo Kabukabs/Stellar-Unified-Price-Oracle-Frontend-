@@ -117,6 +117,12 @@ export function AlertHistoryLog(): ReactElement {
                       {t('alertPanel.escalation.historyBadge', { channel: t(`alertModal.escalation.channel_${entry.escalation.channel}`) })}
                     </span>
                   )}
+                  {/* #491 — flag retest-enabled alert fire sequence entries */}
+                  {entry.retest && entry.retest.kind === 'retest' && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+                      {t('alertPanel.retest.historyBadge')}
+                    </span>
+                  )}
                 </span>
                 <span className="text-xs text-gray-500">{formatTimestamp(entry.triggeredAt)}</span>
               </div>

@@ -37,7 +37,12 @@ export function saveAlertHistory(history: AlertHistoryEntry[]): void {
 }
 
 /** Builds the history entry for an alert's initial trigger (or a persistent re-fire). */
-export function buildTriggerHistoryEntry(alert: Alert, price: number, firedAt: number): AlertHistoryEntry {
+export function buildTriggerHistoryEntry(
+  alert: Alert,
+  price: number,
+  firedAt: number,
+  retest?: AlertHistoryEntry['retest'],
+): AlertHistoryEntry {
   return {
     id: crypto.randomUUID(),
     alertId: alert.id,
@@ -52,6 +57,7 @@ export function buildTriggerHistoryEntry(alert: Alert, price: number, firedAt: n
     percentageWindow: alert.percentageWindow,
     percentageDirection: alert.percentageDirection,
     escalation: null,
+    retest: retest ?? null,
   }
 }
 

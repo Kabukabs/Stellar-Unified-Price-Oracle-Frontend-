@@ -75,6 +75,20 @@ export interface WsSubscribeMessage {
   assetPairs: string[]
 }
 
+/** WebSocket handshake message sent by the client on connect (#472). */
+export interface WsHelloMessage {
+  type: 'hello'
+  /** The WS protocol version this client supports (see `api/version.ts`). */
+  protocolVersion: number
+}
+
+/** WebSocket handshake response from the server confirming the protocol version (#472). */
+export interface WsWelcomeMessage {
+  type: 'welcome'
+  /** The WS protocol version the server will serve. */
+  protocolVersion: number
+}
+
 /** WebSocket unsubscribe message sent by the client. */
 export interface WsUnsubscribeMessage {
   action: 'unsubscribe'
@@ -98,7 +112,7 @@ export interface WsPriceUpdate {
 }
 
 /** Union of all possible WebSocket message types. */
-export type WsMessage = WsPriceUpdate
+export type WsMessage = WsPriceUpdate | WsWelcomeMessage
 
 // ---------------------------------------------------------------------------
 // Type guards

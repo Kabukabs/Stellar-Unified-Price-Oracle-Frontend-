@@ -9,6 +9,8 @@ export type {
   SourceHealth,
   WsSubscribeMessage,
   WsUnsubscribeMessage,
+  WsHelloMessage,
+  WsWelcomeMessage,
   WsPriceUpdate,
   WsMessage,
 } from './price'
@@ -61,6 +63,7 @@ export type {
 } from './alerts'
 export { isConditionGroup, migrateLegacyAlertConditions, validateEscalationPolicy, nextConditionId, singleConditionGroup } from './alerts'
 
+import type { RetestState as _RetestState } from '../utils/retestDetector'
 import type {
   ConditionGroup as _ConditionGroup,
   EscalationPolicy as _EscalationPolicy,
@@ -69,6 +72,7 @@ import type {
   LogicOperator as _LogicOperator,
   EscalationStep as _EscalationStep,
 } from './alerts'
+import type { NotificationChannelId as _NotificationChannelId } from './notifications'
 
 export interface Alert {
   id: string
@@ -125,6 +129,24 @@ export interface Alert {
   /** Runtime progress through `escalationPolicy` for the current breach; null between breaches. */
   escalationState: _EscalationRuntimeState | null
 
+  // ── Per-alert channel routing (#492) ──────────────────────────────────────
+  /**
+   * Channels this alert specifically routes to. `null` (or an empty array) means
+   * "use the global default set" — every channel that is enabled in the
+   * notification config. When set, only the listed channels are used (still
+   * intersected with currently-enabled global channels at dispatch time).
+   */
+  channels: _NotificationChannelId[] | null
+
+  // ── Price-level retest detection (#491) ──────────────────────────────────
+  /**
+   * When true the alert additionally fires on `retest` events — re-entry to the
+   * breached zone after the condition exited. Off by default.
+   */
+  retestMode: boolean
+  /** Runtime retest state-machine progress; `null` when retest tracking is idle. */
+  retestState: _RetestState | null
+
   // ── State fields ──────────────────────────────────────────────────────────
   active: boolean
   createdAt: number
@@ -154,6 +176,14 @@ export interface AlertFormData {
   // ── Escalation policy (#487) ──────────────────────────────────────────────
   escalationEnabled: boolean
   escalationSteps: _EscalationStep[]
+
+  // ── Per-alert channel routing (#492) ──────────────────────────────────────
+  /** Explicitly-chosen channels; empty array means "use the global defaults". */
+  channels: _NotificationChannelId[]
+
+  // ── Price-level retest detection (#491) ──────────────────────────────────
+  /** Whether the alert fires on re-entry to the breached zone (retest). */
+  retestMode: boolean
 }
 
 /** A single record of a fired alert, kept for the alert history log (#309). */
@@ -177,6 +207,8 @@ export interface AlertHistoryEntry {
    * the alert's initial trigger — lets `AlertHistoryLog` distinguish and label them.
    */
   escalation?: { stepId: string; channel: _EscalationStep['channel']; delayMinutes: number } | null
+  /** Present when this entry records a retest-triggered fire (#491). */
+  retest?: { kind: 'breach' | 'exit' | 'retest'; cycle: number } | null
 }
 
 export interface AlertsContextType {
@@ -197,7 +229,9 @@ export interface AlertsContextType {
       | 'percentageBaselinePrice'
       | 'percentageBaselineTimestamp'
       | 'escalationState'
-    >,
+      | 'channels'
+      | 'retestState'
+    > & { channels?: Alert['channels'] },
   ) => Alert | null
   updateAlert: (id: string, updates: Partial<Omit<Alert, 'id' | 'createdAt'>>) => void
   removeAlert: (id: string) => void

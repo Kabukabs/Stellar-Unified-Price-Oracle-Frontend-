@@ -237,6 +237,37 @@ export function createVersionEndpoint() {
 // Placeholder for Node version (will be injected by build)
 declare const __NODE_VERSION__: string | undefined
 
+// ---------------------------------------------------------------------------
+// WebSocket protocol versioning (#472)
+// ---------------------------------------------------------------------------
+
+/**
+ * The version of the WebSocket protocol this client speaks.
+ *
+ * Bump this only on a **breaking** change to the wire format (message shapes,
+ * field meaning, or handshake). Backward-compatible additions must keep the
+ * version stable and be handled via optional fields.
+ *
+ * ## Handshake
+ * On connect the client sends `{ type: 'hello', protocolVersion }`; the server
+ * replies `{ type: 'welcome', protocolVersion }` with the version it will serve.
+ *
+ * ## Downgrade policy
+ * - `welcome.protocolVersion === WS_PROTOCOL_VERSION` — fully compatible.
+ * - `welcome.protocolVersion < WS_PROTOCOL_VERSION` — the server is older; the
+ *   client silently degrades to the server's feature set (fields it doesn't
+ *   know are ignored). No error.
+ * - `welcome.protocolVersion > WS_PROTOCOL_VERSION` — the server is newer; the
+ *   client stays on the safety subset it understands, logs a warning, and flags
+ *   an upgrade prompt (`protocolUpgradeRequired` in the realtime diagnostics).
+ * - No `welcome` received — the handshake is not supported; fall back to the
+ *   legacy unversioned message stream (downgrade path) and continue.
+ *
+ * Unknown/unparseable `welcome` payloads are ignored gracefully rather than
+ * tearing down the connection.
+ */
+export const WS_PROTOCOL_VERSION = 1
+
 /**
  * API version information interface
  */

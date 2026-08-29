@@ -40,10 +40,29 @@ import { useTranslation } from 'react-i18next'
 import { useAlerts } from '../hooks/useAlerts'
 import { formatPrice } from '../utils/format'
 import type { Alert, AlertSnoozeDuration } from '../types'
-import { AlertHistoryLog } from './AlertHistoryLog'
-import { AlertAnalyticsStrip } from './AlertAnalyticsStrip'
 import { computeAlertStats, alertStatsToExportRow } from '../utils/alertAnalytics'
 import { toCsv, downloadFile } from '../utils/export'
+import { AlertHistoryLog } from './AlertHistoryLog'
+import { AlertAnalyticsStrip } from './AlertAnalyticsStrip'
+
+/** #492 – Renders an alert's per-alert routing override, or nothing when unset. */
+function RoutingBadge({ alert }: { alert: Alert }): ReactElement | null {
+  const { t } = useTranslation()
+  const routed = alert.channels ?? []
+  if (!routed || routed.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      {routed.map((c) => (
+        <span
+          key={c}
+          className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-800 border border-gray-700 text-gray-300"
+        >
+          {t(`alertModal.escalation.channel_${c}`)}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 /**
  * #487 — Compact escalation progress indicator: one dot per step, filled once
@@ -69,6 +88,24 @@ function EscalationProgress({ alert }: { alert: Alert }): ReactElement | null {
         ))}
       </div>
     </div>
+  )
+}
+
+/** #491 – Retest status marker reflecting the alert's current retest state phase. */
+function RetestBadge({ alert }: { alert: Alert }): ReactElement | null {
+  const { t } = useTranslation()
+  const phase = alert.retestState?.phase
+  if (!phase || phase === 'idle') return null
+  const style =
+    phase === 'inBreach'
+      ? 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+      : phase === 'exited'
+        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+        : 'bg-gray-800 text-gray-300 border-gray-700'
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${style}`}>
+      {phase === 'inBreach' ? t('alertPanel.retest.inBreach') : phase === 'exited' ? t('alertPanel.retest.exited') : t('alertPanel.retest.idle')}
+    </span>
   )
 }
 
@@ -256,6 +293,7 @@ export function AlertPanel(): ReactElement | null {
                           <span className="font-mono">{getConditionText(alert)}</span>
                         </p>
                         <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
+                        <RoutingBadge alert={alert} />
                         <div className="flex gap-2 flex-wrap mt-3">
                           <button
                             onClick={() => {
@@ -368,11 +406,15 @@ export function AlertPanel(): ReactElement | null {
                             {alert.fireCount > 0 && (
                               <span className="text-[10px] text-gray-500">×{alert.fireCount}</span>
                             )}
+                            {/* Retest state marker (#491) */}
+                            <RetestBadge alert={alert} />
                           </div>
                           <div className="text-xs text-gray-400 font-mono">
                             {getConditionText(alert)}
                           </div>
                           <AlertAnalyticsStrip alertId={alert.id} stats={computeAlertStats(alert, alertHistory)} />
+                          <EscalationProgress alert={alert} />
+                          <RoutingBadge alert={alert} />
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button

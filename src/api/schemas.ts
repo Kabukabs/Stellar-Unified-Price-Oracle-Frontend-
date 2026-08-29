@@ -89,6 +89,15 @@ const EscalationRuntimeStateSchema = z.object({
   firedStepIds: z.array(z.string()),
 })
 
+// Runtime retest state machine progress (#491) — see utils/retestDetector.ts.
+const RetestPhaseSchema = z.enum(['idle', 'inBreach', 'exited'])
+const RetestStateSchema = z.object({
+  phase: RetestPhaseSchema,
+  cycles: z.number().int().min(0),
+  lastEventPrice: z.number(),
+  lastEventAt: z.number(),
+})
+
 // ── Alert schema (localStorage deserialization) ──────────────────────────────
 
 export const AlertSchema = z.object({
@@ -126,6 +135,13 @@ export const AlertSchema = z.object({
   escalationPolicy: EscalationPolicySchema.nullable().default(null),
   escalationState: EscalationRuntimeStateSchema.nullable().default(null),
 
+  // Per-alert channel routing (#492) — null/absent means "use global defaults".
+  channels: z.array(NotificationChannelIdSchema).nullable().default(null),
+
+  // Price-level retest detection (#491)
+  retestMode: z.boolean().default(false),
+  retestState: RetestStateSchema.nullable().default(null),
+
   // State fields
   active: z.boolean(),
   createdAt: z.number(),
@@ -154,6 +170,11 @@ export const AlertHistoryEntrySchema = z.object({
     .object({ stepId: z.string(), channel: NotificationChannelIdSchema, delayMinutes: z.number() })
     .nullable()
     .optional(),
+  // Retest-triggered fire metadata (#491).
+  retest: z
+    .object({ kind: z.enum(['breach', 'exit', 'retest']), cycle: z.number() })
+    .nullable()
+    .optional(),
 })
 
 export const AlertHistoryArraySchema = z.array(AlertHistoryEntrySchema)
@@ -171,11 +192,17 @@ export const WsPriceUpdateSchema = z.object({
   seq: z.number().optional(),
 })
 
+/** Server handshake response confirming the WS protocol version (#472). */
+export const WsWelcomeMessageSchema = z.object({
+  type: z.literal('welcome'),
+  protocolVersion: z.number().int().min(0),
+})
+
 /**
  * Discriminated union of all known WebSocket message types.
  * Add new variants here as the server protocol evolves.
  */
-export const WsMessageSchema = z.discriminatedUnion('type', [WsPriceUpdateSchema])
+export const WsMessageSchema = z.discriminatedUnion('type', [WsPriceUpdateSchema, WsWelcomeMessageSchema])
 
 // ── Type inference from schemas ──────────────────────────────────────────────
 

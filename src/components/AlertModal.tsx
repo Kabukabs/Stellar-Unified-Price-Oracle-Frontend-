@@ -68,15 +68,19 @@ import type {
   AlertPercentageDirection,
   AlertPercentageRelativeTo,
   AlertCondition,
+  NotificationChannelId,
 } from '../types'
 import { validateEscalationPolicy } from '../types/alerts'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { buildConditionGroupFromFormData } from '../utils/alertEvaluator'
+import { simulateAlert, type SimulatedPoint } from '../utils/alertSimulation'
+import { loadNotifConfig, getEnabledChannels } from '../services/notificationConfig'
+import type { AlertPreset } from '../data/alertPresets'
+import { presetStorage, type CustomAlertPreset } from '../services/presetStorage'
+import { AlertSimulationChart } from './AlertSimulationChart'
 import { ConditionBuilder } from './ConditionBuilder'
 import { EscalationPolicyBuilder } from './EscalationPolicyBuilder'
 import { AlertPresetPicker } from './AlertPresetPicker'
-import type { AlertPreset } from '../data/alertPresets'
-import { presetStorage, type CustomAlertPreset } from '../services/presetStorage'
 
 interface AlertModalProps {
   isOpen: boolean
@@ -94,6 +98,102 @@ interface AlertModalProps {
 }
 
 type ValidationErrors = Partial<Record<keyof AlertFormData, string>>
+
+/**
+ * #492 – Per-alert channel routing picker.
+ *
+ * Lets the user override the global channel defaults for one alert. Only the
+ * channels that are currently configured+enabled globally are offered (a channel
+ * that isn't configured can't be routed to). An empty selection means "use the
+ * global defaults", which is the default and the natural deselection exit.
+ */
+function ChannelRoutingSelect({ value, onChange }: { value: NotificationChannelId[]; onChange: (ch: NotificationChannelId[]) => void }): ReactElement {
+  const { t } = useTranslation()
+  const available = getEnabledChannels(loadNotifConfig()).filter((c) => c !== 'inApp')
+
+  const toggle = (channel: NotificationChannelId) => {
+    onChange(value.includes(channel) ? value.filter((c) => c !== channel) : [...value, channel])
+  }
+
+  return (
+    <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+      <div className="flex items-center justify-between mb-2">
+        <span className="block text-sm font-medium text-gray-300">{t('alertModal.channels.title')}</span>
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+        >
+          {t('alertModal.channels.useGlobal')}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-3">{t('alertModal.channels.description')}</p>
+      {available.length === 0 ? (
+        <p className="text-xs text-amber-400/80">{t('alertModal.channels.noneConfigured')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {available.map((channel) => {
+            const active = value.includes(channel)
+            return (
+              <button
+                key={channel}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggle(channel)}
+                className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                  active
+                    ? 'bg-cyan-600 border-cyan-500 text-white'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                {t(`alertModal.escalation.channel_${channel}`)}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+/**
+ * #490 – "Test alert" simulation UI.
+ *
+ * Runs the current form through {@link simulateAlert} (same evaluation path as
+ * live) and renders the mini-chart with fire markers. Purely local state — the
+ * result is discarded when the modal closes and never touches alert history.
+ */
+function AlertSimulationSection({
+  simResult,
+  onRun,
+  disabled,
+}: {
+  simResult: SimulatedPoint[] | null
+  onRun: () => void
+  disabled: boolean
+}): ReactElement {
+  const { t } = useTranslation()
+  return (
+    <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+      <div className="flex items-center justify-between mb-2">
+        <span className="block text-sm font-medium text-gray-300">{t('alertModal.simulate.title')}</span>
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={disabled}
+          className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('alertModal.simulate.run')}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-2">{t('alertModal.simulate.description')}</p>
+      {simResult ? (
+        <AlertSimulationChart points={simResult} />
+      ) : (
+        <p className="text-xs text-gray-500 italic">{t('alertModal.simulate.idle')}</p>
+      )}
+    </div>
+  )
+}
 
 export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, alert, currentPrice, defaultAssetPair, rateLimited = false, cooldownSec = 0 }: AlertModalProps): ReactElement | null {
   const { t } = useTranslation()
@@ -155,10 +255,16 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     conditionsLogic: 'AND',
     escalationEnabled: false,
     escalationSteps: [],
+    // #492 – empty means "use the global channel defaults".
+    channels: [],
+    // #491 – retest mode off by default.
+    retestMode: false,
   })
 
   const [form, setForm] = useState<AlertFormData>(emptyForm)
   const [errors, setErrors] = useState<ValidationErrors>({})
+  // #490 – cached result of the "Test alert" simulation for the current form.
+  const [simResult, setSimResult] = useState<SimulatedPoint[] | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousActiveElement = useRef<HTMLElement | null>(null)
   const { containerRef, handleKeyDown: trapKeyDown } = useFocusTrap()
@@ -187,11 +293,16 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
           // #487
           escalationEnabled: alert.escalationPolicy?.enabled ?? false,
           escalationSteps: alert.escalationPolicy?.steps ?? [],
+          // #492
+          channels: alert.channels ?? [],
+          // #491
+          retestMode: alert.retestMode,
         })
       } else {
         setForm(emptyForm())
       }
       setErrors({})
+      setSimResult(null)
 
       requestAnimationFrame(() => {
         dialogRef.current?.focus()
@@ -343,6 +454,18 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
     },
     [currentPrice, setAndValidate],
   )
+
+  const handleTestAlert = useCallback(() => {
+    // Run against a base price derived from the form when no live price is
+    // available, so the simulation is usable even while editing a new alert.
+    const base =
+      currentPrice !== undefined && currentPrice > 0
+        ? currentPrice
+        : Number.parseFloat(form.upperThreshold) ||
+          Number.parseFloat(form.lowerThreshold) ||
+          100
+    setSimResult(simulateAlert(form, base))
+  }, [form, currentPrice])
 
   if (!isOpen) return null
 
@@ -713,6 +836,37 @@ export function AlertModal({ isOpen, onClose, onSave, onDelete, onReEnable, aler
             enabled={form.escalationEnabled}
             steps={form.escalationSteps}
             onChange={(escalationEnabled, escalationSteps) => setForm((prev) => ({ ...prev, escalationEnabled, escalationSteps }))}
+          />
+
+          {/* Price-level retest detection (#491) */}
+          <div className="mb-6 p-3 bg-gray-800/50 border border-gray-700 rounded-xl">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.retestMode}
+                onChange={(e) => setAndValidate('retestMode', e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500/50"
+              />
+              <span className="text-sm font-medium text-gray-300">{t('alertModal.retest.title')}</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1.5">{t('alertModal.retest.description')}</p>
+          </div>
+
+          {/* Per-alert channel routing (#492) */}
+          <ChannelRoutingSelect
+            value={form.channels}
+            onChange={(channels) => setForm((prev) => ({ ...prev, channels }))}
+          />
+
+          {/* Alert simulation (#490) */}
+          <AlertSimulationSection
+            simResult={simResult}
+            onRun={handleTestAlert}
+            disabled={
+              form.percentageMode
+                ? !form.percentageThreshold.trim()
+                : !form.upperThreshold.trim() && !form.lowerThreshold.trim()
+            }
           />
 
           <div className="flex gap-3">

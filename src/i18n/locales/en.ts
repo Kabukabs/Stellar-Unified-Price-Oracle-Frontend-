@@ -243,6 +243,25 @@ const en = {
       error_invalidDelay: 'Step {{step}}: delay must be a non-negative number of minutes',
       error_outOfOrder: 'Step {{step}}: delay must not be earlier than the previous step',
     },
+    // ── Price-level retest detection (#491) ──────────────────────────────
+    retest: {
+      title: 'Notify on retest',
+      description: 'Also fire if the price re-enters this breached level after it exits.',
+    },
+    // ── Alert simulation (#490) ──────────────────────────────────────────
+    simulate: {
+      title: 'Test alert',
+      run: 'Run simulation',
+      description: 'Replays a synthetic price series through the same evaluation logic used live, marking exactly where this alert would fire.',
+      idle: 'Run a simulation to see how this alert behaves without touching your live configuration.',
+    },
+    // ── Per-alert channel routing (#492) ──────────────────────────────────
+    channels: {
+      title: 'Notify via',
+      description: 'Choose where this alert is delivered. Leave empty to use the channels configured in your notification settings.',
+      useGlobal: 'Use global defaults',
+      noneConfigured: 'No channels configured — set up channels in Notification Settings first.',
+    },
     // ── Preset library (#486) ──────────────────────────────────────────────
     presets: {
       title: 'Start from a preset',
@@ -339,6 +358,13 @@ const en = {
       label: 'Escalation:',
       progress: '{{fired}} of {{total}} steps fired',
       historyBadge: 'Escalation · {{channel}}',
+    },
+    // ── Price-level retest detection (#491) ───────────────────────────────
+    retest: {
+      inBreach: 'In breach',
+      exited: 'Exited',
+      idle: 'Monitoring',
+      historyBadge: 'Retest',
     },
   },
 

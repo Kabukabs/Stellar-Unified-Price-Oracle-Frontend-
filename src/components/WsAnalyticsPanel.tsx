@@ -49,7 +49,21 @@ export const WsAnalyticsPanel = memo(function WsAnalyticsPanel() {
             <div className="text-gray-400">{label}</div>
           </div>
         ))}
+        {/* #472 – negotiated protocol version */}
+        <div className="bg-gray-800 rounded p-2">
+          <div className="text-lg font-mono font-bold text-cyan-400">
+            {summary.protocolVersion != null ? `v${summary.protocolVersion}` : '—'}
+          </div>
+          <div className="text-gray-400">Protocol</div>
+        </div>
       </div>
+
+      {/* #472 – surface the upgrade prompt on protocol mismatch */}
+      {summary.protocolUpgradeRequired && (
+        <div className="p-2 rounded bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-300" role="alert">
+          Server speaks a newer WS protocol than this client. Downgraded to the supported feature set — update the app.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="bg-gray-800 rounded p-2">
