@@ -13,6 +13,7 @@ A real-time dashboard for the Stellar Unified Price Oracle & Aggregator. Display
 
 **Live Site:** https://stellar-price-oracle.example.com  
 **API Documentation:** [docs/README.md](docs/README.md)  
+**SDK Quickstarts:** [docs/sdk-quickstart.md](docs/sdk-quickstart.md)  
 **Contributing Guide:** [CONTRIBUTING.md](CONTRIBUTING.md)  
 **Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)  
 

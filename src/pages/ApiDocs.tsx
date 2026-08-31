@@ -276,6 +276,14 @@ export function ApiDocs() {
           </svg>
           Read the oracle on-chain
         </a>
+        <a
+          href="https://github.com/Stellar-Unified-Price-Oracle/Stellar-Unified-Price-Oracle-Frontend-/blob/main/docs/sdk-quickstart.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 mt-3 ml-2 px-3 py-1.5 text-sm rounded-lg border border-cyan-800 bg-cyan-900/20 text-cyan-400 hover:bg-cyan-900/40 transition-colors"
+        >
+          SDK quickstarts
+        </a>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-3 text-xs text-gray-500">
