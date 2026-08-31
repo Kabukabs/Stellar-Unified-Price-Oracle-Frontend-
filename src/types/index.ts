@@ -13,6 +13,10 @@ export type {
   WsWelcomeMessage,
   WsPriceUpdate,
   WsMessage,
+  WsPauseMessage,
+  WsResumeMessage,
+  WsPausedMessage,
+  WsResumedMessage,
 } from './price'
 
 export { isPriceData } from './price'
