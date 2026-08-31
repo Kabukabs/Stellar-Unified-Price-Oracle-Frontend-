@@ -23,6 +23,7 @@ import { PerformanceOverlay } from './components/PerformanceOverlay'
 import { ApiVersionBanner } from './components/ApiVersionBanner'
 import { InstallPrompt } from './components/InstallPrompt'
 import { PwaUpdateBanner } from './components/PwaUpdateBanner'
+import { Webhooks } from './pages/Webhooks'
 import {
   LazyApiDocs,
   LazyDashboard,
@@ -99,6 +100,7 @@ export function AppContent(): ReactElement {
                 </RouteSuspense>
               }
             />
+            <Route path="/webhooks" element={<Webhooks />} />
             <Route
               path="*"
               element={
