@@ -82,6 +82,66 @@ npm audit fix --force
 
 ---
 
+## Secret Scanning (#494)
+
+### Automated scanning
+
+| Tool | Trigger | Purpose |
+|------|---------|---------|
+| Gitleaks CI workflow (`.github/workflows/secret-scan.yml`) | Every push / pull request to `main` | Scans the full clone history and the PR diff for committed secrets; fails the job on any finding |
+| Gitleaks pre-commit hook (`.husky/pre-commit`) | Every local commit | Scans staged changes only, using the same `.gitleaks.toml` rule set, for fast local feedback before a secret is even pushed |
+
+Both use [`.gitleaks.toml`](.gitleaks.toml) at the repo root, so local and CI
+results always agree. Findings report the file, line, and matched secret type
+(rule name); CI additionally leaves a PR comment summarizing them.
+
+### Remediation flow
+
+If Gitleaks (locally or in CI) reports a finding:
+
+1. **Do not push / do not merge** until it's resolved — a finding blocks the
+   pre-commit hook and fails CI by design.
+2. **Revoke** the exposed credential immediately at its source (API provider,
+   cloud console, bot token settings, etc.) — assume it is compromised the
+   moment it touches git history, even if the commit was never pushed.
+3. **Remove it from the working tree**, replacing it with an environment
+   variable or a reference to a secrets manager. See the storage policy in
+   `src/utils/storage.ts` for what belongs client-side (nothing sensitive) vs.
+   server-side.
+4. **Purge it from history** if it was committed: `git filter-repo` (preferred
+   over the deprecated `git filter-branch` / BFG) to rewrite the offending
+   commit(s), then force-push and have all collaborators re-clone.
+5. **Re-run the scan** (`gitleaks detect --config .gitleaks.toml`) to confirm
+   the finding is gone before reopening the PR.
+6. **Alert** — post in the team's security channel (or open a private security
+   advisory per the reporting process above) noting what was exposed, for how
+   long, and that it was revoked, so downstream consumers of that credential
+   know to expect rotation.
+
+A rule that's too broad for this repo (a false positive) belongs in the
+`[allowlist]` section of `.gitleaks.toml`, not silenced ad hoc — keep it
+narrowly scoped (a specific path or regex, not a whole rule) with a comment
+explaining why.
+
+---
+
+## Supply-Chain Health — OpenSSF Scorecard (#495)
+
+[`.github/workflows/scorecards.yml`](.github/workflows/scorecards.yml) runs the
+[OpenSSF Scorecard](https://github.com/ossf/scorecard) weekly (and on demand via
+`workflow_dispatch`), scoring the repo across checks like branch protection,
+pinned dependencies, token permissions, and dependency update tooling. Results
+are uploaded as a SARIF file to the repo's code scanning alerts and as a
+workflow artifact; the current score is shown by the badge on the
+[README](README.md).
+
+When the score changes meaningfully (a check flips passing/failing, or the
+aggregate score moves by more than a point or two), note the delta and what
+changed in that release's notes — the Scorecard results page linked from the
+badge has the check-by-check breakdown to cite.
+
+---
+
 ## Scope
 
 This policy applies to the frontend application in this repository.  Backend,

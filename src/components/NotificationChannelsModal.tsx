@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 import { loadBotSecrets, saveBotSecrets, sendTelegramMessage, sendDiscordMessage } from '../services/botNotifications'
+import { useAlerts } from '../hooks/useAlerts'
+import { useAlertDigest } from '../hooks/useAlertDigest'
+import type { DigestFrequency } from '../utils/alertDigest'
 
 interface NotificationConfig {
   email: { address: string; enabled: boolean }
@@ -80,6 +83,87 @@ function StatusDot({ active }: { active: boolean }) {
       className={`inline-block w-2 h-2 rounded-full ${active ? 'bg-green-400' : 'bg-gray-600'}`}
       aria-hidden="true"
     />
+  )
+}
+
+function formatDateTime(ts: number): string {
+  return new Date(ts).toLocaleString()
+}
+
+/**
+ * #489 — Digest schedule option: daily/weekly summary of fired + active alerts,
+ * delivered over the email channel above. Delivery history + unsubscribe live
+ * here too, so the whole digest lifecycle is reachable from one place.
+ */
+function DigestSection({ emailConfigured }: { emailConfigured: boolean }): ReactElement {
+  const { alerts, alertHistory } = useAlerts()
+  const { subscription, history, setEnabled, setFrequency, runNow, unsubscribe } = useAlertDigest(alerts, alertHistory)
+
+  return (
+    <div className="pt-4 mt-4 border-t border-gray-800 space-y-3">
+      <h3 className="text-sm font-medium text-gray-300">Digest</h3>
+      <p className="text-xs text-gray-500">
+        A periodic summary of fired and active alerts, sent to the email address above.
+      </p>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={subscription.enabled}
+          disabled={!emailConfigured}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500"
+        />
+        <span className="text-sm text-gray-300">Enable {subscription.frequency} digest</span>
+      </label>
+      {!emailConfigured && (
+        <p className="text-xs text-amber-400">Configure and enable email above to receive the digest.</p>
+      )}
+      <div className="flex items-center gap-3">
+        <select
+          value={subscription.frequency}
+          onChange={(e) => setFrequency(e.target.value as DigestFrequency)}
+          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-gray-200"
+        >
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => void runNow()}
+          disabled={!emailConfigured}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors disabled:opacity-50"
+        >
+          Send now
+        </button>
+        {subscription.enabled && (
+          <button
+            type="button"
+            onClick={unsubscribe}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition-colors"
+          >
+            Unsubscribe
+          </button>
+        )}
+      </div>
+      {subscription.nextRunAt > 0 && subscription.enabled && (
+        <p className="text-xs text-gray-500">Next digest: {formatDateTime(subscription.nextRunAt)}</p>
+      )}
+      {history.length > 0 && (
+        <div>
+          <h4 className="text-xs text-gray-500 uppercase tracking-wide mb-1">Delivery history</h4>
+          <ul className="space-y-1 max-h-28 overflow-y-auto text-xs text-gray-400">
+            {history.slice(0, 10).map((entry) => (
+              <li key={entry.id} className="flex justify-between gap-2">
+                <span>{formatDateTime(entry.sentAt)}</span>
+                <span>
+                  {entry.firedCount} fired · {entry.activeCount} active {entry.ok ? '' : '(failed)'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -300,6 +384,8 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
             >
               Send test email
             </button>
+
+            <DigestSection emailConfigured={!!config.email.address && config.email.enabled} />
           </div>
         )}
 
