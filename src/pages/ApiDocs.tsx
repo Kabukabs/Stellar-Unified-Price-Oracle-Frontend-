@@ -14,6 +14,7 @@ interface Endpoint {
   description: string
   note?: string
   tryPath?: string
+  body?: string
 }
 
 const ENDPOINTS: Endpoint[] = [
@@ -39,6 +40,8 @@ const ENDPOINTS: Endpoint[] = [
     method: 'POST',
     path: '/api/prices/history/batch',
     description: 'Fetches price history for multiple asset pairs in a single request.',
+    tryPath: '/api/prices/history/batch',
+    body: '{"pairs":["XLM-USD","BTC-USD"]}',
   },
   {
     method: 'GET',
@@ -136,6 +139,10 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [path, setPath] = useState(endpoint.tryPath ?? endpoint.path)
+  const [body, setBody] = useState(endpoint.body ?? '')
+  const [latency, setLatency] = useState<number | null>(null)
+  const [headers, setHeaders] = useState<Record<string, string>>({})
   const { t } = useTranslation()
 
   if (!endpoint.tryPath || endpoint.method === 'WS') return null
@@ -144,13 +151,26 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
     setLoading(true)
     setResult(null)
     setError(null)
+    setLatency(null)
+    const started = performance.now()
     try {
-      const res = await fetch(`${config.apiUrl.replace(/\/api$/, '')}${endpoint.tryPath}`)
+      const res = await fetch(`${config.apiUrl.replace(/\/api$/, '')}${path}`, {
+        method: endpoint.method,
+        headers: endpoint.method === 'POST' ? { 'Content-Type': 'application/json' } : undefined,
+        body: endpoint.method === 'POST' ? body : undefined,
+      })
+      setLatency(Math.round(performance.now() - started))
+      const responseHeaders: Record<string, string> = {}
+      res.headers.forEach((value, key) => { if (key.toLowerCase().startsWith('x-ratelimit-') || key.toLowerCase() === 'retry-after') responseHeaders[key] = value })
+      setHeaders(responseHeaders)
       const text = await res.text()
       try {
-        setResult(JSON.stringify(JSON.parse(text), null, 2))
+        const parsed: unknown = JSON.parse(text)
+        setResult(JSON.stringify(parsed, null, 2))
+        if (!res.ok && typeof parsed === 'object' && parsed !== null && 'message' in parsed) setError(String(parsed.message))
       } catch {
-        setResult(text)
+        if (res.ok) setResult(text)
+        else setError(`${res.status} ${res.statusText}: ${text}`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request failed')
@@ -179,6 +199,11 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
           {result}
         </pre>
       )}
+      <div className="mt-3 grid gap-2">
+        <label className="text-xs text-gray-500">Path<input value={path} onChange={(event) => setPath(event.target.value)} className="mt-1 w-full rounded bg-gray-800 border border-gray-700 px-2 py-1 text-xs text-gray-200" /></label>
+        {endpoint.method === 'POST' && <label className="text-xs text-gray-500">JSON body<textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} className="mt-1 w-full rounded bg-gray-800 border border-gray-700 px-2 py-1 text-xs text-gray-200 font-mono" /></label>}
+      </div>
+      {(latency != null || Object.keys(headers).length > 0) && <p className="mt-2 text-xs text-gray-500">{latency != null ? `${latency}ms` : ''}{Object.entries(headers).map(([key, value]) => ` · ${key}: ${value}`).join('')}</p>}
     </div>
   )
 }
