@@ -13,6 +13,25 @@ public GitHub issue**.  Instead, report it privately using one of these channels
 You will receive an acknowledgement within **72 hours** and a resolution timeline
 within **7 days** of the initial report.
 
+This policy is also published at `/.well-known/security.txt` (RFC 9116) on the
+deployed site, and as a human-readable page at `/security`, which is linked from
+the site footer.
+
+---
+
+## Triage & Disclosure Process (#500)
+
+1. **Acknowledgement** — a maintainer confirms receipt within 72 hours.
+2. **Triage** — the report is reproduced and assigned a severity (Critical/High/
+   Moderate/Low, CVSS-aligned) within 5 business days. See the remediation SLA
+   table below for the deadlines that follow from that severity.
+3. **Fix** — a patch is developed on a private branch/advisory so the issue is
+   not publicly visible before a fix ships.
+4. **Coordinated disclosure** — once a fix is released, the reporter is credited
+   (with permission) in the GitHub Security Advisory and release notes. Public
+   disclosure timing is coordinated with the reporter; the default is 90 days
+   after the initial report or immediately after a fix ships, whichever is first.
+
 ---
 
 ## Dependency Vulnerability Management

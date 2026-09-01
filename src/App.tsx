@@ -13,6 +13,8 @@ import { ToastProvider } from './context/ToastContext'
 import { PreferencesProvider } from './preferences/PreferencesContext'
 import { ErrorReporterProvider } from './context/ErrorReporterContext'
 import { WalletProvider } from './wallet/WalletContext'
+import { AuthProvider } from './auth/AuthContext'
+import { AuthCallback } from './pages/AuthCallback'
 import { useWebVitals } from './hooks/useWebVitals'
 import { useAccessibility } from './hooks/useAccessibility'
 import { initAnalytics } from './hooks/useAnalytics'
@@ -29,6 +31,7 @@ import {
   LazyLanding,
   LazyNotFound,
   LazyPriceDetail,
+  LazySecurity,
   preloadDashboard,
   preloadPriceDetail,
 } from './utils/chunks'
@@ -100,6 +103,15 @@ export function AppContent(): ReactElement {
               }
             />
             <Route
+              path="/security"
+              element={
+                <RouteSuspense fallback={<NotFoundSkeleton />}>
+                  <LazySecurity />
+                </RouteSuspense>
+              }
+            />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route
               path="*"
               element={
                 <RouteSuspense fallback={<NotFoundSkeleton />}>
@@ -125,12 +137,14 @@ export default function App(): ReactElement {
       <ErrorReporterProvider>
         <PreferencesProvider>
           <ToastProvider>
-            <WalletProvider>
-              <PriceProvider>
-                <AppContent />
-                {import.meta.env.DEV && <PerformanceOverlay />}
-              </PriceProvider>
-            </WalletProvider>
+            <AuthProvider>
+              <WalletProvider>
+                <PriceProvider>
+                  <AppContent />
+                  {import.meta.env.DEV && <PerformanceOverlay />}
+                </PriceProvider>
+              </WalletProvider>
+            </AuthProvider>
           </ToastProvider>
         </PreferencesProvider>
       </ErrorReporterProvider>
