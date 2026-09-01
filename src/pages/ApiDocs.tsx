@@ -132,10 +132,27 @@ const LANG_LABELS: Record<SnippetLang, string> = {
   python: 'Python',
 }
 
+/**
+ * Response headers that carry cache status/CDN metadata, checked in priority
+ * order (#508). Different edge layers (Vercel, Cloudflare, a custom
+ * SWR-aware origin) name this header differently, so we surface whichever is
+ * present rather than assuming one CDN.
+ */
+const CACHE_STATUS_HEADERS = ['x-cache-status', 'cf-cache-status', 'x-vercel-cache', 'x-cache']
+
+function readCacheStatus(headers: Headers): string | null {
+  for (const name of CACHE_STATUS_HEADERS) {
+    const value = headers.get(name)
+    if (value) return value
+  }
+  return null
+}
+
 function TryItOut({ endpoint }: { endpoint: Endpoint }) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [cacheStatus, setCacheStatus] = useState<string | null>(null)
   const { t } = useTranslation()
 
   if (!endpoint.tryPath || endpoint.method === 'WS') return null
@@ -144,8 +161,10 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
     setLoading(true)
     setResult(null)
     setError(null)
+    setCacheStatus(null)
     try {
       const res = await fetch(`${config.apiUrl.replace(/\/api$/, '')}${endpoint.tryPath}`)
+      setCacheStatus(readCacheStatus(res.headers))
       const text = await res.text()
       try {
         setResult(JSON.stringify(JSON.parse(text), null, 2))
@@ -169,6 +188,11 @@ function TryItOut({ endpoint }: { endpoint: Endpoint }) {
       >
         {loading ? t('apiDocs.sending') : t('apiDocs.tryItOut')}
       </button>
+      {cacheStatus && (
+        <p className="mt-2 text-xs font-mono text-gray-500">
+          {t('apiDocs.cacheStatus', 'Cache:')} <span className="text-gray-300">{cacheStatus}</span>
+        </p>
+      )}
       {error && (
         <pre className="mt-2 p-3 rounded-lg bg-red-900/20 border border-red-800 text-red-400 text-xs overflow-auto max-h-48 whitespace-pre-wrap">
           {error}

@@ -588,6 +588,7 @@ const en = {
     ws: 'WS:',
     tryItOut: 'Try it out',
     sending: 'Sending…',
+    cacheStatus: 'Cache:',
     copy: 'Copy',
     copied: 'Copied!',
   },

@@ -31,6 +31,24 @@
         },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
       ]
+    },
+    {
+      "source": "/api/prices",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=5, stale-while-revalidate=30" }
+      ]
+    },
+    {
+      "source": "/api/prices/:pair",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=5, stale-while-revalidate=30" }
+      ]
+    },
+    {
+      "source": "/api/prices/:pair/history",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=60, stale-while-revalidate=300" }
+      ]
     }
   ],
   "env": [

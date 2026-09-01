@@ -10,7 +10,8 @@ import { loadSoundPreferences } from '../utils/soundPreferences'
 import { evaluateCompoundCondition } from '../utils/alertEvaluator'
 import {
   loadAlertHistory,
-  saveAlertHistory,
+  saveAlertHistoryDebounced,
+  flushAlertHistory,
   buildTriggerHistoryEntry,
   buildEscalationHistoryEntry,
   appendHistoryEntries,
@@ -460,10 +461,18 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   }, [alerts])
 
   useEffect(() => {
-    saveAlertHistory(history)
+    // Debounced (#510) — coalesces write storms (e.g. escalation bursts,
+    // simulation replay) into a single persisted write per burst.
+    saveAlertHistoryDebounced(history)
     // Broadcast history change to other tabs
     alertsHistoryChannel.broadcast('alerts-history-update', history)
   }, [history])
+
+  // Flush any pending debounced history write on unmount so the last burst
+  // is never lost (e.g. navigating away right after an alert fires).
+  useEffect(() => {
+    return () => flushAlertHistory()
+  }, [])
 
   // Listen for alerts changes from other tabs
   useEffect(() => {
