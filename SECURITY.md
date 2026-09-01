@@ -13,6 +13,25 @@ public GitHub issue**.  Instead, report it privately using one of these channels
 You will receive an acknowledgement within **72 hours** and a resolution timeline
 within **7 days** of the initial report.
 
+This policy is also published at `/.well-known/security.txt` (RFC 9116) on the
+deployed site, and as a human-readable page at `/security`, which is linked from
+the site footer.
+
+---
+
+## Triage & Disclosure Process (#500)
+
+1. **Acknowledgement** — a maintainer confirms receipt within 72 hours.
+2. **Triage** — the report is reproduced and assigned a severity (Critical/High/
+   Moderate/Low, CVSS-aligned) within 5 business days. See the remediation SLA
+   table below for the deadlines that follow from that severity.
+3. **Fix** — a patch is developed on a private branch/advisory so the issue is
+   not publicly visible before a fix ships.
+4. **Coordinated disclosure** — once a fix is released, the reporter is credited
+   (with permission) in the GitHub Security Advisory and release notes. Public
+   disclosure timing is coordinated with the reporter; the default is 90 days
+   after the initial report or immediately after a fix ships, whichever is first.
+
 ---
 
 ## Dependency Vulnerability Management
@@ -82,63 +101,70 @@ npm audit fix --force
 
 ---
 
-## Secret Scanning (#494)
+## Subresource Integrity (SRI)
 
-### Automated scanning
+Every `<script>` / `<link rel="stylesheet">` loaded from a third-party (non-same-origin)
+host must carry an `integrity` (+ `crossorigin`) attribute, so a compromised CDN cannot
+silently swap the file we serve to users.
 
-| Tool | Trigger | Purpose |
-|------|---------|---------|
-| Gitleaks CI workflow (`.github/workflows/secret-scan.yml`) | Every push / pull request to `main` | Scans the full clone history and the PR diff for committed secrets; fails the job on any finding |
-| Gitleaks pre-commit hook (`.husky/pre-commit`) | Every local commit | Scans staged changes only, using the same `.gitleaks.toml` rule set, for fast local feedback before a secret is even pushed |
+- `scripts/check-sri.js` scans `index.html` (static tags) and `src/**/*.{ts,tsx}`
+  (dynamically injected `script.src`/`link.href`, e.g. `src/hooks/useAnalytics.ts`) for
+  cross-origin assets missing `integrity`.
+- CI (`.github/workflows/ci.yml`) runs this check on every push/PR and fails the build
+  on any unreviewed finding.
+- **Exceptions** — some assets genuinely cannot carry a static hash (content negotiated
+  per-User-Agent, or the vendor rebuilds the file on their own schedule). These are
+  documented in [`sri-exceptions.json`](./sri-exceptions.json) with a `host`, `reason`,
+  and `reviewBy` date. The check script warns when an exception's `reviewBy` date has
+  passed so stale exceptions get re-evaluated instead of silently living forever.
+  Add a new exception only when pinning is genuinely impossible, and prefer pinning
+  wherever the vendor publishes versioned, immutable URLs.
 
-Both use [`.gitleaks.toml`](.gitleaks.toml) at the repo root, so local and CI
-results always agree. Findings report the file, line, and matched secret type
-(rule name); CI additionally leaves a PR comment summarizing them.
+## Dynamic Application Security Testing (DAST)
 
-### Remediation flow
+`.github/workflows/dast.yml` runs an [OWASP ZAP baseline scan](https://www.zaproxy.org/docs/docker/baseline-scan/)
+against a locally served production build (`vite preview`) on every push to `main` and
+on demand (`workflow_dispatch`). It exercises the app's real routes (dashboard, price
+detail, API docs) against mock data, uploads the ZAP report as a downloadable CI
+artifact, and fails the job on any **High**-severity alert. Known false positives for
+this app (e.g. alerts about the intentionally strict CSP itself) are tuned out via
+[`.zap/rules.tsv`](./.zap/rules.tsv) — treat additions to that file as security
+decisions requiring review, not routine noise suppression.
 
-If Gitleaks (locally or in CI) reports a finding:
+## Content Security Policy reporting
 
-1. **Do not push / do not merge** until it's resolved — a finding blocks the
-   pre-commit hook and fails CI by design.
-2. **Revoke** the exposed credential immediately at its source (API provider,
-   cloud console, bot token settings, etc.) — assume it is compromised the
-   moment it touches git history, even if the commit was never pushed.
-3. **Remove it from the working tree**, replacing it with an environment
-   variable or a reference to a secrets manager. See the storage policy in
-   `src/utils/storage.ts` for what belongs client-side (nothing sensitive) vs.
-   server-side.
-4. **Purge it from history** if it was committed: `git filter-repo` (preferred
-   over the deprecated `git filter-branch` / BFG) to rewrite the offending
-   commit(s), then force-push and have all collaborators re-clone.
-5. **Re-run the scan** (`gitleaks detect --config .gitleaks.toml`) to confirm
-   the finding is gone before reopening the PR.
-6. **Alert** — post in the team's security channel (or open a private security
-   advisory per the reporting process above) noting what was exposed, for how
-   long, and that it was revoked, so downstream consumers of that credential
-   know to expect rotation.
+The CSP in `vercel.json` sends violation reports to `/api/csp-report` (a small Vercel
+serverless function, `api/csp-report.ts`) via the `report-to`/`Reporting-Endpoints`
+headers, and the app additionally listens for the browser's `securitypolicyviolation`
+event directly (`src/utils/cspReporting.ts`) so violations are visible even when no
+report collector is configured. Captured violations feed the existing console
+aggregator (so they show up alongside other warnings) and a dedicated
+`CspViolationsPanel` component that surfaces the top violating directives and recent
+blocked URIs.
 
-A rule that's too broad for this repo (a false positive) belongs in the
-`[allowlist]` section of `.gitleaks.toml`, not silenced ad hoc — keep it
-narrowly scoped (a specific path or regex, not a whole rule) with a comment
-explaining why.
+**Report-only rollout per environment** — because Vercel resolves `vercel.json` from
+the exact commit being deployed, the safe way to trial a policy change is:
 
----
+1. Change the `Content-Security-Policy` header key to `Content-Security-Policy-Report-Only`
+   in `vercel.json` on the `staging` branch only (this repo auto-deploys `staging` and
+   `develop` as separate environments — see `.github/workflows/preview.yml`).
+2. Let it run against real traffic; watch `CspViolationsPanel` / the `/api/csp-report`
+   logs for the violating directives and blocked URIs.
+3. Fix legitimate violations (loosen the specific directive, e.g. add a new CDN host to
+   `connect-src`) or fix the code causing an unwanted violation.
+4. Once the violation count is zero for a full traffic cycle, flip the header key back
+   to `Content-Security-Policy` (enforced) and merge to `main`.
 
-## Supply-Chain Health — OpenSSF Scorecard (#495)
+## Release provenance
 
-[`.github/workflows/scorecards.yml`](.github/workflows/scorecards.yml) runs the
-[OpenSSF Scorecard](https://github.com/ossf/scorecard) weekly (and on demand via
-`workflow_dispatch`), scoring the repo across checks like branch protection,
-pinned dependencies, token permissions, and dependency update tooling. Results
-are uploaded as a SARIF file to the repo's code scanning alerts and as a
-workflow artifact; the current score is shown by the badge on the
-[README](README.md).
-
-When the score changes meaningfully (a check flips passing/failing, or the
-aggregate score moves by more than a point or two), note the delta and what
-changed in that release's notes — the Scorecard results page linked from the
-badge has the check-by-check breakdown to cite.
+Build artifacts published from `main` carry a [SLSA-style build provenance
+attestation](https://slsa.dev/spec/v1.0/) generated by `actions/attest-build-provenance`
+in `.github/workflows/release.yml`, signed via GitHub's OIDC identity for the workflow
+run (no long-lived keys). The release job requests `id-token: write` and
+`attestations: write` and runs the attestation step **before** the deploy step, so a
+signing failure blocks the release rather than shipping an unattested artifact. See
+[`docs/PROVENANCE.md`](./docs/PROVENANCE.md) for consumer verification commands and the
+maintainer signed-commits setup.
 
 ---
 

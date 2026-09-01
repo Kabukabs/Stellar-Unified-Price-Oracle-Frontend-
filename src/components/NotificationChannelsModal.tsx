@@ -2,14 +2,21 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from 'rea
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { readJson, writeJson, STORAGE_KEYS } from '../utils/storage'
 import { loadBotSecrets, saveBotSecrets, sendTelegramMessage, sendDiscordMessage } from '../services/botNotifications'
-import { useAlerts } from '../hooks/useAlerts'
-import { useAlertDigest } from '../hooks/useAlertDigest'
-import type { DigestFrequency } from '../utils/alertDigest'
+import {
+  buildVerifySample,
+  generateWebhookSecret,
+  isSecretStale,
+  signWebhookPayload,
+  type VerifySampleLang,
+} from '../utils/webhookSigning'
+import { DeveloperAuthGate } from '../auth/DeveloperAuthGate'
 
 interface NotificationConfig {
   email: { address: string; enabled: boolean }
   webPush: { enabled: boolean }
-  webhook: { url: string; secret: string; enabled: boolean }
+  // #502 — `secretUpdatedAt` (epoch ms) tracks rotation age. It is NOT the
+  // secret itself, so it is safe to persist even though `secret` is not.
+  webhook: { url: string; secret: string; secretUpdatedAt: number | null; enabled: boolean }
   // #488 — Telegram/Discord routing config. Bot tokens and the Discord webhook URL
   // are NOT part of this shape; they live in sessionStorage via botNotifications.ts.
   telegram: { chatId: string; enabled: boolean }
@@ -32,7 +39,7 @@ type PersistedNotificationConfig = Omit<NotificationConfig, 'webhook'> & {
 const DEFAULT_CONFIG: NotificationConfig = {
   email: { address: '', enabled: false },
   webPush: { enabled: false },
-  webhook: { url: '', secret: '', enabled: false },
+  webhook: { url: '', secret: '', secretUpdatedAt: null, enabled: false },
   telegram: { chatId: '', enabled: false },
   discord: { channelId: '', enabled: false },
 }
@@ -175,6 +182,9 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
   const [activeTab, setActiveTab] = useState<TabId>('email')
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default')
   const [testStatus, setTestStatus] = useState<string | null>(null)
+  // #502 — the rotated secret, shown exactly once right after rotation.
+  const [justRotatedSecret, setJustRotatedSecret] = useState<string | null>(null)
+  const [verifyLang, setVerifyLang] = useState<VerifySampleLang>('node')
   const dialogRef = useRef<HTMLDivElement>(null)
   const { containerRef, handleKeyDown: trapKeyDown } = useFocusTrap()
 
@@ -187,6 +197,7 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
   useEffect(() => {
     if (isOpen) {
       setTestStatus(null)
+      setJustRotatedSecret(null)
       requestAnimationFrame(() => dialogRef.current?.focus())
     }
   }, [isOpen])
@@ -196,6 +207,14 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
     saveBotSecrets(botSecrets) // #488 — sessionStorage only, see the file-level doc comment
     onClose()
   }, [config, botSecrets, onClose])
+
+  // #502 — one-click rotation: generates a fresh secret, updates the rotation
+  // timestamp (clearing any age warning), and shows the new value exactly once.
+  const rotateSecret = useCallback(() => {
+    const secret = generateWebhookSecret()
+    setConfig((c) => ({ ...c, webhook: { ...c.webhook, secret, secretUpdatedAt: Date.now() } }))
+    setJustRotatedSecret(secret)
+  }, [])
 
   const requestPushPermission = useCallback(async () => {
     if (!('Notification' in window)) return
@@ -228,14 +247,16 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
           return
         }
         try {
-          await fetch(config.webhook.url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(config.webhook.secret ? { 'X-Webhook-Secret': config.webhook.secret } : {}),
-            },
-            body: JSON.stringify({ type: 'test', message: 'Test webhook from Stellar Price Oracle' }),
-          })
+          const body = JSON.stringify({ type: 'test', message: 'Test webhook from Stellar Price Oracle' })
+          // #502 — sign the payload the same way real deliveries are signed, so
+          // "Send test request" doubles as a way to sanity-check verification code.
+          const timestamp = Math.floor(Date.now() / 1000)
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (config.webhook.secret) {
+            headers['X-Webhook-Signature'] = await signWebhookPayload(config.webhook.secret, body, timestamp)
+            headers['X-Webhook-Timestamp'] = String(timestamp)
+          }
+          await fetch(config.webhook.url, { method: 'POST', headers, body })
           setTestStatus('Webhook test sent')
         } catch {
           setTestStatus('Webhook request failed — check URL and CORS settings')
@@ -443,66 +464,140 @@ export function NotificationChannelsModal({ isOpen, onClose }: Props): ReactElem
         )}
 
         {activeTab === 'webhook' && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <StatusDot active={!!config.webhook.url && config.webhook.enabled} />
-              <span className="text-sm text-gray-400">
-                {config.webhook.url && config.webhook.enabled ? 'Configured' : 'Not configured'}
-              </span>
-            </div>
-            <div>
-              <label htmlFor="notif-webhook-url" className="block text-sm text-gray-400 mb-1.5">
-                Webhook URL
+          <DeveloperAuthGate feature="webhook configuration">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <StatusDot active={!!config.webhook.url && config.webhook.enabled} />
+                <span className="text-sm text-gray-400">
+                  {config.webhook.url && config.webhook.enabled ? 'Configured' : 'Not configured'}
+                </span>
+              </div>
+              <div>
+                <label htmlFor="notif-webhook-url" className="block text-sm text-gray-400 mb-1.5">
+                  Webhook URL
+                </label>
+                <input
+                  id="notif-webhook-url"
+                  type="url"
+                  value={config.webhook.url}
+                  onChange={(e) =>
+                    setConfig((c) => ({ ...c, webhook: { ...c.webhook, url: e.target.value } }))
+                  }
+                  placeholder="https://your-server.com/webhook"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                />
+              </div>
+
+              {/* #502 — signing secret + one-click rotation */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="notif-webhook-secret" className="block text-sm text-gray-400">
+                    Signing secret <span className="text-gray-600">(optional)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={rotateSecret}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-gray-700 text-cyan-400 hover:bg-gray-800 transition-colors"
+                  >
+                    Rotate secret
+                  </button>
+                </div>
+                <input
+                  id="notif-webhook-secret"
+                  type="password"
+                  value={config.webhook.secret}
+                  onChange={(e) =>
+                    setConfig((c) => ({ ...c, webhook: { ...c.webhook, secret: e.target.value } }))
+                  }
+                  placeholder="Signing secret"
+                  aria-describedby="notif-webhook-secret-help"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                />
+                <p id="notif-webhook-secret-help" className="mt-1.5 text-xs text-gray-500">
+                  Not saved to this browser — re-enter it after a reload. Used to sign each delivery
+                  with HMAC-SHA256 (see "Verify signature" below).
+                </p>
+
+                {justRotatedSecret && (
+                  <div
+                    role="status"
+                    className="mt-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 space-y-1.5"
+                  >
+                    <p className="text-xs font-medium text-cyan-300">
+                      New secret — copy it now, it won't be shown again:
+                    </p>
+                    <code className="block text-xs text-white bg-gray-900/60 rounded-lg px-2.5 py-2 break-all select-all">
+                      {justRotatedSecret}
+                    </code>
+                  </div>
+                )}
+
+                {!justRotatedSecret && isSecretStale(config.webhook.secretUpdatedAt) && (
+                  <p className="mt-2 text-xs text-amber-400" role="status">
+                    ⚠ This secret is over 90 days old — consider rotating it.
+                  </p>
+                )}
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.webhook.enabled}
+                  onChange={(e) =>
+                    setConfig((c) => ({ ...c, webhook: { ...c.webhook, enabled: e.target.checked } }))
+                  }
+                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500"
+                />
+                <span className="text-sm text-gray-300">Enable webhook notifications</span>
               </label>
-              <input
-                id="notif-webhook-url"
-                type="url"
-                value={config.webhook.url}
-                onChange={(e) =>
-                  setConfig((c) => ({ ...c, webhook: { ...c.webhook, url: e.target.value } }))
-                }
-                placeholder="https://your-server.com/webhook"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              />
+              <button
+                type="button"
+                onClick={() => handleTest('webhook')}
+                className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                Send test request
+              </button>
+
+              {/* #502 — signing scheme docs + copyable verification sample */}
+              <div className="pt-3 border-t border-gray-800">
+                <p className="text-sm text-gray-400 mb-2">
+                  Verify signature <span className="text-gray-600">— HMAC-SHA256 of{' '}
+                  <code className="text-xs bg-gray-800 px-1 py-0.5 rounded">{'{timestamp}.{body}'}</code>,
+                  sent as <code className="text-xs bg-gray-800 px-1 py-0.5 rounded">X-Webhook-Signature</code></span>
+                </p>
+                <div className="flex gap-1 mb-2" role="tablist" aria-label="Verification sample language">
+                  {(['node', 'python', 'go', 'curl'] as VerifySampleLang[]).map((lang) => (
+                    <button
+                      key={lang}
+                      type="button"
+                      role="tab"
+                      aria-selected={verifyLang === lang}
+                      onClick={() => setVerifyLang(lang)}
+                      className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                        verifyLang === lang
+                          ? 'border-cyan-500 text-cyan-400 bg-cyan-500/10'
+                          : 'border-gray-700 text-gray-400 hover:bg-gray-800'
+                      }`}
+                    >
+                      {lang === 'node' ? 'Node.js' : lang === 'python' ? 'Python' : lang === 'go' ? 'Go' : 'cURL'}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <pre className="text-xs bg-gray-950 border border-gray-800 rounded-xl p-3 overflow-x-auto text-gray-300 whitespace-pre">
+                    {buildVerifySample(verifyLang)}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard.writeText(buildVerifySample(verifyLang))}
+                    className="absolute top-2 right-2 text-xs px-2 py-1 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
             </div>
-            <div>
-              <label htmlFor="notif-webhook-secret" className="block text-sm text-gray-400 mb-1.5">
-                Secret <span className="text-gray-600">(optional)</span>
-              </label>
-              <input
-                id="notif-webhook-secret"
-                type="password"
-                value={config.webhook.secret}
-                onChange={(e) =>
-                  setConfig((c) => ({ ...c, webhook: { ...c.webhook, secret: e.target.value } }))
-                }
-                placeholder="Signing secret"
-                aria-describedby="notif-webhook-secret-help"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-              />
-              <p id="notif-webhook-secret-help" className="mt-1.5 text-xs text-gray-500">
-                Not saved to this browser — re-enter it after a reload.
-              </p>
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.webhook.enabled}
-                onChange={(e) =>
-                  setConfig((c) => ({ ...c, webhook: { ...c.webhook, enabled: e.target.checked } }))
-                }
-                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-cyan-500"
-              />
-              <span className="text-sm text-gray-300">Enable webhook notifications</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => handleTest('webhook')}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
-            >
-              Send test request
-            </button>
-          </div>
+          </DeveloperAuthGate>
         )}
 
         {/* #488 — Telegram bot channel */}
