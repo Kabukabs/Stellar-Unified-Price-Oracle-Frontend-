@@ -36,6 +36,11 @@ jobs:
         env:
           VITE_USE_MOCK: 'true'
 
+      # Fail CI when a new CDN script/stylesheet is added without an `integrity`
+      # attribute and without a reviewed exception in sri-exceptions.json.
+      - name: Subresource Integrity check
+        run: node scripts/check-sri.js
+
       - run: npm run test:run
 
       # Upload hidden source maps to Sentry for production error tracking,
