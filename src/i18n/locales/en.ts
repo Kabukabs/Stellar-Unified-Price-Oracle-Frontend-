@@ -321,6 +321,16 @@ const en = {
       snoozed: 'Snoozed',
       fired: 'Fired',
     },
+    // Alert health checks (#493)
+    health: {
+      badge: 'May never fire',
+      review: 'Review',
+      dismiss: 'Dismiss',
+      title: 'Health check',
+      reasonNeverSatisfiable: 'This threshold has never been reached in the observed history.',
+      reasonInsufficientHistory: 'Not enough price history yet to judge this condition.',
+      suggestion: 'Observed data suggests {{value}} instead.',
+    },
     // Fired one-time (#312)
     fired: {
       at: 'Fired at {{time}}',
